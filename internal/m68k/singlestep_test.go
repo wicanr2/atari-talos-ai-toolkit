@@ -102,6 +102,24 @@ func TestSingleStepMOVEWordWriteAddressErrors(t *testing.T) {
 	})
 }
 
+func TestSingleStepMOVELongNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.l.json.bin", 1013, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re") && !hasTransactionKind(test.Transactions, "we")
+	})
+}
+
+func TestSingleStepMOVELongReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.l.json.bin", 869, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepMOVELongWriteAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.l.json.bin", 618, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "we")
+	})
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {

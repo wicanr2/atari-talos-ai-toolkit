@@ -53,6 +53,8 @@ func (c *CPU) Step() (StepResult, error) {
 	switch {
 	case opcode&0xf000 == 0x1000:
 		return c.stepMOVEByte(opcode)
+	case opcode&0xf000 == 0x2000:
+		return c.stepMOVELong(opcode)
 	case opcode&0xf000 == 0x3000:
 		return c.stepMOVEWord(opcode)
 	case opcode&0xf1c0 == 0x41c0 && isControlMode(opcode):
@@ -672,6 +674,343 @@ func (s *moveWordStep) wordWriteFault(opcode uint16, address, savedPC uint32, va
 }
 
 func (s *moveWordStep) writeWord(address uint32, value uint16) error {
+	address &= addressMask
+	if err := s.cpu.Bus.WriteWord(address, value, s.dataFC); err != nil {
+		return err
+	}
+	s.transactions = append(s.transactions, writeTransaction(address, s.dataFC, value))
+	return nil
+}
+
+type moveLongStep struct {
+	moveByteStep
+	opcode    uint16
+	initialPC uint32
+}
+
+func (c *CPU) stepMOVELong(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	sourceMode := uint8(opcode >> 3 & 7)
+	sourceReg := uint8(opcode & 7)
+	destinationMode := uint8(opcode >> 6 & 7)
+	destinationReg := uint8(opcode >> 9 & 7)
+	if destinationMode == 1 || destinationMode == 7 && destinationReg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid MOVE.L destination mode %d:%d", destinationMode, destinationReg)
+	}
+
+	value, sourceCost, sourceMemory, fault, err := step.readLongSource(sourceMode, sourceReg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	destinationCost, fault, err := step.writeLongDestination(destinationMode, destinationReg, value, sourceCost, sourceMemory)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	c.setLogicalFlags(value, 32)
+	return StepResult{Clocks: 4 + sourceCost + destinationCost, Transactions: step.transactions}, nil
+}
+
+func (s *moveLongStep) readLongSource(mode, reg uint8) (uint32, uint32, bool, *StepResult, error) {
+	c := s.cpu
+	if mode == 0 {
+		return c.State.D[reg], 0, false, nil, nil
+	}
+	if mode == 1 {
+		return c.addressRegister(reg), 0, false, nil, nil
+	}
+
+	var address uint32
+	var cost, faultCost uint32
+	readFC := s.dataFC
+	switch mode {
+	case 2:
+		address, cost, faultCost = c.addressRegister(reg), 8, 4
+	case 3:
+		address, cost, faultCost = c.addressRegister(reg), 8, 4
+	case 4:
+		address = c.addressRegister(reg) - 4
+		c.setAddressRegister(reg, address)
+		cost, faultCost = 10, 6
+	case 5:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, false, nil, err
+		}
+		address = c.addressRegister(reg) + uint32(int32(int16(extension)))
+		cost, faultCost = 12, 8
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, false, nil, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return 0, 0, false, nil, err
+		}
+		address = c.addressRegister(reg) + index + uint32(int32(int8(extension)))
+		cost, faultCost = 14, 10
+	case 7:
+		switch reg {
+		case 0:
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			address, cost, faultCost = uint32(int32(int16(extension))), 12, 8
+		case 1:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			low, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			address, cost, faultCost = uint32(high)<<16|uint32(low), 16, 12
+		case 2, 3:
+			base := c.State.PC - 2
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			address = base + uint32(int32(int16(extension)))
+			cost, faultCost = 12, 8
+			if reg == 3 {
+				index, err := c.briefIndex(extension)
+				if err != nil {
+					return 0, 0, false, nil, err
+				}
+				address = base + index + uint32(int32(int8(extension)))
+				cost, faultCost = 14, 10
+			}
+			readFC = s.programFC
+		case 4:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			low, err := s.consumeExtension()
+			return uint32(high)<<16 | uint32(low), 8, false, nil, err
+		default:
+			return 0, 0, false, nil, fmt.Errorf("m68k: invalid MOVE.L source mode %d:%d", mode, reg)
+		}
+	default:
+		return 0, 0, false, nil, fmt.Errorf("m68k: invalid MOVE.L source mode %d:%d", mode, reg)
+	}
+
+	if address&1 != 0 {
+		result, err := c.enterAddressError(s.opcode, address, s.sourceFaultPC(mode, reg), s.transactions, 54+faultCost, readFC, "re", true)
+		return 0, cost, true, &result, err
+	}
+	high, err := s.readLongWord(address, readFC)
+	if err != nil {
+		return 0, 0, true, nil, err
+	}
+	low, err := s.readLongWord(address+2, readFC)
+	if err != nil {
+		return 0, 0, true, nil, err
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, address+4)
+	}
+	return uint32(high)<<16 | uint32(low), cost, true, nil, nil
+}
+
+func (s *moveLongStep) sourceFaultPC(mode, reg uint8) uint32 {
+	switch mode {
+	case 2, 3, 4, 5, 6:
+		return s.initialPC - 2
+	case 7:
+		switch reg {
+		case 0:
+			return s.initialPC
+		case 1:
+			return s.initialPC + 2
+		default:
+			return s.initialPC - 2
+		}
+	}
+	return s.initialPC
+}
+
+func (s *moveLongStep) readLongWord(address uint32, fc uint8) (uint16, error) {
+	word, err := s.cpu.Bus.ReadWord(address&addressMask, fc)
+	if err == nil {
+		s.transactions = append(s.transactions, readTransaction(address&addressMask, fc, word))
+	}
+	return word, err
+}
+
+func (s *moveLongStep) writeLongDestination(mode, reg uint8, value uint32, sourceCost uint32, sourceMemory bool) (uint32, *StepResult, error) {
+	c := s.cpu
+	if mode == 0 {
+		c.State.D[reg] = value
+		return 0, nil, s.refill()
+	}
+
+	savedPC := c.State.PC
+	var address uint32
+	var cost, faultExtra uint32
+	refillBeforeWrite := false
+	switch mode {
+	case 2:
+		address, cost = c.addressRegister(reg), 8
+	case 3:
+		address, cost = c.addressRegister(reg), 8
+	case 4:
+		address, cost, faultExtra = c.addressRegister(reg)-2, 8, 4
+		refillBeforeWrite = true
+	case 5:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		address, cost, faultExtra = c.addressRegister(reg)+uint32(int32(int16(extension))), 12, 4
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return 0, nil, err
+		}
+		address, cost, faultExtra = c.addressRegister(reg)+index+uint32(int32(int8(extension))), 14, 6
+	case 7:
+		if reg == 0 {
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, nil, err
+			}
+			address, cost, faultExtra = uint32(int32(int16(extension))), 12, 4
+			break
+		}
+		if reg != 1 {
+			return 0, nil, fmt.Errorf("m68k: invalid MOVE.L destination mode %d:%d", mode, reg)
+		}
+		cost, faultExtra = 16, 8
+		if sourceMemory {
+			faultExtra = 4
+			high := c.State.Prefetch[1]
+			lowAddress := c.State.PC & addressMask
+			low, err := c.Bus.ReadWord(lowAddress, s.programFC)
+			if err != nil {
+				return 0, nil, err
+			}
+			s.transactions = append(s.transactions, readTransaction(lowAddress, s.programFC, low))
+			address = uint32(high)<<16 | uint32(low)
+			if address&1 != 0 {
+				return s.longWriteFault(mode, reg, address, savedPC, value, sourceCost, faultExtra, sourceMemory)
+			}
+			if err := s.writeLong(address, value); err != nil {
+				return 0, nil, err
+			}
+			first, err := s.readProgramWord(c.State.PC + 2)
+			if err != nil {
+				return 0, nil, err
+			}
+			second, err := s.readProgramWord(c.State.PC + 4)
+			if err != nil {
+				return 0, nil, err
+			}
+			c.State.Prefetch = [2]uint16{first, second}
+			c.State.PC += 6
+			return cost, nil, nil
+		}
+		high, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		low, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		address = uint32(high)<<16 | uint32(low)
+		savedPC += 2
+	default:
+		return 0, nil, fmt.Errorf("m68k: invalid MOVE.L destination mode %d:%d", mode, reg)
+	}
+
+	if refillBeforeWrite {
+		if err := s.refill(); err != nil {
+			return 0, nil, err
+		}
+	}
+	if address&1 != 0 {
+		return s.longWriteFault(mode, reg, address, savedPC, value, sourceCost, faultExtra, sourceMemory)
+	}
+	if mode == 4 {
+		address -= 2
+		c.setAddressRegister(reg, address)
+	}
+	var err error
+	if mode == 4 {
+		err = s.writeLongPredecrement(address, value)
+	} else {
+		err = s.writeLong(address, value)
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, address+4)
+	}
+	if refillBeforeWrite {
+		return cost, nil, nil
+	}
+	return cost, nil, s.refill()
+}
+
+func (s *moveLongStep) longWriteFault(mode, reg uint8, address, savedPC uint32, value uint32, sourceCost, faultExtra uint32, sourceMemory bool) (uint32, *StepResult, error) {
+	if sourceMemory {
+		if mode == 2 || mode == 3 || mode == 7 && reg == 1 {
+			s.cpu.setLogicalFlags(uint32(uint16(value)), 16)
+		} else {
+			s.cpu.setLogicalFlags(value, 32)
+		}
+	} else {
+		switch mode {
+		case 4, 7:
+			s.cpu.setLogicalFlags(value, 32)
+		case 5, 6:
+			s.cpu.State.SR &^= 0x000c
+			if value == 0 {
+				s.cpu.State.SR |= 0x0004
+			}
+			if value&0x8000_0000 != 0 {
+				s.cpu.State.SR |= 0x0008
+			}
+		}
+	}
+	result, err := s.cpu.enterAddressError(s.opcode, address, savedPC, s.transactions, 58+sourceCost+faultExtra, s.dataFC, "we", false)
+	return 0, &result, err
+}
+
+func (s *moveLongStep) writeLong(address, value uint32) error {
+	if err := s.writeLongWord(address, uint16(value>>16)); err != nil {
+		return err
+	}
+	return s.writeLongWord(address+2, uint16(value))
+}
+
+func (s *moveLongStep) writeLongPredecrement(address, value uint32) error {
+	if err := s.writeLongWord(address+2, uint16(value)); err != nil {
+		return err
+	}
+	return s.writeLongWord(address, uint16(value>>16))
+}
+
+func (s *moveLongStep) writeLongWord(address uint32, value uint16) error {
 	address &= addressMask
 	if err := s.cpu.Bus.WriteWord(address, value, s.dataFC); err != nil {
 		return err

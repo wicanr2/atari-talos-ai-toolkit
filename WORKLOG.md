@@ -39,3 +39,6 @@
 - 完成 `MOVE.W` 全部合法 source／destination EA 與 data address error。固定分母為
   正常 1,013、source read fault 839、destination write fault 648；2,500 筆完整狀態、
   RAM、clock、bus 與 vector-3 frame 全數通過，CPU 累計外部單步驗收 35,000 筆。
+- 完成 `MOVE.L` 全部合法 source／destination EA、兩次 word 組成的 long bus access
+  與 data address error。固定分母正常 1,013、source fault 869、destination fault 618；
+  2,500 筆全數通過，CPU 累計外部單步驗收 37,500 筆。

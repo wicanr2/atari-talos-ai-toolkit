@@ -62,3 +62,11 @@
 - destination `-(An)` 在 odd-address fault 前已完成 final refill，因此 exception frame
   的 opcode／SSW 取當時管線中的 `prefetch[0]`。absolute-long destination 的 write
   fault 額外 clock 依 source 是否為 memory 分成 8／4；完整 transaction 全序已驗證。
+- `MOVE.l.json.bin` 固定分為正常 1,013、source `re` 869、destination `we` 618。long
+  memory access 只要求 word alignment，依 big-endian 拆成 EA／EA+2 兩次 word cycle。
+- long destination predecrement 正常時先寫低 word 到 An-2，再寫高 word 到 An-4；若
+  第一個 An-2 已是奇數，fault address 為 An-2 且 An-4 不提交。source predecrement
+  則先提交 An-4；source／destination postincrement 都只在完整 access 成功後提交。
+- `MOVE.L` destination address error 的 CCR 取決於故障所在微操作階段；register／
+  immediate 與 memory source、直接／延伸目的模式不可共用單一「先更新完整 flags」假設。
+  規格 015 已保存各組合，618 筆完整 exception frame 與 transaction 全序均已通過。

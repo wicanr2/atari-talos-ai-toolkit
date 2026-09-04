@@ -15,6 +15,7 @@
 | 68000 LEA／PEA | control-EA destination／stack 測試 | SingleStepTests 5,000 筆狀態＋bus trace | 通過 |
 | 68000 MOVE.B | A7／alias postincrement、byte lane／CCR 測試 | MOVE.B 2,500 筆全 source／destination EA＋RAM＋bus trace | 通過 |
 | 68000 MOVE.W | word EA／CCR／data address-error 測試 | MOVE.W 正常 1,013＋read fault 839＋write fault 648 筆完整 state／RAM／clock／bus trace | 通過 |
+| 68000 MOVE.L | 分段 long EA／CCR／data address-error 測試 | MOVE.L 正常 1,013＋read fault 869＋write fault 618 筆完整 state／RAM／clock／bus trace | 通過 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
