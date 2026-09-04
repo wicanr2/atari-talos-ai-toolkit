@@ -19,3 +19,6 @@
 - 固定 NXP／Motorola 官方 M68000PRM 手冊雜湊，建立 Bcc／BRA 正常控制流規格；
   1,830 筆偶數目標語料全部通過，CPU 累計正常單步驗收 14,330 筆。另確認 670 筆
   奇數目標屬 address error，尚未實作例外時採失敗即關閉且不改狀態。
+- 完成 MC68000 address error 的 14-byte frame、模式切換、trace 清除、vector 3 與
+  handler 預取；訂正 `re` 未定義 data bus 的初步解讀，不對 fault 位址虛構 RAM read。
+  670 筆例外語料全數通過，CPU 累計外部單步驗收 15,000 筆。

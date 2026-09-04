@@ -35,6 +35,7 @@ type StepResult struct {
 
 type Bus interface {
 	ReadWord(address uint32, functionCode uint8) (uint16, error)
+	WriteWord(address uint32, value uint16, functionCode uint8) error
 }
 
 type CPU struct {
@@ -118,7 +119,7 @@ func (c *CPU) stepBranch(opcode uint16) (StepResult, error) {
 		}
 		target := uint32(int32(base) + displacement)
 		if target&1 != 0 {
-			return StepResult{}, fmt.Errorf("m68k: branch to odd address 0x%08x requires address error", target)
+			return c.enterInstructionAddressError(opcode, target, base)
 		}
 		return c.refillBranch(target, 10)
 	}
@@ -139,6 +140,71 @@ func (c *CPU) stepBranch(opcode uint16) (StepResult, error) {
 	}
 
 	return c.refillBranch(c.State.PC, 12)
+}
+
+func (c *CPU) enterInstructionAddressError(opcode uint16, target uint32, savedPC uint32) (StepResult, error) {
+	originalSR := c.State.SR
+	originalFC := c.programFunctionCode()
+	faultBusAddress := target & addressMask &^ 1
+
+	newSP := c.State.SSP - 14
+	ssw := opcode&0xffe0 | 0x0010 | uint16(originalFC)
+	writes := []struct {
+		address uint32
+		value   uint16
+	}{
+		{newSP + 12, uint16(savedPC)},
+		{newSP + 8, originalSR},
+		{newSP + 10, uint16(savedPC >> 16)},
+		{newSP + 6, opcode},
+		{newSP + 4, uint16(target)},
+		{newSP, ssw},
+		{newSP + 2, uint16(target >> 16)},
+	}
+	transactions := []Transaction{{
+		Kind: "re", Cycle: 4, FC: originalFC, Address: faultBusAddress,
+		Size: 2, Data: 0, UDS: true, LDS: true,
+	}}
+	for _, write := range writes {
+		address := write.address & addressMask
+		if err := c.Bus.WriteWord(address, write.value, 5); err != nil {
+			return StepResult{}, err
+		}
+		transactions = append(transactions, writeTransaction(address, 5, write.value))
+	}
+
+	vectorHigh, err := c.Bus.ReadWord(0x00000c, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	vectorLow, err := c.Bus.ReadWord(0x00000e, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions,
+		readTransaction(0x00000c, 5, vectorHigh),
+		readTransaction(0x00000e, 5, vectorLow))
+	handler := uint32(vectorHigh)<<16 | uint32(vectorLow)
+	handlerAddress := handler & addressMask
+	first, err := c.Bus.ReadWord(handlerAddress, 6)
+	if err != nil {
+		return StepResult{}, err
+	}
+	secondAddress := (handler + 2) & addressMask
+	second, err := c.Bus.ReadWord(secondAddress, 6)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions,
+		readTransaction(handlerAddress, 6, first),
+		readTransaction(secondAddress, 6, second))
+
+	c.State.SSP = newSP
+	c.State.SR = originalSR | supervisor
+	c.State.SR &^= 0x8000
+	c.State.Prefetch = [2]uint16{first, second}
+	c.State.PC = handler + 4
+	return StepResult{Clocks: 60, Transactions: transactions}, nil
 }
 
 func (c *CPU) refillBranch(address uint32, clocks uint32) (StepResult, error) {
@@ -209,6 +275,11 @@ func (c *CPU) programFunctionCode() uint8 {
 
 func readTransaction(address uint32, fc uint8, data uint16) Transaction {
 	return Transaction{Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
+		Data: data, UDS: true, LDS: true}
+}
+
+func writeTransaction(address uint32, fc uint8, data uint16) Transaction {
+	return Transaction{Kind: "w", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: data, UDS: true, LDS: true}
 }
 

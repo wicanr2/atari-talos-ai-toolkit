@@ -40,25 +40,36 @@ func TestStepFailsClosed(t *testing.T) {
 	}
 }
 
-func TestOddBranchTargetFailsWithoutChangingState(t *testing.T) {
-	memory := SparseMemory{0x1002: 0xab, 0x1003: 0xcd}
+func TestOddBranchTargetEntersAddressError(t *testing.T) {
+	memory := SparseMemory{
+		0x1002: 0xab, 0x1003: 0xcd,
+		0x000c: 0x00, 0x000d: 0x00, 0x000e: 0x20, 0x000f: 0x00,
+		0x2000: 0x4e, 0x2001: 0x71, 0x2002: 0x70, 0x2003: 0x01,
+	}
 	cpu := CPU{Bus: memory, State: State{
-		D: [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
-		A: [7]uint32{9, 10, 11, 12, 13, 14, 15},
-		SR: 0x2000, PC: 0x1004, Prefetch: [2]uint16{0x6001, 0xabcd},
+		D:   [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+		A:   [7]uint32{9, 10, 11, 12, 13, 14, 15},
+		USP: 0x8000, SSP: 0x9000,
+		SR: 0x8000, PC: 0x1004, Prefetch: [2]uint16{0x6001, 0xabcd},
 	}}
-	want := cpu.State
 	result, err := cpu.Step()
-	if err == nil {
-		t.Fatal("odd branch target unexpectedly succeeded")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if result.Clocks != 0 || len(result.Transactions) != 0 {
-		t.Fatalf("odd branch returned partial result: %#v", result)
+	if result.Clocks != 60 || len(result.Transactions) != 12 {
+		t.Fatalf("unexpected address-error result: %#v", result)
 	}
-	if cpu.State != want {
-		t.Fatalf("odd branch changed CPU state\n got: %#v\nwant: %#v", cpu.State, want)
+	if cpu.State.SSP != 0x8ff2 || cpu.State.USP != 0x8000 || cpu.State.SR != 0x2000 {
+		t.Fatalf("unexpected exception state: %#v", cpu.State)
 	}
-	if memory[0x1002] != 0xab || memory[0x1003] != 0xcd || len(memory) != 2 {
-		t.Fatalf("odd branch changed memory: %#v", memory)
+	if cpu.State.PC != 0x2004 || cpu.State.Prefetch != [2]uint16{0x4e71, 0x7001} {
+		t.Fatalf("unexpected handler pipeline: %#v", cpu.State)
+	}
+	frame := []uint16{0x6012, 0x0000, 0x1003, 0x6001, 0x8000, 0x0000, 0x1002}
+	for i, want := range frame {
+		got, err := memory.ReadWord(0x8ff2+uint32(i*2), 5)
+		if err != nil || got != want {
+			t.Fatalf("frame word %d = 0x%04x, %v; want 0x%04x", i, got, err, want)
+		}
 	}
 }

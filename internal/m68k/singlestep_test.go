@@ -44,23 +44,11 @@ func TestSingleStepEXTL(t *testing.T) {
 	testSingleStepCorpus(t, "EXT.l.json.bin")
 }
 
-func TestSingleStepBranchNormal(t *testing.T) {
-	testSingleStepCorpusFiltered(t, "Bcc.json.bin", 1830, func(test corpusTest) bool {
-		for _, transaction := range test.Transactions {
-			if transaction.Kind == "re" || transaction.Kind == "we" {
-				return false
-			}
-		}
-		return true
-	})
+func TestSingleStepBcc(t *testing.T) {
+	testSingleStepCorpus(t, "Bcc.json.bin")
 }
 
 func testSingleStepCorpus(t *testing.T, name string) {
-	t.Helper()
-	testSingleStepCorpusFiltered(t, name, 2500, func(corpusTest) bool { return true })
-}
-
-func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept func(corpusTest) bool) {
 	t.Helper()
 	root := os.Getenv("TALOS_M68000_TESTS")
 	if root == "" {
@@ -70,20 +58,11 @@ func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept fu
 	if err != nil {
 		t.Fatal(err)
 	}
-	accepted := 0
-	for _, test := range tests {
-		if accept(test) {
-			accepted++
-		}
-	}
-	if accepted != want {
-		t.Fatalf("%s corpus selected %d tests, want %d", name, accepted, want)
+	if len(tests) != 2500 {
+		t.Fatalf("%s corpus has %d tests, want 2500", name, len(tests))
 	}
 	for _, test := range tests {
 		test := test
-		if !accept(test) {
-			continue
-		}
 		t.Run(test.Name, func(t *testing.T) {
 			cpu := CPU{State: test.Initial.CPU, Bus: test.Initial.RAM}
 			result, err := cpu.Step()
@@ -280,8 +259,12 @@ func readTransactions(r io.Reader) ([]Transaction, uint32, error) {
 		if uds+lds == 2 {
 			size = 2
 		}
+		busData := uint16(data)
+		if label == "re" || label == "we" {
+			busData = 0
+		}
 		out = append(out, Transaction{Kind: label, Cycle: cycle, FC: uint8(fc), Address: address,
-			Size: size, Data: uint16(data), UDS: uds != 0, LDS: lds != 0})
+			Size: size, Data: busData, UDS: uds != 0, LDS: lds != 0})
 	}
 	return out, clocks, nil
 }

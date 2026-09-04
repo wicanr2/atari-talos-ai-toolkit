@@ -24,4 +24,8 @@
   `06e4864b78da0e815054cead9326b7ec9914661f240fd39a455f2061ff47c4e8`；Bcc 見
   4-25～4-26，BRA 見 4-55。分支位移基準為指令字位址加 2，且不改 condition codes。
 - `Bcc.json.bin` 共 2,500 筆；其中 1,830 筆為正常偶數目標並已通過，670 筆包含
-  address-error transaction，必須等例外 stack frame 規格後驗收，不能當正常分支。
+  address-error transaction；兩者目前均已通過。
+- 670 筆 address error 全數確認 14-byte frame、SSW 低 bits、saved PC、fault address、
+  user／supervisor 切換、trace 清除、寫入順序、vector 3 fetch 與 60 clocks。語料的
+  `re` data bus 是未 assert AS 時的未定義殘值，且 fault 位址刻意不在 RAM map；驗收
+  必須正規化該欄位，不能虛構一次 aligned RAM read。
