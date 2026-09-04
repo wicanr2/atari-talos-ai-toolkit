@@ -245,6 +245,43 @@ func TestSingleStepADDLong(t *testing.T) {
 	testSingleStepCorpus(t, "ADD.l.json.bin")
 }
 
+func TestSingleStepSUB(t *testing.T) {
+	for _, item := range []struct {
+		name   string
+		file   string
+		want   int
+		filter func(corpusTest) bool
+	}{
+		{"byte-sub", "SUB.b.json.bin", 1567, isSUB},
+		{"byte-subi", "SUB.b.json.bin", 122, isSUBImmediate},
+		{"byte-subq", "SUB.b.json.bin", 811, isSUBQuick},
+		{"word-sub", "SUB.w.json.bin", 1514, isSUB},
+		{"word-subi", "SUB.w.json.bin", 100, isSUBImmediate},
+		{"word-subq", "SUB.w.json.bin", 886, isSUBQuick},
+		{"long-sub", "SUB.l.json.bin", 1527, isSUB},
+		{"long-subi", "SUB.l.json.bin", 115, isSUBImmediate},
+		{"long-subq", "SUB.l.json.bin", 858, isSUBQuick},
+	} {
+		t.Run(item.name, func(t *testing.T) { testSingleStepCorpusFiltered(t, item.file, item.want, item.filter) })
+	}
+}
+
+func isSUB(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	opmode := opcode >> 6 & 7
+	return opcode&0xf000 == 0x9000 && (opmode <= 2 || opmode >= 4 && opmode <= 6)
+}
+
+func isSUBImmediate(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	return opcode&0xff00 == 0x0400
+}
+
+func isSUBQuick(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	return opcode&0xf100 == 0x5100
+}
+
 func TestSingleStepCMPByte(t *testing.T) {
 	testSingleStepCorpusFiltered(t, "CMP.b.json.bin", 1991, isCMP)
 }

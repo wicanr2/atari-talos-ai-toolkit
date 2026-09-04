@@ -72,3 +72,7 @@
 - 完成 `OR.B/W/L` 與 `ORI.B/W/L`；三種寬度共 7,500 筆全數通過。一般 OR 雙方向、
   immediate、窄寬度 Dn、全部合法 EA、讀改寫 bus 次序、long low-word-first 寫回與
   address-error 均逐筆驗收；CPU 累計外部單步驗收 100,000 筆。
+- 完成 `SUB.B/W/L`、`SUBI.B/W/L` 與 `SUBQ.B/W/L`；三種寬度共 7,500 筆全數
+  通過。一般 SUB 雙方向、immediate、quick、An 特例、X／NZVC borrow 旗標、全部
+  合法 EA、讀改寫 bus 次序與 address-error 均逐筆驗收；CPU 累計外部單步驗收
+  107,500 筆。

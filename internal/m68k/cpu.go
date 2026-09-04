@@ -63,12 +63,20 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepCLR(opcode)
 	case opcode&0xff00 == 0x0600 && opcode>>6&3 <= 2:
 		return c.stepADDImmediate(opcode)
+	case opcode&0xff00 == 0x0400 && opcode>>6&3 <= 2:
+		return c.stepSUBImmediate(opcode)
 	case opcode&0xf100 == 0x5000 && opcode>>6&3 <= 2:
 		return c.stepADDQuick(opcode)
+	case opcode&0xf100 == 0x5100 && opcode>>6&3 <= 2:
+		return c.stepSUBQuick(opcode)
 	case opcode&0xf000 == 0xd000 && opcode>>6&7 <= 2:
 		return c.stepADDToDataRegister(opcode)
 	case opcode&0xf000 == 0xd000 && opcode>>6&7 >= 4 && opcode>>6&7 <= 6 && opcode>>3&7 >= 2:
 		return c.stepADDToMemory(opcode)
+	case opcode&0xf000 == 0x9000 && opcode>>6&7 <= 2:
+		return c.stepSUBToDataRegister(opcode)
+	case opcode&0xf000 == 0x9000 && opcode>>6&7 >= 4 && opcode>>6&7 <= 6 && opcode>>3&7 >= 2:
+		return c.stepSUBToMemory(opcode)
 	case opcode&0xff00 == 0x0c00 && opcode>>6&3 <= 2:
 		return c.stepCMPImmediate(opcode)
 	case opcode&0xf138 == 0xb108:
@@ -554,6 +562,14 @@ func (c *CPU) stepCLR(opcode uint16) (StepResult, error) {
 }
 
 func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticToDataRegister(opcode, false)
+}
+
+func (c *CPU) stepSUBToDataRegister(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticToDataRegister(opcode, true)
+}
+
+func (c *CPU) stepArithmeticToDataRegister(opcode uint16, subtract bool) (StepResult, error) {
 	opmode := uint8(opcode >> 6 & 7)
 	destination := uint8(opcode >> 9 & 7)
 	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
@@ -568,9 +584,9 @@ func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {
 			return StepResult{}, err
 		}
 		dest := byte(c.State.D[destination])
-		result := dest + source
+		result := arithmeticByte(dest, source, subtract)
 		c.State.D[destination] = c.State.D[destination]&0xffff_ff00 | uint32(result)
-		c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 8)
+		c.setArithmeticFlags(uint32(dest), uint32(source), uint32(result), 8, subtract)
 		if err := stream.refill(); err != nil {
 			return StepResult{}, err
 		}
@@ -585,9 +601,9 @@ func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {
 			return *fault, nil
 		}
 		dest := uint16(c.State.D[destination])
-		result := dest + source
+		result := arithmeticWord(dest, source, subtract)
 		c.State.D[destination] = c.State.D[destination]&0xffff_0000 | uint32(result)
-		c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 16)
+		c.setArithmeticFlags(uint32(dest), uint32(source), uint32(result), 16, subtract)
 		if err := step.refill(); err != nil {
 			return StepResult{}, err
 		}
@@ -602,9 +618,9 @@ func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {
 			return *fault, nil
 		}
 		dest := c.State.D[destination]
-		result := dest + source
+		result := arithmeticLong(dest, source, subtract)
 		c.State.D[destination] = result
-		c.setAdditionFlags(dest, source, result, 32)
+		c.setArithmeticFlags(dest, source, result, 32, subtract)
 		if err := step.refill(); err != nil {
 			return StepResult{}, err
 		}
@@ -618,15 +634,31 @@ func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {
 }
 
 func (c *CPU) stepADDToMemory(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticToMemory(opcode, false)
+}
+
+func (c *CPU) stepSUBToMemory(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticToMemory(opcode, true)
+}
+
+func (c *CPU) stepArithmeticToMemory(opcode uint16, subtract bool) (StepResult, error) {
 	size := uint8(opcode >> 6 & 3)
 	base := uint32(8)
 	if size == 2 {
 		base = 12
 	}
-	return c.stepADDMemory(opcode, size, uint8(opcode>>3&7), uint8(opcode&7), c.State.D[opcode>>9&7], base)
+	return c.stepArithmeticMemory(opcode, size, uint8(opcode>>3&7), uint8(opcode&7), c.State.D[opcode>>9&7], base, subtract)
 }
 
 func (c *CPU) stepADDImmediate(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticImmediate(opcode, false)
+}
+
+func (c *CPU) stepSUBImmediate(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticImmediate(opcode, true)
+}
+
+func (c *CPU) stepArithmeticImmediate(opcode uint16, subtract bool) (StepResult, error) {
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
 	if c.State.SR&supervisor != 0 {
 		stream.dataFC = 5
@@ -643,21 +675,21 @@ func (c *CPU) stepADDImmediate(opcode uint16) (StepResult, error) {
 		if mode == 0 {
 			if size == 0 {
 				dest, source := byte(c.State.D[reg]), byte(immediate)
-				result := dest + source
+				result := arithmeticByte(dest, source, subtract)
 				c.State.D[reg] = c.State.D[reg]&0xffff_ff00 | uint32(result)
-				c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 8)
+				c.setArithmeticFlags(uint32(dest), uint32(source), uint32(result), 8, subtract)
 			} else {
 				dest, source := uint16(c.State.D[reg]), immediate
-				result := dest + source
+				result := arithmeticWord(dest, source, subtract)
 				c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
-				c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 16)
+				c.setArithmeticFlags(uint32(dest), uint32(source), uint32(result), 16, subtract)
 			}
 			if err := stream.refill(); err != nil {
 				return StepResult{}, err
 			}
 			return StepResult{Clocks: 8, Transactions: stream.transactions}, nil
 		}
-		return c.stepADDMemoryWithStream(opcode, size, mode, reg, uint32(immediate), 12, stream)
+		return c.stepArithmeticMemoryWithStream(opcode, size, mode, reg, uint32(immediate), 12, stream, subtract)
 	}
 	high, err := stream.consumeExtension()
 	if err != nil {
@@ -670,18 +702,26 @@ func (c *CPU) stepADDImmediate(opcode uint16) (StepResult, error) {
 	immediate := uint32(high)<<16 | uint32(low)
 	if mode == 0 {
 		dest := c.State.D[reg]
-		result := dest + immediate
+		result := arithmeticLong(dest, immediate, subtract)
 		c.State.D[reg] = result
-		c.setAdditionFlags(dest, immediate, result, 32)
+		c.setArithmeticFlags(dest, immediate, result, 32, subtract)
 		if err := stream.refill(); err != nil {
 			return StepResult{}, err
 		}
 		return StepResult{Clocks: 16, Transactions: stream.transactions}, nil
 	}
-	return c.stepADDMemoryWithStream(opcode, 2, mode, reg, immediate, 20, stream)
+	return c.stepArithmeticMemoryWithStream(opcode, 2, mode, reg, immediate, 20, stream, subtract)
 }
 
 func (c *CPU) stepADDQuick(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticQuick(opcode, false)
+}
+
+func (c *CPU) stepSUBQuick(opcode uint16) (StepResult, error) {
+	return c.stepArithmeticQuick(opcode, true)
+}
+
+func (c *CPU) stepArithmeticQuick(opcode uint16, subtract bool) (StepResult, error) {
 	size, mode, reg := uint8(opcode>>6&3), uint8(opcode>>3&7), uint8(opcode&7)
 	quick := uint32(opcode >> 9 & 7)
 	if quick == 0 {
@@ -691,26 +731,26 @@ func (c *CPU) stepADDQuick(opcode uint16) (StepResult, error) {
 		if size == 0 {
 			return StepResult{}, fmt.Errorf("m68k: ADDQ.B to An is invalid")
 		}
-		c.setAddressRegister(reg, c.addressRegister(reg)+quick)
+		c.setAddressRegister(reg, arithmeticLong(c.addressRegister(reg), quick, subtract))
 		return c.refillSequential(controlEA{returnPC: c.State.PC}, 8)
 	}
 	if mode == 0 {
 		switch size {
 		case 0:
 			dest, source := byte(c.State.D[reg]), byte(quick)
-			result := dest + source
+			result := arithmeticByte(dest, source, subtract)
 			c.State.D[reg] = c.State.D[reg]&0xffff_ff00 | uint32(result)
-			c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 8)
+			c.setArithmeticFlags(uint32(dest), uint32(source), uint32(result), 8, subtract)
 		case 1:
 			dest, source := uint16(c.State.D[reg]), uint16(quick)
-			result := dest + source
+			result := arithmeticWord(dest, source, subtract)
 			c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
-			c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 16)
+			c.setArithmeticFlags(uint32(dest), uint32(source), uint32(result), 16, subtract)
 		case 2:
 			dest := c.State.D[reg]
-			result := dest + quick
+			result := arithmeticLong(dest, quick, subtract)
 			c.State.D[reg] = result
-			c.setAdditionFlags(dest, quick, result, 32)
+			c.setArithmeticFlags(dest, quick, result, 32, subtract)
 		}
 		clocks := uint32(4)
 		if size == 2 {
@@ -722,18 +762,22 @@ func (c *CPU) stepADDQuick(opcode uint16) (StepResult, error) {
 	if size == 2 {
 		base = 12
 	}
-	return c.stepADDMemory(opcode, size, mode, reg, quick, base)
+	return c.stepArithmeticMemory(opcode, size, mode, reg, quick, base, subtract)
 }
 
 func (c *CPU) stepADDMemory(opcode uint16, size, mode, reg uint8, operand uint32, base uint32) (StepResult, error) {
+	return c.stepArithmeticMemory(opcode, size, mode, reg, operand, base, false)
+}
+
+func (c *CPU) stepArithmeticMemory(opcode uint16, size, mode, reg uint8, operand uint32, base uint32, subtract bool) (StepResult, error) {
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
 	if c.State.SR&supervisor != 0 {
 		stream.dataFC = 5
 	}
-	return c.stepADDMemoryWithStream(opcode, size, mode, reg, operand, base, stream)
+	return c.stepArithmeticMemoryWithStream(opcode, size, mode, reg, operand, base, stream, subtract)
 }
 
-func (c *CPU) stepADDMemoryWithStream(opcode uint16, size, mode, reg uint8, operand uint32, base uint32, stream moveByteStep) (StepResult, error) {
+func (c *CPU) stepArithmeticMemoryWithStream(opcode uint16, size, mode, reg uint8, operand uint32, base uint32, stream moveByteStep, subtract bool) (StepResult, error) {
 	if mode < 2 || mode == 7 && reg > 1 {
 		return StepResult{}, fmt.Errorf("m68k: invalid ADD memory mode %d:%d", mode, reg)
 	}
@@ -788,8 +832,8 @@ func (c *CPU) stepADDMemoryWithStream(opcode uint16, size, mode, reg uint8, oper
 			return StepResult{}, err
 		}
 		stream.transactions = append(stream.transactions, readByteTransaction(address&addressMask, stream.dataFC, value))
-		result := value + byte(operand)
-		c.setAdditionFlags(uint32(value), uint32(byte(operand)), uint32(result), 8)
+		result := arithmeticByte(value, byte(operand), subtract)
+		c.setArithmeticFlags(uint32(value), uint32(byte(operand)), uint32(result), 8, subtract)
 		if err := stream.refill(); err != nil {
 			return StepResult{}, err
 		}
@@ -824,8 +868,8 @@ func (c *CPU) stepADDMemoryWithStream(opcode uint16, size, mode, reg uint8, oper
 			return StepResult{}, err
 		}
 		stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
-		result := value + uint16(operand)
-		c.setAdditionFlags(uint32(value), uint32(uint16(operand)), uint32(result), 16)
+		result := arithmeticWord(value, uint16(operand), subtract)
+		c.setArithmeticFlags(uint32(value), uint32(uint16(operand)), uint32(result), 16, subtract)
 		if err := stream.refill(); err != nil {
 			return StepResult{}, err
 		}
@@ -848,8 +892,8 @@ func (c *CPU) stepADDMemoryWithStream(opcode uint16, size, mode, reg uint8, oper
 	}
 	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, high), readTransaction((address+2)&addressMask, stream.dataFC, low))
 	value := uint32(high)<<16 | uint32(low)
-	result := value + operand
-	c.setAdditionFlags(value, operand, result, 32)
+	result := arithmeticLong(value, operand, subtract)
+	c.setArithmeticFlags(value, operand, result, 32, subtract)
 	if err := stream.refill(); err != nil {
 		return StepResult{}, err
 	}
@@ -892,6 +936,51 @@ func (c *CPU) setAdditionFlags(destination, source, result uint32, bits uint8) {
 	if source > mask-destination {
 		c.State.SR |= 0x0011
 	}
+}
+
+func (c *CPU) setArithmeticFlags(destination, source, result uint32, bits uint8, subtract bool) {
+	if !subtract {
+		c.setAdditionFlags(destination, source, result, bits)
+		return
+	}
+	c.setCompareFlags(destination, source, bits)
+	var mask uint32
+	switch bits {
+	case 8:
+		mask = 0xff
+	case 16:
+		mask = 0xffff
+	case 32:
+		mask = 0xffff_ffff
+	default:
+		panic("m68k: invalid subtraction width")
+	}
+	if source&mask > destination&mask {
+		c.State.SR |= 0x0010
+	} else {
+		c.State.SR &^= 0x0010
+	}
+}
+
+func arithmeticByte(destination, source byte, subtract bool) byte {
+	if subtract {
+		return destination - source
+	}
+	return destination + source
+}
+
+func arithmeticWord(destination, source uint16, subtract bool) uint16 {
+	if subtract {
+		return destination - source
+	}
+	return destination + source
+}
+
+func arithmeticLong(destination, source uint32, subtract bool) uint32 {
+	if subtract {
+		return destination - source
+	}
+	return destination + source
 }
 
 func (c *CPU) stepCMP(opcode uint16) (StepResult, error) {

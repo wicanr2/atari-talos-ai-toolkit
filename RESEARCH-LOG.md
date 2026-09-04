@@ -127,3 +127,9 @@
 - `OR.b/w/l.json.bin` 共 7,500 筆，其中一般 OR `<ea>→Dn` 3,857 筆、
   `Dn→memory` 3,173 筆、ORI 470 筆。語料確認 OR 與 AND 使用相同 EA、clock、
   prefetch、讀改寫及 vector-3 微時序，差異限於逐位元運算結果。
+- DM12EN 的 ReDMCSB 產生組語中，SUB.W 265 次、SUB.B 4 次、SUB.L 32 次，
+  SUBI.W 10 次、SUBI.B 3 次、SUBI.L 1 次，SUBQ.W 287 次、SUBQ.B 16 次、
+  SUBQ.L 17 次，合計 635 個靜態使用點；此計數只用於模擬器實作優先序。
+- `SUB.b/w/l.json.bin` 共 7,500 筆，其中一般 SUB 4,608 筆、SUBI 337 筆、
+  SUBQ 2,555 筆。語料確認其 EA、clock、prefetch、讀改寫及 vector-3 微時序可與
+  ADD 族共用，運算與 X／NZVC 必須使用減法及 borrow 規則。
