@@ -4,6 +4,15 @@ import "fmt"
 
 type SparseMemory map[uint32]byte
 
+func (m SparseMemory) ReadByte(address uint32, _ uint8) (byte, error) {
+	address &= addressMask
+	value, ok := m[address]
+	if !ok {
+		return 0, fmt.Errorf("m68k: unmapped byte at 0x%06x", address)
+	}
+	return value, nil
+}
+
 func (m SparseMemory) ReadWord(address uint32, _ uint8) (uint16, error) {
 	address &= addressMask
 	if address&1 != 0 {

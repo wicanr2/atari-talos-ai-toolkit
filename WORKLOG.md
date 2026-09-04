@@ -29,3 +29,6 @@
   不誤判為 full-extension 例外。CPU 累計外部單步驗收 25,000 筆。
 - 將 control-EA 接到 LEA／PEA；保留 PEA absolute modes 在最後一次預取前插入 stack
   write 的 microcode 次序。兩份共 5,000 筆全部通過，CPU 累計外部單步驗收 30,000 筆。
+- 建立第一個 data-EA 垂直切片：`MOVE.B` 全部合法 source modes 至 Dn。加入 byte bus
+  read、UDS／LDS lane、A7 byte delta、立即值與 source prefetch 排程；384 筆固定子集
+  全部通過，CPU 累計外部單步驗收 30,384 筆。

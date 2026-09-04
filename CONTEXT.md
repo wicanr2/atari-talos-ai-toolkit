@@ -31,12 +31,16 @@
   外部單步驗收 25,000 筆。
 - LEA／PEA 各 2,500 筆全部通過；control EA 已可寫入 An／A7 或依真實 microcode
   排程推入 active stack。CPU 外部單步驗收累計 30,000 筆。
+- `MOVE.B <source>,Dn` 已涵蓋全部合法 byte source EA；從完整 MOVE.B 語料固定篩出
+  384 筆，逐筆通過 state、RAM、clock 與 bus 驗收。byte bus 已具 UDS／LDS lane、
+  A7 byte delta 與 program／data FC，CPU 外部單步驗收累計 30,384 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 建立一般 data-EA 讀寫層，開始接入 Dungeon Master 使用量最高的 MOVE 指令族。
+2. 沿已驗收的 byte source-EA 路徑擴充 MOVE.B 記憶體目的端；MOVE.W／MOVE.L 的
+   data address-error 與半完成 long access 另立規格後再接入。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

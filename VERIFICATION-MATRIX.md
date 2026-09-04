@@ -13,6 +13,7 @@
 | 68000 RTS | stack pop／return 預取／複合例外測試 | SingleStepTests 2,500 筆狀態＋bus trace | 通過 |
 | 68000 JMP／JSR control EA | 非 control mode 拒絕測試 | SingleStepTests 5,000 筆七種 mode＋bus trace | 通過 |
 | 68000 LEA／PEA | control-EA destination／stack 測試 | SingleStepTests 5,000 筆狀態＋bus trace | 通過 |
+| 68000 MOVE.B source → Dn | A7 postincrement／byte lane／CCR 測試 | MOVE.B 語料固定篩選 384 筆全 source EA＋bus trace | 通過 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |

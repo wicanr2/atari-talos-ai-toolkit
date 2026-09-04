@@ -72,7 +72,17 @@ func TestSingleStepPEA(t *testing.T) {
 	testSingleStepCorpus(t, "PEA.json.bin")
 }
 
+func TestSingleStepMOVEByteSourcesToDn(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.b.json.bin", 384, func(test corpusTest) bool {
+		return test.Initial.CPU.Prefetch[0]>>6&7 == 0
+	})
+}
+
 func testSingleStepCorpus(t *testing.T, name string) {
+	testSingleStepCorpusFiltered(t, name, 2500, func(corpusTest) bool { return true })
+}
+
+func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept func(corpusTest) bool) {
 	t.Helper()
 	root := os.Getenv("TALOS_M68000_TESTS")
 	if root == "" {
@@ -82,10 +92,12 @@ func testSingleStepCorpus(t *testing.T, name string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tests) != 2500 {
-		t.Fatalf("%s corpus has %d tests, want 2500", name, len(tests))
-	}
+	accepted := 0
 	for _, test := range tests {
+		if !accept(test) {
+			continue
+		}
+		accepted++
 		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			cpu := CPU{State: test.Initial.CPU, Bus: test.Initial.RAM}
@@ -103,6 +115,9 @@ func testSingleStepCorpus(t *testing.T, name string) {
 				t.Fatalf("bus mismatch\n got: %#v\nwant: clocks=%d transactions=%#v", result, test.Clocks, test.Transactions)
 			}
 		})
+	}
+	if accepted != want {
+		t.Fatalf("%s accepted %d tests, want %d", name, accepted, want)
 	}
 }
 

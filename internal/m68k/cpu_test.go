@@ -41,6 +41,29 @@ func TestStepFailsClosed(t *testing.T) {
 	}
 }
 
+func TestMOVEBytePostIncrementA7AndBusLane(t *testing.T) {
+	memory := SparseMemory{
+		0x1004: 0x12, 0x1005: 0x34,
+		0x8001: 0x80,
+	}
+	cpu := CPU{Bus: memory, State: State{
+		D: [8]uint32{0x12345678}, USP: 0x8001,
+		SR: 0x0011, PC: 0x1004, Prefetch: [2]uint16{0x101f, 0xabcd},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cpu.State.D[0] != 0x12345680 || cpu.State.USP != 0x8003 || cpu.State.SR != 0x0018 {
+		t.Fatalf("unexpected MOVE.B state: %#v", cpu.State)
+	}
+	want := Transaction{Kind: "r", Cycle: 4, FC: 1, Address: 0x8000, Size: 1,
+		Data: 0x0080, LDS: true}
+	if result.Clocks != 8 || len(result.Transactions) != 2 || result.Transactions[0] != want {
+		t.Fatalf("unexpected MOVE.B bus result: %#v", result)
+	}
+}
+
 func TestOddBranchTargetEntersAddressError(t *testing.T) {
 	memory := SparseMemory{
 		0x1002: 0xab, 0x1003: 0xcd,
@@ -48,8 +71,8 @@ func TestOddBranchTargetEntersAddressError(t *testing.T) {
 		0x2000: 0x4e, 0x2001: 0x71, 0x2002: 0x70, 0x2003: 0x01,
 	}
 	cpu := CPU{Bus: memory, State: State{
-		D: [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
-		A: [7]uint32{9, 10, 11, 12, 13, 14, 15},
+		D:   [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+		A:   [7]uint32{9, 10, 11, 12, 13, 14, 15},
 		USP: 0x8000, SSP: 0x9000,
 		SR: 0x8000, PC: 0x1004, Prefetch: [2]uint16{0x6001, 0xabcd},
 	}}

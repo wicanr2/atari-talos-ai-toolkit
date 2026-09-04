@@ -43,3 +43,9 @@
   extension 後的順序預取，PEA 驗證 effective address high／low 寫入 active stack。
 - PEA 的 absolute word／long 會在最後一次預取前完成兩次 stack write；其他 control
   modes 則先完成該 instruction 的預取再寫 stack。最終狀態相同不足以驗證此差異。
+- Motorola 手冊 4-116～4-118 確認 MOVE 的旗標與合法 source modes；byte 不允許 An direct。
+- `MOVE.b.json.bin` 中 destination mode 為 Dn 的固定子集共 384 筆，涵蓋其餘全部 source
+  modes。語料確認 byte 語意位址可為奇數，但 bus address lines 記錄偶數 word base，
+  由 UDS／LDS 選取 high／low lane；A7 的 byte predecrement／postincrement delta 為 2。
+- `MOVE.B` source prefetch 次序依 extension 數量不同；absolute long 特別是 low extension、
+  first refill、data byte、second refill。這些差異已納入 transaction 全序比較。

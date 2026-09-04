@@ -34,6 +34,7 @@ type StepResult struct {
 }
 
 type Bus interface {
+	ReadByte(address uint32, functionCode uint8) (byte, error)
 	ReadWord(address uint32, functionCode uint8) (uint16, error)
 	WriteWord(address uint32, value uint16, functionCode uint8) error
 }
@@ -49,6 +50,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xf000 == 0x1000 && opcode>>6&7 == 0:
+		return c.stepMOVEByteToDn(opcode)
 	case opcode&0xf1c0 == 0x41c0 && isControlMode(opcode):
 		return c.stepLEA(opcode)
 	case opcode&0xffc0 == 0x4840 && isControlMode(opcode):
@@ -114,6 +117,185 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepMOVEByteToDn(opcode uint16) (StepResult, error) {
+	mode := uint8(opcode >> 3 & 7)
+	reg := uint8(opcode & 7)
+	destination := uint8(opcode >> 9 & 7)
+	programFC := c.programFunctionCode()
+	dataFC := uint8(1)
+	if c.State.SR&supervisor != 0 {
+		dataFC = 5
+	}
+
+	var value byte
+	var transactions []Transaction
+	var clocks uint32
+	var extensionWords uint8
+	var address uint32
+	pcRelative := false
+	var nextFirst uint16
+
+	switch mode {
+	case 0:
+		value = byte(c.State.D[reg])
+		address = c.State.PC & addressMask
+		word, err := c.Bus.ReadWord(address, programFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		transactions = append(transactions, readTransaction(address, programFC, word))
+		c.State.Prefetch[0] = c.State.Prefetch[1]
+		c.State.Prefetch[1] = word
+		c.State.PC += 2
+		clocks = 4
+		return c.finishMOVEByteToDn(destination, value, clocks, transactions), nil
+	case 1:
+		return StepResult{}, fmt.Errorf("m68k: MOVE.B address-register source is invalid")
+	case 2:
+		address = c.addressRegister(reg)
+		clocks = 8
+	case 3:
+		address = c.addressRegister(reg)
+		clocks = 8
+	case 4:
+		delta := uint32(1)
+		if reg == 7 {
+			delta = 2
+		}
+		address = c.addressRegister(reg) - delta
+		c.setAddressRegister(reg, address)
+		clocks = 10
+	case 5:
+		address = c.addressRegister(reg) + uint32(int32(int16(c.State.Prefetch[1])))
+		extensionWords = 1
+		clocks = 12
+	case 6:
+		index, err := c.briefIndex(c.State.Prefetch[1])
+		if err != nil {
+			return StepResult{}, err
+		}
+		address = c.addressRegister(reg) + index + uint32(int32(int8(c.State.Prefetch[1])))
+		extensionWords = 1
+		clocks = 14
+	case 7:
+		switch reg {
+		case 0:
+			address = uint32(int32(int16(c.State.Prefetch[1])))
+			extensionWords = 1
+			clocks = 12
+		case 1:
+			lowAddress := c.State.PC & addressMask
+			low, err := c.Bus.ReadWord(lowAddress, programFC)
+			if err != nil {
+				return StepResult{}, err
+			}
+			transactions = append(transactions, readTransaction(lowAddress, programFC, low))
+			address = uint32(c.State.Prefetch[1])<<16 | uint32(low)
+			extensionWords = 2
+			clocks = 16
+		case 2:
+			address = c.State.PC - 2 + uint32(int32(int16(c.State.Prefetch[1])))
+			extensionWords = 1
+			pcRelative = true
+			clocks = 12
+		case 3:
+			index, err := c.briefIndex(c.State.Prefetch[1])
+			if err != nil {
+				return StepResult{}, err
+			}
+			address = c.State.PC - 2 + index + uint32(int32(int8(c.State.Prefetch[1])))
+			extensionWords = 1
+			pcRelative = true
+			clocks = 14
+		case 4:
+			value = byte(c.State.Prefetch[1])
+			firstAddress := c.State.PC & addressMask
+			first, err := c.Bus.ReadWord(firstAddress, programFC)
+			if err != nil {
+				return StepResult{}, err
+			}
+			secondAddress := (c.State.PC + 2) & addressMask
+			second, err := c.Bus.ReadWord(secondAddress, programFC)
+			if err != nil {
+				return StepResult{}, err
+			}
+			transactions = append(transactions,
+				readTransaction(firstAddress, programFC, first),
+				readTransaction(secondAddress, programFC, second))
+			c.State.Prefetch = [2]uint16{first, second}
+			c.State.PC += 4
+			return c.finishMOVEByteToDn(destination, value, 8, transactions), nil
+		default:
+			return StepResult{}, fmt.Errorf("m68k: invalid MOVE.B source mode %d:%d", mode, reg)
+		}
+	}
+
+	if extensionWords == 1 {
+		firstAddress := c.State.PC & addressMask
+		first, err := c.Bus.ReadWord(firstAddress, programFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		transactions = append(transactions, readTransaction(firstAddress, programFC, first))
+		nextFirst = first
+	} else if extensionWords == 2 {
+		firstAddress := (c.State.PC + 2) & addressMask
+		first, err := c.Bus.ReadWord(firstAddress, programFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		transactions = append(transactions, readTransaction(firstAddress, programFC, first))
+		nextFirst = first
+	}
+
+	readFC := dataFC
+	if pcRelative {
+		readFC = programFC
+	}
+	value, err := c.Bus.ReadByte(address&addressMask, readFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions, readByteTransaction(address&addressMask, readFC, value))
+	if mode == 3 {
+		delta := uint32(1)
+		if reg == 7 {
+			delta = 2
+		}
+		c.setAddressRegister(reg, c.addressRegister(reg)+delta)
+	}
+
+	if extensionWords == 0 {
+		refillAddress := c.State.PC & addressMask
+		word, err := c.Bus.ReadWord(refillAddress, programFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		transactions = append(transactions, readTransaction(refillAddress, programFC, word))
+		c.State.Prefetch[0] = c.State.Prefetch[1]
+		c.State.Prefetch[1] = word
+		c.State.PC += 2
+	} else {
+		start := c.State.PC + uint32(extensionWords-1)*2
+		secondAddress := (start + 2) & addressMask
+		second, err := c.Bus.ReadWord(secondAddress, programFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		// The first refill was already recorded before the data read.
+		transactions = append(transactions, readTransaction(secondAddress, programFC, second))
+		c.State.Prefetch = [2]uint16{nextFirst, second}
+		c.State.PC = start + 4
+	}
+	return c.finishMOVEByteToDn(destination, value, clocks, transactions), nil
+}
+
+func (c *CPU) finishMOVEByteToDn(destination uint8, value byte, clocks uint32, transactions []Transaction) StepResult {
+	c.State.D[destination] = c.State.D[destination]&0xffff_ff00 | uint32(value)
+	c.setLogicalFlags(uint32(value), 8)
+	return StepResult{Clocks: clocks, Transactions: transactions}
 }
 
 type controlEA struct {
@@ -699,11 +881,26 @@ func writeTransaction(address uint32, fc uint8, data uint16) Transaction {
 		Data: data, UDS: true, LDS: true}
 }
 
+func readByteTransaction(address uint32, fc uint8, data byte) Transaction {
+	transaction := Transaction{Kind: "r", Cycle: 4, FC: fc, Address: address &^ 1, Size: 1}
+	if address&1 == 0 {
+		transaction.Data = uint16(data) << 8
+		transaction.UDS = true
+	} else {
+		transaction.Data = uint16(data)
+		transaction.LDS = true
+	}
+	return transaction
+}
+
 func (c *CPU) setLogicalFlags(value uint32, bits uint8) {
 	c.State.SR &^= 0x000f
 	mask := uint32(0xffff_ffff)
 	negative := uint32(0x8000_0000)
-	if bits == 16 {
+	if bits == 8 {
+		mask = 0x0000_00ff
+		negative = 0x0000_0080
+	} else if bits == 16 {
 		mask = 0x0000_ffff
 		negative = 0x0000_8000
 	}
