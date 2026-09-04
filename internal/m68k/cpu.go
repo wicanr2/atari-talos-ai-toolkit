@@ -51,6 +51,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x4a00 && opcode>>6&3 <= 2:
+		return c.stepTST(opcode)
 	case opcode&0xfff8 == 0x4e50:
 		return c.stepLINK(opcode)
 	case opcode&0xfff8 == 0x4e58:
@@ -162,6 +164,59 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepTST(opcode uint16) (StepResult, error) {
+	size, mode, reg := uint8(opcode>>6&3), uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid TST effective address %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	switch size {
+	case 0:
+		value, cost, _, err := stream.readSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		c.setLogicalFlags(uint32(value), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + cost, Transactions: stream.transactions}, nil
+	case 1:
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		value, cost, _, fault, err := step.readWordSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setLogicalFlags(uint32(value), 16)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + cost, Transactions: step.transactions}, nil
+	case 2:
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		value, cost, _, fault, err := step.readLongSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setLogicalFlags(value, 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + cost, Transactions: step.transactions}, nil
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid TST size %d", size)
+	}
 }
 
 func (c *CPU) stepLINK(opcode uint16) (StepResult, error) {

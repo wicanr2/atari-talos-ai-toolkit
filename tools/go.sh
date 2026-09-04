@@ -35,7 +35,9 @@ if [ -n "${TALOS_M68000_TESTS:-}" ]; then
     [ -f "$CORPUS/ADD.w.json.bin" ] && [ -f "$CORPUS/ADD.l.json.bin" ] && \
     [ -f "$CORPUS/CLR.b.json.bin" ] && [ -f "$CORPUS/CLR.w.json.bin" ] && \
     [ -f "$CORPUS/CLR.l.json.bin" ] && [ -f "$CORPUS/MOVEM.w.json.bin" ] && \
-    [ -f "$CORPUS/MOVEM.l.json.bin" ] && [ -f "$CORPUS/LINK.json.bin" ] || {
+    [ -f "$CORPUS/MOVEM.l.json.bin" ] && [ -f "$CORPUS/LINK.json.bin" ] && \
+    [ -f "$CORPUS/TST.b.json.bin" ] && [ -f "$CORPUS/TST.w.json.bin" ] && \
+    [ -f "$CORPUS/TST.l.json.bin" ] || {
     echo "m68000 corpus is incomplete: $CORPUS" >&2
     exit 1
   }

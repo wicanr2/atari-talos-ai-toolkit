@@ -66,6 +66,9 @@
   本地測試通過；涵蓋 user／supervisor active stack、A0–A7、signed displacement、
   big-endian push／pop 與 prefetch。CPU 累計外部單步驗收 85,000 筆；UNLK 缺獨立語料，
   不列入外部分母。
+- `TST.B/W/L` 共 7,500 筆全部通過；涵蓋 Dn、全部合法 memory data EA、X 保留、
+  NZVC、無寫回、program prefetch 與 vector-3 位址錯誤。CPU 累計外部單步驗收
+  92,500 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步

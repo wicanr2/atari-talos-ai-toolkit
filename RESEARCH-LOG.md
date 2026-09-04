@@ -117,3 +117,7 @@
 - 固定語料只有 `LINK.json.bin` 2,500 筆，沒有 UNLK 檔。LINK 語料確認 extension
   prefetch → active-stack long push → 最後 program prefetch 的順序及 16 clocks；UNLK
   目前只依官方契約與本地正常路徑測試，odd frame 的 vector-3 微時序維持未實作。
+- DM12EN 的 ReDMCSB 產生組語中，TST.W 271 次、TST.B 194 次、TST.L 5 次，
+  合計 470 個靜態使用點；此計數只用於模擬器實作優先序。
+- `TST.b/w/l.json.bin` 共 7,500 筆確認三種寬度只讀不寫、X 保留、NZVC 更新，以及
+  memory EA 的 prefetch、clock 與 vector-3 微時序。

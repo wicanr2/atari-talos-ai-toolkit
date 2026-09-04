@@ -68,6 +68,18 @@ func TestSingleStepLINK(t *testing.T) {
 	testSingleStepCorpus(t, "LINK.json.bin")
 }
 
+func TestSingleStepTSTByte(t *testing.T) {
+	testSingleStepCorpus(t, "TST.b.json.bin")
+}
+
+func TestSingleStepTSTWord(t *testing.T) {
+	testSingleStepCorpus(t, "TST.w.json.bin")
+}
+
+func TestSingleStepTSTLong(t *testing.T) {
+	testSingleStepCorpus(t, "TST.l.json.bin")
+}
+
 func TestSingleStepBcc(t *testing.T) {
 	testSingleStepCorpus(t, "Bcc.json.bin")
 }
