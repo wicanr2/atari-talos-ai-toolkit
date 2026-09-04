@@ -84,6 +84,33 @@ func TestSingleStepMOVEByteMemoryDestinations(t *testing.T) {
 	})
 }
 
+func TestSingleStepMOVEWordNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.w.json.bin", 1013, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re") && !hasTransactionKind(test.Transactions, "we")
+	})
+}
+
+func TestSingleStepMOVEWordReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.w.json.bin", 839, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepMOVEWordWriteAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.w.json.bin", 648, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "we")
+	})
+}
+
+func hasTransactionKind(transactions []Transaction, kind string) bool {
+	for _, transaction := range transactions {
+		if transaction.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 func testSingleStepCorpus(t *testing.T, name string) {
 	testSingleStepCorpusFiltered(t, name, 2500, func(corpusTest) bool { return true })
 }

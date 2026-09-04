@@ -36,3 +36,6 @@
   的不同 prefetch／write 次序，也驗證 source side effect 後才計算 destination EA。
   新增 2,116 筆全狀態、RAM、clock、bus 驗收，完整 MOVE.B 2,500 筆全通過，CPU
   累計外部單步驗收 32,500 筆。
+- 完成 `MOVE.W` 全部合法 source／destination EA 與 data address error。固定分母為
+  正常 1,013、source read fault 839、destination write fault 648；2,500 筆完整狀態、
+  RAM、clock、bus 與 vector-3 frame 全數通過，CPU 累計外部單步驗收 35,000 筆。

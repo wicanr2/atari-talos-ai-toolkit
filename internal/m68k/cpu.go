@@ -53,6 +53,8 @@ func (c *CPU) Step() (StepResult, error) {
 	switch {
 	case opcode&0xf000 == 0x1000:
 		return c.stepMOVEByte(opcode)
+	case opcode&0xf000 == 0x3000:
+		return c.stepMOVEWord(opcode)
 	case opcode&0xf1c0 == 0x41c0 && isControlMode(opcode):
 		return c.stepLEA(opcode)
 	case opcode&0xffc0 == 0x4840 && isControlMode(opcode):
@@ -394,6 +396,288 @@ func byteAddressDelta(reg uint8) uint32 {
 		return 2
 	}
 	return 1
+}
+
+type moveWordStep struct {
+	moveByteStep
+	opcode    uint16
+	initialPC uint32
+}
+
+func (c *CPU) stepMOVEWord(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	sourceMode := uint8(opcode >> 3 & 7)
+	sourceReg := uint8(opcode & 7)
+	destinationMode := uint8(opcode >> 6 & 7)
+	destinationReg := uint8(opcode >> 9 & 7)
+	if destinationMode == 1 || destinationMode == 7 && destinationReg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid MOVE.W destination mode %d:%d", destinationMode, destinationReg)
+	}
+
+	value, sourceCost, sourceMemory, fault, err := step.readWordSource(sourceMode, sourceReg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	destinationCost, fault, err := step.writeWordDestination(destinationMode, destinationReg, value, sourceCost, sourceMemory)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	c.setLogicalFlags(uint32(value), 16)
+	return StepResult{Clocks: 4 + sourceCost + destinationCost, Transactions: step.transactions}, nil
+}
+
+func (s *moveWordStep) readWordSource(mode, reg uint8) (uint16, uint32, bool, *StepResult, error) {
+	c := s.cpu
+	if mode == 0 {
+		return uint16(c.State.D[reg]), 0, false, nil, nil
+	}
+	if mode == 1 {
+		return uint16(c.addressRegister(reg)), 0, false, nil, nil
+	}
+
+	var address uint32
+	var cost uint32
+	readFC := s.dataFC
+	switch mode {
+	case 2:
+		address, cost = c.addressRegister(reg), 4
+	case 3:
+		address, cost = c.addressRegister(reg), 4
+		c.setAddressRegister(reg, address+2)
+	case 4:
+		address = c.addressRegister(reg) - 2
+		c.setAddressRegister(reg, address)
+		cost = 6
+	case 5:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, false, nil, err
+		}
+		address, cost = c.addressRegister(reg)+uint32(int32(int16(extension))), 8
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, false, nil, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return 0, 0, false, nil, err
+		}
+		address, cost = c.addressRegister(reg)+index+uint32(int32(int8(extension))), 10
+	case 7:
+		switch reg {
+		case 0:
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			address, cost = uint32(int32(int16(extension))), 8
+		case 1:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			low, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			address, cost = uint32(high)<<16|uint32(low), 12
+		case 2, 3:
+			base := c.State.PC - 2
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, false, nil, err
+			}
+			address = base + uint32(int32(int16(extension)))
+			cost = 8
+			if reg == 3 {
+				index, err := c.briefIndex(extension)
+				if err != nil {
+					return 0, 0, false, nil, err
+				}
+				address = base + index + uint32(int32(int8(extension)))
+				cost = 10
+			}
+			readFC = s.programFC
+		case 4:
+			extension, err := s.consumeExtension()
+			return extension, 4, false, nil, err
+		default:
+			return 0, 0, false, nil, fmt.Errorf("m68k: invalid MOVE.W source mode %d:%d", mode, reg)
+		}
+	default:
+		return 0, 0, false, nil, fmt.Errorf("m68k: invalid MOVE.W source mode %d:%d", mode, reg)
+	}
+
+	if address&1 != 0 {
+		result, err := c.enterAddressError(s.opcode, address, s.sourceFaultPC(mode, reg), s.transactions, 54+cost, readFC, "re", true)
+		return 0, cost, true, &result, err
+	}
+	value, err := c.Bus.ReadWord(address&addressMask, readFC)
+	if err != nil {
+		return 0, 0, true, nil, err
+	}
+	s.transactions = append(s.transactions, readTransaction(address&addressMask, readFC, value))
+	return value, cost, true, nil, nil
+}
+
+func (s *moveWordStep) sourceFaultPC(mode, reg uint8) uint32 {
+	switch mode {
+	case 2, 3, 5, 6:
+		return s.initialPC - 2
+	case 4:
+		return s.initialPC
+	case 7:
+		switch reg {
+		case 0:
+			return s.initialPC
+		case 1:
+			return s.initialPC + 2
+		default:
+			return s.initialPC - 2
+		}
+	}
+	return s.initialPC
+}
+
+func (s *moveWordStep) writeWordDestination(mode, reg uint8, value uint16, sourceCost uint32, sourceMemory bool) (uint32, *StepResult, error) {
+	c := s.cpu
+	if mode == 0 {
+		c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(value)
+		return 0, nil, s.refill()
+	}
+
+	savedPC := c.State.PC
+	var address uint32
+	var cost, faultExtra uint32
+	refillBeforeWrite := false
+	switch mode {
+	case 2:
+		address, cost = c.addressRegister(reg), 4
+	case 3:
+		address, cost = c.addressRegister(reg), 4
+	case 4:
+		address, cost, faultExtra = c.addressRegister(reg)-2, 4, 4
+		c.setAddressRegister(reg, address)
+		refillBeforeWrite = true
+	case 5:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		address, cost, faultExtra = c.addressRegister(reg)+uint32(int32(int16(extension))), 8, 4
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return 0, nil, err
+		}
+		address, cost, faultExtra = c.addressRegister(reg)+index+uint32(int32(int8(extension))), 10, 6
+	case 7:
+		if reg == 0 {
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, nil, err
+			}
+			address, cost, faultExtra = uint32(int32(int16(extension))), 8, 4
+			break
+		}
+		if reg != 1 {
+			return 0, nil, fmt.Errorf("m68k: invalid MOVE.W destination mode %d:%d", mode, reg)
+		}
+		cost, faultExtra = 12, 8
+		if sourceMemory {
+			faultExtra = 4
+			high := c.State.Prefetch[1]
+			lowAddress := c.State.PC & addressMask
+			low, err := c.Bus.ReadWord(lowAddress, s.programFC)
+			if err != nil {
+				return 0, nil, err
+			}
+			s.transactions = append(s.transactions, readTransaction(lowAddress, s.programFC, low))
+			address = uint32(high)<<16 | uint32(low)
+			if address&1 != 0 {
+				return s.wordWriteFault(s.opcode, address, savedPC, value, sourceCost, faultExtra)
+			}
+			if err := s.writeWord(address, value); err != nil {
+				return 0, nil, err
+			}
+			first, err := s.readProgramWord(c.State.PC + 2)
+			if err != nil {
+				return 0, nil, err
+			}
+			second, err := s.readProgramWord(c.State.PC + 4)
+			if err != nil {
+				return 0, nil, err
+			}
+			c.State.Prefetch = [2]uint16{first, second}
+			c.State.PC += 6
+			return cost, nil, nil
+		}
+		high, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		low, err := s.consumeExtension()
+		if err != nil {
+			return 0, nil, err
+		}
+		address = uint32(high)<<16 | uint32(low)
+		savedPC += 2
+	default:
+		return 0, nil, fmt.Errorf("m68k: invalid MOVE.W destination mode %d:%d", mode, reg)
+	}
+
+	if refillBeforeWrite {
+		if err := s.refill(); err != nil {
+			return 0, nil, err
+		}
+	}
+	if address&1 != 0 {
+		faultOpcode := s.opcode
+		if refillBeforeWrite {
+			faultOpcode = c.State.Prefetch[0]
+		}
+		return s.wordWriteFault(faultOpcode, address, savedPC, value, sourceCost, faultExtra)
+	}
+	if err := s.writeWord(address, value); err != nil {
+		return 0, nil, err
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, address+2)
+	}
+	if refillBeforeWrite {
+		return cost, nil, nil
+	}
+	return cost, nil, s.refill()
+}
+
+func (s *moveWordStep) wordWriteFault(opcode uint16, address, savedPC uint32, value uint16, sourceCost, faultExtra uint32) (uint32, *StepResult, error) {
+	s.cpu.setLogicalFlags(uint32(value), 16)
+	result, err := s.cpu.enterAddressError(opcode, address, savedPC, s.transactions, 58+sourceCost+faultExtra, s.dataFC, "we", false)
+	return 0, &result, err
+}
+
+func (s *moveWordStep) writeWord(address uint32, value uint16) error {
+	address &= addressMask
+	if err := s.cpu.Bus.WriteWord(address, value, s.dataFC); err != nil {
+		return err
+	}
+	s.transactions = append(s.transactions, writeTransaction(address, s.dataFC, value))
+	return nil
 }
 
 type controlEA struct {
@@ -839,12 +1123,27 @@ func (c *CPU) enterInstructionAddressError(
 	prefix []Transaction,
 	clocks uint32,
 ) (StepResult, error) {
+	return c.enterAddressError(opcode, target, savedPC, prefix, clocks, c.programFunctionCode(), "re", true)
+}
+
+func (c *CPU) enterAddressError(
+	opcode uint16,
+	target uint32,
+	savedPC uint32,
+	prefix []Transaction,
+	clocks uint32,
+	faultFC uint8,
+	faultKind string,
+	read bool,
+) (StepResult, error) {
 	originalSR := c.State.SR
-	originalFC := c.programFunctionCode()
 	faultBusAddress := target & addressMask &^ 1
 
 	newSP := c.State.SSP - 14
-	ssw := opcode&0xffe0 | 0x0010 | uint16(originalFC)
+	ssw := opcode&0xffe0 | uint16(faultFC)
+	if read {
+		ssw |= 0x0010
+	}
 	writes := []struct {
 		address uint32
 		value   uint16
@@ -858,7 +1157,7 @@ func (c *CPU) enterInstructionAddressError(
 		{newSP + 2, uint16(target >> 16)},
 	}
 	transactions := append(prefix, Transaction{
-		Kind: "re", Cycle: 4, FC: originalFC, Address: faultBusAddress,
+		Kind: faultKind, Cycle: 4, FC: faultFC, Address: faultBusAddress,
 		Size: 2, Data: 0, UDS: true, LDS: true,
 	})
 	for _, write := range writes {

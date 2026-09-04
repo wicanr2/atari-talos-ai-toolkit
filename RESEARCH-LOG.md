@@ -56,3 +56,9 @@
   排程；memory source 為 low extension → byte write → 兩次 refill。語料 byte write
   會把未驅動 lane 以顯式零保存，驗收以「absent 與 zero 等價」正規化稀疏 RAM map，
   但非零 bytes 與完整 UDS／LDS transaction 仍逐筆嚴格比較。
+- `MOVE.w.json.bin` 固定分為 1,013 筆正常、839 筆 source `re`、648 筆 destination
+  `we`。source `(An)+` 在 read fault 前已 An+2，destination `(An)+` 在 write fault
+  不遞增；兩者不能共用同一條 postincrement 時序假設。
+- destination `-(An)` 在 odd-address fault 前已完成 final refill，因此 exception frame
+  的 opcode／SSW 取當時管線中的 `prefetch[0]`。absolute-long destination 的 write
+  fault 額外 clock 依 source 是否為 memory 分成 8／4；完整 transaction 全序已驗證。
