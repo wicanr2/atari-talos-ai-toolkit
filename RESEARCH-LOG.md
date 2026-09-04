@@ -104,3 +104,11 @@
 - `MOVEM.w/l.json.bin` 共 5,000 筆確認 memory-to-register 在最後一個實際 operand 後
   還有一次 word 虛讀；PC-relative operand 使用 program FC。predecrement long 的
   odd-address write fault 落在先寫 low word 的第一個 `An-2` 微操作，而不是最終 `An-4`。
+- 主機已有可重現的 Atari ST oracle image `sundog-atari-st-oracle:20260812`，不可變
+  image ID／digest 均為 `sha256:d634e10516572262d0039b51823cd565df73d3ee25b06604dc9ecf337b0c1fca`；
+  容器內 Hatari 為 2.4.1，並有 Xvfb、xdotool 與 Python 3。這是工具鏈盤點，尚未證明
+  Dungeon Master 可由該 image 正常啟動。
+- SunDog 的既有 Hatari 實跑證據 JSON 已證明一組可用欄位：來源 archive／disk／TOS
+  SHA-256、image 與 Hatari 版本、顯示與輸入邊界、逐步事件、截圖 SHA-256、證據等級、
+  unknown、next gate、artifact retention 及 `supersededBy` 勘誤鏈。Atari Talos 可沿用
+  這些資訊需求，但公開契約要採 bundle、JSONL 或兩者並存仍是未定案的架構決策。

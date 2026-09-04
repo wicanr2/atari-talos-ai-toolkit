@@ -19,6 +19,10 @@
 | 68000 MOVEA.W／MOVEA.L | 符號延伸／A7／alias／CCR 不變測試 | 兩種寬度 5,000 筆完整 state／RAM／clock／bus／read-fault frame | 通過 |
 | 68000 ADDA.W／ADDA.L | 符號延伸／active A7／CCR 不變測試 | 兩種寬度 5,000 筆完整 state／RAM／clock／bus／read-fault frame | 通過 |
 | 68000 AND／ANDI.B／W／L | Dn、RMW bus 次序、long word 次序／CCR 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／read-fault frame | 通過 |
+| 68000 CMP／CMPI／CMPM.B／W／L | 減法旗標、雙後遞增與 fault 副作用測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
+| 68000 ADD／ADDI／ADDQ.B／W／L | 加法旗標、quick、An 特例與 RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
+| 68000 CLR.B／W／L | Dn 寬度、CCR 與 memory RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
+| 68000 MOVEM.W／L | mask、雙方向、虛讀、predecrement／postincrement 測試 | 兩種寬度 5,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
