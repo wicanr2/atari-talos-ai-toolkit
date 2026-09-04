@@ -31,6 +31,7 @@
 | 68000 ASR／LSR.B／W／L | immediate／Dn count、符號／零填入、X／NZVC、memory RMW 測試 | 六份語料 15,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 MULS／MULU.W | signed／unsigned 結果、資料相依 clock、word data EA 測試 | 兩份語料 5,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 NOT／NEG.B／W／L | Dn／memory、邏輯／borrow 旗標、RMW bus 次序測試 | 六份語料 15,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
+| 68000 Scc.B | 16 conditions、Dn 真／假 clock、memory RMW、SR 不變測試 | Scc 2,500 筆完整 state／RAM／clock／bus trace | 通過 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |

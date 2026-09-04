@@ -153,3 +153,7 @@
 - `NOT.b/w/l.json.bin` 與 `NEG.b/w/l.json.bin` 共 15,000 筆確認兩族的 Dn／完整
   memory destination EA、RMW bus 次序、long low-word-first 寫回與 vector-3 微時序。
   NOT 保留 X 並清 V／C；NEG 對非零 operand 同時設定 X／C，最小負值設定 V。
+- DM12EN 的 ReDMCSB 產生組語中，Scc 族合計 244 個靜態使用點；其中 SEQ 142、
+  SNE 54，其餘分布於 SCC、SGE、SGT、SHI、SLE、SLS、SLT、SMI、SPL、ST、SVC、SVS。
+- `Scc.json.bin` 2,500 筆確認 Dn 成立為 6 clocks、不成立為 4 clocks；memory 型
+  無論結果都先讀原 byte，再 prefetch 並寫 `ff`／`00`，且完全不改 SR。

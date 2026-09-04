@@ -51,6 +51,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xf0c0 == 0x50c0:
+		return c.stepScc(opcode)
 	case opcode&0xff00 == 0x4600 && opcode>>6&3 <= 2:
 		return c.stepUnaryModify(opcode, false)
 	case opcode&0xff00 == 0x4400 && opcode>>6&3 <= 2:
@@ -202,6 +204,92 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepScc(opcode uint16) (StepResult, error) {
+	condition := uint8(opcode >> 8 & 15)
+	trueCondition := condition == 0 || condition != 1 && branchCondition(condition, c.State.SR)
+	value := byte(0)
+	if trueCondition {
+		value = 0xff
+	}
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid Scc destination mode %d:%d", mode, reg)
+	}
+	if mode == 0 {
+		c.State.D[reg] = c.State.D[reg]&0xffff_ff00 | uint32(value)
+		clocks := uint32(4)
+		if trueCondition {
+			clocks = 6
+		}
+		return c.refillSequential(controlEA{returnPC: c.State.PC}, clocks)
+	}
+
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	var address, delta, cost uint32
+	switch mode {
+	case 2:
+		address, cost = c.addressRegister(reg), 4
+	case 3:
+		address, delta, cost = c.addressRegister(reg), byteAddressDelta(reg), 4
+	case 4:
+		delta = byteAddressDelta(reg)
+		address, cost = c.addressRegister(reg)-delta, 6
+		c.setAddressRegister(reg, address)
+	case 5:
+		extension, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		address, cost = c.addressRegister(reg)+uint32(int32(int16(extension))), 8
+	case 6:
+		extension, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return StepResult{}, err
+		}
+		address, cost = c.addressRegister(reg)+index+uint32(int32(int8(extension))), 10
+	case 7:
+		if reg == 0 {
+			extension, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, cost = uint32(int32(int16(extension))), 8
+		} else {
+			high, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			low, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, cost = uint32(high)<<16|uint32(low), 12
+		}
+	}
+	readValue, err := c.Bus.ReadByte(address&addressMask, stream.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, readByteTransaction(address&addressMask, stream.dataFC, readValue))
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := stream.writeByte(address, value); err != nil {
+		return StepResult{}, err
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, c.addressRegister(reg)+delta)
+	}
+	return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
 }
 
 func (c *CPU) stepUnaryModify(opcode uint16, negate bool) (StepResult, error) {

@@ -89,3 +89,6 @@
 - 完成 `NOT.B/W/L` 與 `NEG.B/W/L`；六份語料共 15,000 筆全數通過。Dn／memory、
   三種寬度、邏輯反相、`0−operand`、X／NZVC、long low-word-first 寫回、prefetch、
   clocks 與 address-error 均逐筆驗收；CPU 累計外部單步驗收 150,000 筆。
+- 完成全部 16 種 `Scc.B`；固定語料 2,500 筆全數通過。真假條件、Dn 不同 clocks、
+  SR 完全不變、所有 memory destination EA、operand read → prefetch → byte write、
+  UDS／LDS 與 A7 delta 均逐筆驗收；CPU 累計外部單步驗收 152,500 筆。

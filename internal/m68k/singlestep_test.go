@@ -334,6 +334,10 @@ func TestSingleStepNEGLong(t *testing.T) {
 	testSingleStepCorpus(t, "NEG.l.json.bin")
 }
 
+func TestSingleStepScc(t *testing.T) {
+	testSingleStepCorpus(t, "Scc.json.bin")
+}
+
 func isSUB(test corpusTest) bool {
 	opcode := test.Initial.CPU.Prefetch[0]
 	opmode := opcode >> 6 & 7
