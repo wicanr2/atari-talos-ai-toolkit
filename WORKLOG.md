@@ -32,3 +32,7 @@
 - 建立第一個 data-EA 垂直切片：`MOVE.B` 全部合法 source modes 至 Dn。加入 byte bus
   read、UDS／LDS lane、A7 byte delta、立即值與 source prefetch 排程；384 筆固定子集
   全部通過，CPU 累計外部單步驗收 30,384 筆。
+- 完成 `MOVE.B` 全部記憶體目的端及 byte write bus，保留 predecrement 與 absolute-long
+  的不同 prefetch／write 次序，也驗證 source side effect 後才計算 destination EA。
+  新增 2,116 筆全狀態、RAM、clock、bus 驗收，完整 MOVE.B 2,500 筆全通過，CPU
+  累計外部單步驗收 32,500 筆。

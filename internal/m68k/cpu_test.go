@@ -1,6 +1,9 @@
 package m68k
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestNOPPipelineAndFunctionCode(t *testing.T) {
 	memory := SparseMemory{0x1004: 0x12, 0x1005: 0x34}
@@ -61,6 +64,32 @@ func TestMOVEBytePostIncrementA7AndBusLane(t *testing.T) {
 		Data: 0x0080, LDS: true}
 	if result.Clocks != 8 || len(result.Transactions) != 2 || result.Transactions[0] != want {
 		t.Fatalf("unexpected MOVE.B bus result: %#v", result)
+	}
+}
+
+func TestMOVEBytePostIncrementSourceAndDestinationAlias(t *testing.T) {
+	memory := SparseMemory{
+		0x1004: 0x4e, 0x1005: 0x71,
+		0x8000: 0x12, 0x8001: 0xff,
+	}
+	cpu := CPU{Bus: memory, State: State{
+		A: [7]uint32{0x8000}, SR: 0x0011,
+		PC: 0x1004, Prefetch: [2]uint16{0x10d8, 0xabcd},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cpu.State.A[0] != 0x8002 || memory[0x8001] != 0x12 || cpu.State.SR != 0x0010 {
+		t.Fatalf("unexpected aliased MOVE.B state: %#v RAM=%#v", cpu.State, memory)
+	}
+	want := []Transaction{
+		{Kind: "r", Cycle: 4, FC: 1, Address: 0x8000, Size: 1, Data: 0x1200, UDS: true},
+		{Kind: "w", Cycle: 4, FC: 1, Address: 0x8000, Size: 1, Data: 0x0012, LDS: true},
+		{Kind: "r", Cycle: 4, FC: 2, Address: 0x1004, Size: 2, Data: 0x4e71, UDS: true, LDS: true},
+	}
+	if result.Clocks != 12 || !reflect.DeepEqual(result.Transactions, want) {
+		t.Fatalf("unexpected aliased MOVE.B bus result: %#v", result)
 	}
 }
 

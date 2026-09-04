@@ -78,6 +78,12 @@ func TestSingleStepMOVEByteSourcesToDn(t *testing.T) {
 	})
 }
 
+func TestSingleStepMOVEByteMemoryDestinations(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVE.b.json.bin", 2116, func(test corpusTest) bool {
+		return test.Initial.CPU.Prefetch[0]>>6&7 != 0
+	})
+}
+
 func testSingleStepCorpus(t *testing.T, name string) {
 	testSingleStepCorpusFiltered(t, name, 2500, func(corpusTest) bool { return true })
 }
@@ -108,8 +114,8 @@ func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept fu
 			if cpu.State != test.Final.CPU {
 				t.Fatalf("state mismatch\n got: %#v\nwant: %#v", cpu.State, test.Final.CPU)
 			}
-			if !reflect.DeepEqual(test.Initial.RAM, test.Final.RAM) {
-				t.Fatalf("%s corpus unexpectedly changes RAM", name)
+			if !equalSparseMemory(test.Initial.RAM, test.Final.RAM) {
+				t.Fatalf("RAM mismatch\n got: %#v\nwant: %#v", test.Initial.RAM, test.Final.RAM)
 			}
 			if result.Clocks != test.Clocks || !reflect.DeepEqual(result.Transactions, test.Transactions) {
 				t.Fatalf("bus mismatch\n got: %#v\nwant: clocks=%d transactions=%#v", result, test.Clocks, test.Transactions)
@@ -119,6 +125,22 @@ func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept fu
 	if accepted != want {
 		t.Fatalf("%s accepted %d tests, want %d", name, accepted, want)
 	}
+}
+
+func equalSparseMemory(got, want SparseMemory) bool {
+	// Corpus byte writes retain the inactive bus lane as an explicit zero;
+	// SparseMemory leaves the same unknown zero lane absent.
+	for address, value := range got {
+		if want[address] != value {
+			return false
+		}
+	}
+	for address, value := range want {
+		if got[address] != value {
+			return false
+		}
+	}
+	return true
 }
 
 func readCorpus(path string) ([]corpusTest, error) {

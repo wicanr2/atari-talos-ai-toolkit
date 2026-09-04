@@ -49,3 +49,10 @@
   由 UDS／LDS 選取 high／low lane；A7 的 byte predecrement／postincrement delta 為 2。
 - `MOVE.B` source prefetch 次序依 extension 數量不同；absolute long 特別是 low extension、
   first refill、data byte、second refill。這些差異已納入 transaction 全序比較。
+- 記憶體 destination 的 2,116 筆確認 source An side effect 先於 destination EA；同一
+  register 可連續 postincrement／predecrement。destination predecrement 先完成 final
+  refill 再 write，與其他 destination modes 的 write → refill 不同。
+- absolute-long destination 在 Dn／immediate source 與 memory source 使用不同 bus
+  排程；memory source 為 low extension → byte write → 兩次 refill。語料 byte write
+  會把未驅動 lane 以顯式零保存，驗收以「absent 與 zero 等價」正規化稀疏 RAM map，
+  但非零 bytes 與完整 UDS／LDS transaction 仍逐筆嚴格比較。

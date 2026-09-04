@@ -30,6 +30,11 @@ func (m SparseMemory) ReadWord(address uint32, _ uint8) (uint16, error) {
 	return uint16(hi)<<8 | uint16(lo), nil
 }
 
+func (m SparseMemory) WriteByte(address uint32, value byte, _ uint8) error {
+	m[address&addressMask] = value
+	return nil
+}
+
 func (m SparseMemory) WriteWord(address uint32, value uint16, _ uint8) error {
 	address &= addressMask
 	if address&1 != 0 {
