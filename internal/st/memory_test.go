@@ -2,6 +2,7 @@ package st
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
@@ -184,5 +185,45 @@ func TestMOVEWordProtectedReadEntersBusErrorVector2(t *testing.T) {
 		if readErr != nil || got != want {
 			t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
 		}
+	}
+}
+
+func TestDivideByZeroEntersVector5(t *testing.T) {
+	for _, opcode := range []uint16{0x80c1, 0x81c1} {
+		t.Run(fmt.Sprintf("opcode_%04x", opcode), func(t *testing.T) {
+			memory, err := NewMemory(RAM1M, testROM())
+			if err != nil {
+				t.Fatal(err)
+			}
+			const handler = uint32(0x1000)
+			for address, value := range map[uint32]uint16{
+				0x0014: 0x0000, 0x0016: uint16(handler),
+				handler: 0x60fe, handler + 2: 0x0000,
+			} {
+				if err := memory.WriteWord(address, value, 5); err != nil {
+					t.Fatalf("seed 0x%x: %v", address, err)
+				}
+			}
+			cpu := m68k.CPU{Bus: memory, State: m68k.State{
+				D: [8]uint32{1, 0}, SSP: 0x2000, SR: 0x0300,
+				PC: 0x2004, Prefetch: [2]uint16{opcode, 0x60fe},
+			}}
+			result, err := cpu.Step()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Clocks != 40 || cpu.State.D[0] != 1 || cpu.State.SSP != 0x1ffa ||
+				cpu.State.SR != 0x2304 || cpu.State.PC != handler+4 ||
+				cpu.State.Prefetch != [2]uint16{0x60fe, 0x0000} {
+				t.Fatalf("result=%+v state=%+v", result, cpu.State)
+			}
+			wantFrame := []uint16{0x0304, 0x0000, 0x2002}
+			for index, want := range wantFrame {
+				got, readErr := memory.ReadWord(cpu.State.SSP+uint32(index*2), 5)
+				if readErr != nil || got != want {
+					t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+				}
+			}
+		})
 	}
 }

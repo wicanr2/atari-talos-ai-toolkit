@@ -166,6 +166,10 @@
 - DM12EN 重建組語有 `BTST` 76、`BCLR` 10、`BSET` 10 個靜態使用點，未見 `BCHG`；
   四份固定語料仍完整納入 10,000 筆，確認 Dn modulo 32、memory modulo 8、Z、byte
   RMW、PC-relative FC，以及修改型在 bit 16–31 多 2 clocks 的資料相依時序。
+- DM12EN 重建組語有 `DIVU` 70、`DIVS` 22 個靜態使用點。兩份固定語料共 5,000 筆
+  確認成功、overflow、word EA、vector 3 與資料相依迭代 clocks；語料未含 divisor=0。
+  兩個 Hatari 最小探針補證 DIVU／DIVS register divisor=0 均為 40 clocks，先設 Z，
+  Dn 不變，再建立 SR+PC 的 6-byte vector 5 frame。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁

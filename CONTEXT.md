@@ -99,6 +99,10 @@
   immediate bit number、Dn modulo 32、byte memory modulo 8、Z、A7 byte delta、
   PC-relative program FC、讀改寫 bus 次序與 bit 16–31 的資料相依 clock。DM12EN
   靜態使用 96 點；CPU 累計外部單步驗收 167,500 筆。
+- `DIVS.W`／`DIVU.W` 共 5,000 筆全部通過，涵蓋成功、quotient overflow、全部
+  word data EA、資料相依迭代 clocks 與 1,936 筆 vector 3；另以 Hatari 各驗一個
+  divisor=0 案例，兩者皆為 40 clocks、Z=1、Dn 不變及 6-byte vector 5 frame。
+  DM12EN 靜態使用 92 點；CPU 累計外部單步驗收 172,500 筆。
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
   read-only 與 typed bus fault 均有測試。

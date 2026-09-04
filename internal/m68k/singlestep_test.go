@@ -310,6 +310,14 @@ func TestSingleStepMULU(t *testing.T) {
 	testSingleStepCorpus(t, "MULU.json.bin")
 }
 
+func TestSingleStepDIVS(t *testing.T) {
+	testSingleStepCorpus(t, "DIVS.json.bin")
+}
+
+func TestSingleStepDIVU(t *testing.T) {
+	testSingleStepCorpus(t, "DIVU.json.bin")
+}
+
 func TestSingleStepNOTByte(t *testing.T) {
 	testSingleStepCorpus(t, "NOT.b.json.bin")
 }

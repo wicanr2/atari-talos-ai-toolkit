@@ -141,6 +141,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepMultiply(opcode, false)
 	case opcode&0xf1c0 == 0xc1c0:
 		return c.stepMultiply(opcode, true)
+	case opcode&0xf1c0 == 0x80c0:
+		return c.stepDivide(opcode, false)
+	case opcode&0xf1c0 == 0x81c0:
+		return c.stepDivide(opcode, true)
 	case opcode&0xf1c0 == 0xd0c0:
 		return c.stepADDAWord(opcode)
 	case opcode&0xf1c0 == 0xd1c0:
@@ -740,6 +744,169 @@ func multiplySignedClocks(multiplier uint16) uint32 {
 		previous = current
 	}
 	return clocks
+}
+
+func (c *CPU) stepDivide(opcode uint16, signed bool) (StepResult, error) {
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 4 {
+		return StepResult{}, fmt.Errorf("m68k: invalid divide source mode %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	divisor, cost, _, fault, err := step.readWordSource(mode, reg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	if divisor == 0 {
+		c.State.SR &^= 0x000f
+		c.State.SR |= 0x0004
+		return c.enterStandardException(5, c.State.PC-2, step.transactions, 40+cost)
+	}
+	destination := opcode >> 9 & 7
+	dividend := c.State.D[destination]
+	var result uint32
+	var clocks uint32
+	var overflow bool
+	if signed {
+		quotient := int64(int32(dividend)) / int64(int16(divisor))
+		remainder := int64(int32(dividend)) % int64(int16(divisor))
+		overflow = quotient < -32768 || quotient > 32767
+		clocks = divideSignedClocks(dividend, divisor)
+		if !overflow {
+			result = uint32(uint16(int16(remainder)))<<16 | uint32(uint16(int16(quotient)))
+		}
+	} else {
+		quotient := uint64(dividend) / uint64(divisor)
+		remainder := uint64(dividend) % uint64(divisor)
+		overflow = quotient > 0xffff
+		clocks = divideUnsignedClocks(dividend, divisor)
+		if !overflow {
+			result = uint32(remainder)<<16 | uint32(quotient)
+		}
+	}
+	if overflow {
+		c.State.SR &^= 0x000f
+		c.State.SR |= 0x000a
+	} else {
+		c.State.D[destination] = result
+		c.setLogicalFlags(uint32(uint16(result)), 16)
+	}
+	if err := step.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: clocks + cost, Transactions: step.transactions}, nil
+}
+
+func (c *CPU) enterStandardException(vector uint8, savedPC uint32, prefix []Transaction, clocks uint32) (StepResult, error) {
+	originalSR := c.State.SR
+	newSP := c.State.SSP - 6
+	writes := []struct {
+		address uint32
+		value   uint16
+	}{
+		{newSP + 4, uint16(savedPC)},
+		{newSP, originalSR},
+		{newSP + 2, uint16(savedPC >> 16)},
+	}
+	transactions := append([]Transaction{}, prefix...)
+	for _, write := range writes {
+		address := write.address & addressMask
+		if err := c.Bus.WriteWord(address, write.value, 5); err != nil {
+			return StepResult{}, err
+		}
+		transactions = append(transactions, writeTransaction(address, 5, write.value))
+	}
+	vectorAddress := uint32(vector) * 4
+	high, err := c.Bus.ReadWord(vectorAddress, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := c.Bus.ReadWord(vectorAddress+2, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions,
+		readTransaction(vectorAddress, 5, high),
+		readTransaction(vectorAddress+2, 5, low))
+	handler := uint32(high)<<16 | uint32(low)
+	first, err := c.Bus.ReadWord(handler&addressMask, 6)
+	if err != nil {
+		return StepResult{}, err
+	}
+	second, err := c.Bus.ReadWord((handler+2)&addressMask, 6)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions,
+		readTransaction(handler&addressMask, 6, first),
+		readTransaction((handler+2)&addressMask, 6, second))
+	c.State.SSP = newSP
+	c.State.SR = originalSR | supervisor
+	c.State.SR &^= 0x8000
+	c.State.Prefetch = [2]uint16{first, second}
+	c.State.PC = handler + 4
+	return StepResult{Clocks: clocks, Transactions: transactions}, nil
+}
+
+func divideUnsignedClocks(dividend uint32, divisor uint16) uint32 {
+	clocks := uint32(38)
+	if dividend>>16 >= uint32(divisor) {
+		return 10
+	}
+	work := dividend
+	for iteration := 0; iteration < 15; iteration++ {
+		previous := work
+		work <<= 1
+		if int32(previous) < 0 {
+			work -= uint32(divisor) << 16
+		} else {
+			clocks += 2
+			if work>>16 >= uint32(divisor) {
+				work -= uint32(divisor) << 16
+				clocks--
+			}
+		}
+	}
+	return clocks * 2
+}
+
+func divideSignedClocks(dividend uint32, divisor uint16) uint32 {
+	signedDividend := int64(int32(dividend))
+	signedDivisor := int64(int16(divisor))
+	clocks := uint32(6)
+	if signedDividend < 0 {
+		clocks++
+		signedDividend = -signedDividend
+	}
+	if signedDivisor < 0 {
+		signedDivisor = -signedDivisor
+	}
+	if uint64(signedDividend) >= uint64(signedDivisor)<<16 {
+		return (clocks + 2) * 2
+	}
+	quotient := uint16(uint64(signedDividend) / uint64(signedDivisor))
+	clocks += 55
+	if int16(divisor) >= 0 {
+		if int32(dividend) >= 0 {
+			clocks--
+		} else {
+			clocks++
+		}
+	}
+	work := quotient
+	for iteration := 0; iteration < 15; iteration++ {
+		if work&0x8000 == 0 {
+			clocks++
+		}
+		work <<= 1
+	}
+	return clocks * 2
 }
 
 func (c *CPU) stepASRRegister(opcode uint16) (StepResult, error) {

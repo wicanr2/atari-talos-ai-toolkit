@@ -104,6 +104,9 @@
 - 依 DM12EN 靜態使用量選出 bit 指令族；完成 `BTST`／`BCHG`／`BCLR`／`BSET`
   dynamic／immediate、Dn／byte memory、Z、EA、bus 與資料相依 clock，四份固定語料
   10,000 筆全數通過，CPU 累計外部單步驗收 167,500 筆。
+- 完成 `DIVS.W`／`DIVU.W` 的成功、overflow、word EA、資料相依 clocks 與 vector 3，
+  固定語料 5,000 筆全數通過；再以 Hatari 兩個最小 PRG 補齊 divisor=0 vector 5 的
+  40-clock、Z、Dn、6-byte frame 與 handler prefetch，累計外部單步驗收 172,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。
