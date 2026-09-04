@@ -50,6 +50,23 @@ func (c *CPU) Step() (StepResult, error) {
 	switch {
 	case opcode == 0x4e71:
 		// NOP changes only the prefetch pipeline.
+	case opcode&0xfff8 == 0x4840:
+		reg := opcode & 7
+		value := c.State.D[reg]
+		value = value<<16 | value>>16
+		c.State.D[reg] = value
+		c.setLogicalFlags(value, 32)
+	case opcode&0xfff8 == 0x4880:
+		reg := opcode & 7
+		value := c.State.D[reg]
+		word := uint32(uint16(int16(int8(value))))
+		c.State.D[reg] = value&0xffff_0000 | word
+		c.setLogicalFlags(word, 16)
+	case opcode&0xfff8 == 0x48c0:
+		reg := opcode & 7
+		value := uint32(int32(int16(c.State.D[reg])))
+		c.State.D[reg] = value
+		c.setLogicalFlags(value, 32)
 	case opcode&0xf100 == 0x7000:
 		reg := (opcode >> 9) & 7
 		value := uint32(int32(int8(opcode)))
@@ -82,4 +99,21 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) setLogicalFlags(value uint32, bits uint8) {
+	c.State.SR &^= 0x000f
+	mask := uint32(0xffff_ffff)
+	negative := uint32(0x8000_0000)
+	if bits == 16 {
+		mask = 0x0000_ffff
+		negative = 0x0000_8000
+	}
+	value &= mask
+	if value == 0 {
+		c.State.SR |= 0x0004
+	}
+	if value&negative != 0 {
+		c.State.SR |= 0x0008
+	}
 }

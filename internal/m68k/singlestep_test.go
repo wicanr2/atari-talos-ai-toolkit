@@ -32,6 +32,18 @@ func TestSingleStepMOVEQ(t *testing.T) {
 	testSingleStepCorpus(t, "MOVE.q.json.bin")
 }
 
+func TestSingleStepSWAP(t *testing.T) {
+	testSingleStepCorpus(t, "SWAP.json.bin")
+}
+
+func TestSingleStepEXTW(t *testing.T) {
+	testSingleStepCorpus(t, "EXT.w.json.bin")
+}
+
+func TestSingleStepEXTL(t *testing.T) {
+	testSingleStepCorpus(t, "EXT.l.json.bin")
+}
+
 func testSingleStepCorpus(t *testing.T, name string) {
 	t.Helper()
 	root := os.Getenv("TALOS_M68000_TESTS")
@@ -57,7 +69,7 @@ func testSingleStepCorpus(t *testing.T, name string) {
 				t.Fatalf("state mismatch\n got: %#v\nwant: %#v", cpu.State, test.Final.CPU)
 			}
 			if !reflect.DeepEqual(test.Initial.RAM, test.Final.RAM) {
-				t.Fatal("NOP corpus unexpectedly changes RAM")
+				t.Fatalf("%s corpus unexpectedly changes RAM", name)
 			}
 			if result.Clocks != test.Clocks || !reflect.DeepEqual(result.Transactions, test.Transactions) {
 				t.Fatalf("bus mismatch\n got: %#v\nwant: clocks=%d transactions=%#v", result, test.Clocks, test.Transactions)

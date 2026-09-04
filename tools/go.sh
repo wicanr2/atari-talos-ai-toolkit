@@ -19,7 +19,9 @@ if [ -n "${TALOS_M68000_TESTS:-}" ]; then
     /*) CORPUS=$TALOS_M68000_TESTS ;;
     *) CORPUS=$ROOT/$TALOS_M68000_TESTS ;;
   esac
-  [ -f "$CORPUS/NOP.json.bin" ] && [ -f "$CORPUS/MOVE.q.json.bin" ] || {
+  [ -f "$CORPUS/NOP.json.bin" ] && [ -f "$CORPUS/MOVE.q.json.bin" ] && \
+    [ -f "$CORPUS/SWAP.json.bin" ] && [ -f "$CORPUS/EXT.w.json.bin" ] && \
+    [ -f "$CORPUS/EXT.l.json.bin" ] || {
     echo "m68000 corpus is incomplete: $CORPUS" >&2
     exit 1
   }
