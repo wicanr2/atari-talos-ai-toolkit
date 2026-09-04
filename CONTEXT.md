@@ -62,10 +62,10 @@
 - `MOVEM.W/L` 共 5,000 筆全部通過；涵蓋雙向 register mask、word 符號延伸、
   predecrement 反序、postincrement、額外虛讀、PC-relative program FC、完整 bus 次序與
   vector-3 位址錯誤。CPU 累計外部單步驗收 82,500 筆。
-- `LINK` 2,500 筆外部語料全部通過，`UNLK` 偶數 frame 正常路徑與 odd fail-closed
-  本地測試通過；涵蓋 user／supervisor active stack、A0–A7、signed displacement、
-  big-endian push／pop 與 prefetch。CPU 累計外部單步驗收 85,000 筆；UNLK 缺獨立語料，
-  不列入外部分母。
+- `LINK` 與 `UNLK` 各 2,500 筆外部語料全部通過；UNLK 語料實際檔名為
+  `UNLINK.json.bin`，涵蓋正常 1,385、odd-frame vector-3 1,115、A7 alias、
+  user／supervisor active stack、完整 state／RAM／clock／bus。依原里程碑順序計入後，
+  CPU 累計外部單步驗收 87,500 筆。
 - `TST.B/W/L` 共 7,500 筆全部通過；涵蓋 Dn、全部合法 memory data EA、X 保留、
   NZVC、無寫回、program prefetch 與 vector-3 位址錯誤。CPU 累計外部單步驗收
   92,500 筆。
@@ -93,6 +93,8 @@
 - 完整 16 種 `DBcc.W` 共 2,500 筆全部通過；涵蓋 condition 成立、低 16-bit 計數
   到期／成功分支、10／12／14 clocks 與奇數目標 vector 3。例外不提交 Dn 遞減，
   fault address 與 frame saved PC 分開建模。CPU 累計外部單步驗收 155,000 筆。
+- 補入先前漏列的 UNLK 外部語料 2,500 筆後，CPU 累計外部單步驗收為 157,500 筆；
+  原限定完成狀態已撤除。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步

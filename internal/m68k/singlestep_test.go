@@ -342,6 +342,18 @@ func TestSingleStepDBcc(t *testing.T) {
 	testSingleStepCorpus(t, "DBcc.json.bin")
 }
 
+func TestSingleStepUNLINKNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "UNLINK.json.bin", 1385, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepUNLINKAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "UNLINK.json.bin", 1115, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
 func isSUB(test corpusTest) bool {
 	opcode := test.Initial.CPU.Prefetch[0]
 	opmode := opcode >> 6 & 7

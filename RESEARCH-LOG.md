@@ -114,9 +114,10 @@
   這些資訊需求，但公開契約要採 bundle、JSONL 或兩者並存仍是未定案的架構決策。
 - DM12EN 的 ReDMCSB 產生組語中，LINK 與 UNLK 各 445 次，合計 890 個靜態使用點；
   兩者是 Megamax C 產物中成對且高頻的函式框架指令。
-- 固定語料只有 `LINK.json.bin` 2,500 筆，沒有 UNLK 檔。LINK 語料確認 extension
-  prefetch → active-stack long push → 最後 program prefetch 的順序及 16 clocks；UNLK
-  目前只依官方契約與本地正常路徑測試，odd frame 的 vector-3 微時序維持未實作。
+- 固定語料同時有 `LINK.json.bin` 與命名為完整單字的 `UNLINK.json.bin`，各 2,500 筆；
+  先前只尋找助記碼 `UNLK` 而漏列後者。UNLINK 語料含正常 1,385、odd-frame vector-3
+  1,115 筆；確認 odd frame 不提交 active SP、fault address／saved PC／原始 data FC
+  的例外契約，以及 A7 alias 最終以讀出的 long 覆蓋中間 frame+4。
 - DM12EN 的 ReDMCSB 產生組語中，TST.W 271 次、TST.B 194 次、TST.L 5 次，
   合計 470 個靜態使用點；此計數只用於模擬器實作優先序。
 - `TST.b/w/l.json.bin` 共 7,500 筆確認三種寬度只讀不寫、X 保留、NZVC 更新，以及

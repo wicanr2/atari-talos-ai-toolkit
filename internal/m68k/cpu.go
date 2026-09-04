@@ -858,14 +858,14 @@ func (c *CPU) stepLINK(opcode uint16) (StepResult, error) {
 func (c *CPU) stepUNLK(opcode uint16) (StepResult, error) {
 	reg := uint8(opcode & 7)
 	frame := c.addressRegister(reg)
-	if frame&1 != 0 {
-		return StepResult{}, fmt.Errorf("m68k: UNLK odd frame address 0x%08x is not implemented", frame)
-	}
-	c.setAddressRegister(7, frame)
 	dataFC := uint8(1)
 	if c.State.SR&supervisor != 0 {
 		dataFC = 5
 	}
+	if frame&1 != 0 {
+		return c.enterAddressError(opcode, frame, c.State.PC, nil, 58, dataFC, "re", true)
+	}
+	c.setAddressRegister(7, frame)
 	high, err := c.Bus.ReadWord(frame&addressMask, dataFC)
 	if err != nil {
 		return StepResult{}, err
@@ -875,8 +875,12 @@ func (c *CPU) stepUNLK(opcode uint16) (StepResult, error) {
 		return StepResult{}, err
 	}
 	value := uint32(high)<<16 | uint32(low)
-	c.setAddressRegister(reg, value)
-	c.setAddressRegister(7, frame+4)
+	if reg == 7 {
+		c.setAddressRegister(7, value)
+	} else {
+		c.setAddressRegister(reg, value)
+		c.setAddressRegister(7, frame+4)
+	}
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: dataFC,
 		transactions: []Transaction{
 			readTransaction(frame&addressMask, dataFC, high),

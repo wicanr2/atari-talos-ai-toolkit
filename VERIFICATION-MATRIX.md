@@ -23,7 +23,7 @@
 | 68000 ADD／ADDI／ADDQ.B／W／L | 加法旗標、quick、An 特例與 RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 CLR.B／W／L | Dn 寬度、CCR 與 memory RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 MOVEM.W／L | mask、雙方向、虛讀、predecrement／postincrement 測試 | 兩種寬度 5,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
-| 68000 LINK／UNLK | active stack、frame pointer、push／pop、odd fail-closed 測試 | LINK 2,500 筆完整 state／RAM／clock／bus；UNLK 無獨立語料 | 正常路徑通過；UNLK odd-frame 待補 |
+| 68000 LINK／UNLK | active stack、frame pointer、A7 alias、push／pop、odd-frame 測試 | 兩族共 5,000 筆完整 state／RAM／clock／bus／vector-3 frame | 通過 |
 | 68000 TST.B／W／L | Dn／memory EA、CCR、無寫回測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 OR／ORI.B／W／L | Dn、雙方向、RMW bus 次序、CCR 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 SUB／SUBI／SUBQ.B／W／L | 減法旗標、quick、An 特例與 RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |

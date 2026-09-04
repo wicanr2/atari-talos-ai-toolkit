@@ -70,13 +70,6 @@ func TestUNLKRestoresFrameAndActiveStack(t *testing.T) {
 	}
 }
 
-func TestUNLKOddFrameFailsClosed(t *testing.T) {
-	cpu := CPU{Bus: SparseMemory{}, State: State{A: [7]uint32{0x8001}, Prefetch: [2]uint16{0x4e58}}}
-	if _, err := cpu.Step(); err == nil {
-		t.Fatal("UNLK with odd frame address unexpectedly succeeded")
-	}
-}
-
 func TestMOVEBytePostIncrementA7AndBusLane(t *testing.T) {
 	memory := SparseMemory{
 		0x1004: 0x12, 0x1005: 0x34,
