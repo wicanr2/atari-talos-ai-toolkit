@@ -50,13 +50,16 @@
 - `AND.B/W/L` 與同語料內的 `ANDI.B/W/L` 共 7,500 筆全部通過；涵蓋 `<ea>→Dn`、
   `Dn→memory`、immediate、全部合法 EA、讀改寫 bus 次序、long low-word-first 寫回、
   CCR 與 address error。CPU 累計外部單步驗收 55,000 筆。
+- `CMP.B/W/L`、`CMPI.B/W/L` 與 `CMPM.B/W/L` 共 7,500 筆全部通過；涵蓋不寫回的
+  減法旗標、全部合法 EA、immediate、CMPM alias／雙後遞增，以及來源與目的 odd-address
+  fault 的不同副作用與 saved PC。CPU 累計外部單步驗收 62,500 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數，下一批優先評估 CMP 類；
-   `ADDQ` 雖更高頻，但固定外部語料沒有獨立檔，須先補可驗收來源。
+2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批；`ADDQ` 雖高頻，
+   但固定外部語料沒有獨立檔，須先補可驗收來源。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

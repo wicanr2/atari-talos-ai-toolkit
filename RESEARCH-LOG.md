@@ -84,3 +84,9 @@
 - 7,500 筆確認 memory destination 是 operand read → final prefetch → operand write；
   long 結果固定 low word 先寫、high word 後寫。word `(An)+` 在 odd read fault 前提交
   `An+2`，long 同類 fault 不提交 `An+4`；兩種寬度不可共用一條副作用規則。
+- DM12EN 的 ReDMCSB 產生組語中，CMP 各寬度合計 1,025、CMPI 各寬度合計 1,483，
+  共 2,508 個靜態使用點；沒有 CMPM 靜態使用點。`CMP.b/w/l.json.bin` 同時包含
+  CMP 6,086、CMPI 630、CMPM 784 筆。
+- CMPM odd-address fault 具有專用微時序：來源 fault 提交 `An+2`，目的 fault 不提交
+  目的增量，兩者 saved PC 都比一般 mode-3 source fault 前進 2。此結論由 327 筆
+  CMPM vector-3 語料逐筆確認。

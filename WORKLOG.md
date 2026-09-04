@@ -51,3 +51,6 @@
 - 完成 `AND.B/W/L` 與同組語料涵蓋的 `ANDI.B/W/L`；三種寬度共 7,500 筆全數通過。
   讀改寫固定在最後一次 prefetch 後才 write，long write 為 low word 先行；word／long
   postincrement 的 address-error 副作用分開建模。CPU 累計外部單步驗收 55,000 筆。
+- 完成 `CMP.B/W/L`、`CMPI.B/W/L` 與 `CMPM.B/W/L`；三種寬度共 7,500 筆全數通過。
+  CMPM 的兩次後遞增、alias、來源／目的 odd-address 副作用與 saved PC 採獨立微時序；
+  CPU 累計外部單步驗收 62,500 筆。

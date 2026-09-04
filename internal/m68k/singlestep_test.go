@@ -197,6 +197,55 @@ func TestSingleStepANDImmediateLong(t *testing.T) {
 	})
 }
 
+func TestSingleStepCMPByte(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.b.json.bin", 1991, isCMP)
+}
+
+func TestSingleStepCMPWord(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.w.json.bin", 2032, isCMP)
+}
+
+func TestSingleStepCMPLong(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.l.json.bin", 2063, isCMP)
+}
+
+func TestSingleStepCMPMemoryByte(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.b.json.bin", 276, isCMPMemory)
+}
+
+func TestSingleStepCMPMemoryWord(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.w.json.bin", 261, isCMPMemory)
+}
+
+func TestSingleStepCMPMemoryLong(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.l.json.bin", 247, isCMPMemory)
+}
+
+func TestSingleStepCMPImmediateByte(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.b.json.bin", 233, isCMPImmediate)
+}
+
+func TestSingleStepCMPImmediateWord(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.w.json.bin", 207, isCMPImmediate)
+}
+
+func TestSingleStepCMPImmediateLong(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "CMP.l.json.bin", 190, isCMPImmediate)
+}
+
+func isCMP(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	return opcode&0xf000 == 0xb000 && opcode>>6&7 <= 2
+}
+
+func isCMPMemory(test corpusTest) bool {
+	return test.Initial.CPU.Prefetch[0]&0xf138 == 0xb108
+}
+
+func isCMPImmediate(test corpusTest) bool {
+	return test.Initial.CPU.Prefetch[0]&0xff00 == 0x0c00
+}
+
 func TestSingleStepANDWordEAToDn(t *testing.T) {
 	testSingleStepCorpusFiltered(t, "AND.w.json.bin", 1333, andEAToDn)
 }

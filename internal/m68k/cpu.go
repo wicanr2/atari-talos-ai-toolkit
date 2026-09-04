@@ -51,6 +51,12 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x0c00 && opcode>>6&3 <= 2:
+		return c.stepCMPImmediate(opcode)
+	case opcode&0xf138 == 0xb108:
+		return c.stepCMPMemory(opcode)
+	case opcode&0xf000 == 0xb000 && opcode>>6&7 <= 2:
+		return c.stepCMP(opcode)
 	case opcode&0xff00 == 0x0200 && opcode&0x003f != 0x003c:
 		return c.stepANDImmediate(opcode)
 	case opcode&0xf000 == 0xc000 && opcode>>6&7 <= 2:
@@ -140,6 +146,255 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepCMP(opcode uint16) (StepResult, error) {
+	opmode := uint8(opcode >> 6 & 7)
+	destination := uint8(opcode >> 9 & 7)
+	sourceMode, sourceReg := uint8(opcode>>3&7), uint8(opcode&7)
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	switch opmode {
+	case 0:
+		source, sourceCost, _, err := stream.readSource(sourceMode, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		c.setCompareFlags(uint32(byte(c.State.D[destination])), uint32(source), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + sourceCost, Transactions: stream.transactions}, nil
+	case 1:
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		source, sourceCost, _, fault, err := step.readWordSource(sourceMode, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setCompareFlags(uint32(uint16(c.State.D[destination])), uint32(source), 16)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + sourceCost, Transactions: step.transactions}, nil
+	case 2:
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		source, sourceCost, _, fault, err := step.readLongSource(sourceMode, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setCompareFlags(c.State.D[destination], source, 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		clocks := uint32(6) + sourceCost
+		return StepResult{Clocks: clocks, Transactions: step.transactions}, nil
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid CMP opmode %d", opmode)
+	}
+}
+
+func (c *CPU) stepCMPMemory(opcode uint16) (StepResult, error) {
+	sourceReg, destinationReg := uint8(opcode&7), uint8(opcode>>9&7)
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	switch opcode >> 6 & 3 {
+	case 0:
+		source, _, _, err := stream.readSource(3, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		destination, _, _, err := stream.readSource(3, destinationReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		c.setCompareFlags(uint32(destination), uint32(source), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 12, Transactions: stream.transactions}, nil
+	case 1:
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		sourceAddress := c.addressRegister(sourceReg)
+		if sourceAddress&1 != 0 {
+			c.setAddressRegister(sourceReg, sourceAddress+2)
+			return c.enterCMPMAddressError(opcode, sourceAddress, step.initialPC-2, step.transactions, 58, step.dataFC)
+		}
+		source, _, _, fault, err := step.readWordSource(3, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		destinationAddress := c.addressRegister(destinationReg)
+		if destinationAddress&1 != 0 {
+			return c.enterCMPMAddressError(opcode, destinationAddress, step.initialPC-2, step.transactions, 62, step.dataFC)
+		}
+		destination, _, _, fault, err := step.readWordSource(3, destinationReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setCompareFlags(uint32(destination), uint32(source), 16)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 12, Transactions: step.transactions}, nil
+	case 2:
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		sourceAddress := c.addressRegister(sourceReg)
+		if sourceAddress&1 != 0 {
+			c.setAddressRegister(sourceReg, sourceAddress+2)
+			return c.enterCMPMAddressError(opcode, sourceAddress, step.initialPC-2, step.transactions, 58, step.dataFC)
+		}
+		source, _, _, fault, err := step.readLongSource(3, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		destinationAddress := c.addressRegister(destinationReg)
+		if destinationAddress&1 != 0 {
+			return c.enterCMPMAddressError(opcode, destinationAddress, step.initialPC-2, step.transactions, 66, step.dataFC)
+		}
+		destination, _, _, fault, err := step.readLongSource(3, destinationReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setCompareFlags(destination, source, 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 20, Transactions: step.transactions}, nil
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid CMPM size in opcode 0x%04x", opcode)
+	}
+}
+
+func (c *CPU) enterCMPMAddressError(opcode uint16, target, savedPC uint32, prefix []Transaction, clocks uint32, faultFC uint8) (StepResult, error) {
+	return c.enterAddressError(opcode, target, savedPC+2, prefix, clocks, faultFC, "re", true)
+}
+
+func (c *CPU) stepCMPImmediate(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid CMPI destination mode %d:%d", mode, reg)
+	}
+	switch opcode >> 6 & 3 {
+	case 0:
+		immediate, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		destination, destinationCost, _, err := stream.readSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		c.setCompareFlags(uint32(destination), uint32(byte(immediate)), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 8 + destinationCost, Transactions: stream.transactions}, nil
+	case 1:
+		immediate, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		destination, destinationCost, _, fault, err := step.readWordSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			fault.Clocks += 4
+			return *fault, nil
+		}
+		c.setCompareFlags(uint32(destination), uint32(immediate), 16)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 8 + destinationCost, Transactions: step.transactions}, nil
+	case 2:
+		high, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		low, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		immediate := uint32(high)<<16 | uint32(low)
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		destination, destinationCost, destinationMemory, fault, err := step.readLongSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			fault.Clocks += 8
+			return *fault, nil
+		}
+		c.setCompareFlags(destination, immediate, 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		clocks := uint32(14) + destinationCost
+		if destinationMemory {
+			clocks -= 2
+		}
+		return StepResult{Clocks: clocks, Transactions: step.transactions}, nil
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid CMPI size in opcode 0x%04x", opcode)
+	}
+}
+
+func (c *CPU) setCompareFlags(destination, source uint32, bits uint8) {
+	var mask, sign uint32
+	switch bits {
+	case 8:
+		mask, sign = 0xff, 0x80
+	case 16:
+		mask, sign = 0xffff, 0x8000
+	case 32:
+		mask, sign = 0xffff_ffff, 0x8000_0000
+	default:
+		panic("m68k: invalid compare width")
+	}
+	destination &= mask
+	source &= mask
+	result := (destination - source) & mask
+	c.State.SR &^= 0x000f
+	if result == 0 {
+		c.State.SR |= 0x0004
+	}
+	if result&sign != 0 {
+		c.State.SR |= 0x0008
+	}
+	if (destination^source)&(destination^result)&sign != 0 {
+		c.State.SR |= 0x0002
+	}
+	if source > destination {
+		c.State.SR |= 0x0001
+	}
 }
 
 func (c *CPU) stepANDImmediate(opcode uint16) (StepResult, error) {
