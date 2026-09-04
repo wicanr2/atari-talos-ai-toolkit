@@ -51,6 +51,10 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x4600 && opcode>>6&3 <= 2:
+		return c.stepUnaryModify(opcode, false)
+	case opcode&0xff00 == 0x4400 && opcode>>6&3 <= 2:
+		return c.stepUnaryModify(opcode, true)
 	case opcode&0xffc0 == 0xe0c0:
 		return c.stepASRMemory(opcode)
 	case opcode&0xf118 == 0xe000 && opcode>>6&3 <= 2:
@@ -198,6 +202,189 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepUnaryModify(opcode uint16, negate bool) (StepResult, error) {
+	size, mode, reg := uint8(opcode>>6&3), uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid unary destination mode %d:%d", mode, reg)
+	}
+	if mode == 0 {
+		value := c.State.D[reg]
+		var result uint32
+		switch size {
+		case 0:
+			result = c.applyUnary(uint32(byte(value)), 8, negate)
+			c.State.D[reg] = value&0xffff_ff00 | result
+		case 1:
+			result = c.applyUnary(uint32(uint16(value)), 16, negate)
+			c.State.D[reg] = value&0xffff_0000 | result
+		case 2:
+			result = c.applyUnary(value, 32, negate)
+			c.State.D[reg] = result
+		default:
+			return StepResult{}, fmt.Errorf("m68k: invalid unary size %d", size)
+		}
+		clocks := uint32(4)
+		if size == 2 {
+			clocks = 6
+		}
+		return c.refillSequential(controlEA{returnPC: c.State.PC}, clocks)
+	}
+	return c.stepUnaryMemory(opcode, size, mode, reg, negate)
+}
+
+func (c *CPU) stepUnaryMemory(opcode uint16, size, mode, reg uint8, negate bool) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	if size == 0 {
+		var address, delta, cost uint32
+		switch mode {
+		case 2:
+			address, cost = c.addressRegister(reg), 4
+		case 3:
+			address, delta, cost = c.addressRegister(reg), byteAddressDelta(reg), 4
+		case 4:
+			delta = byteAddressDelta(reg)
+			address, cost = c.addressRegister(reg)-delta, 6
+			c.setAddressRegister(reg, address)
+		case 5:
+			extension, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, cost = c.addressRegister(reg)+uint32(int32(int16(extension))), 8
+		case 6:
+			extension, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			index, err := c.briefIndex(extension)
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, cost = c.addressRegister(reg)+index+uint32(int32(int8(extension))), 10
+		case 7:
+			if reg == 0 {
+				extension, err := stream.consumeExtension()
+				if err != nil {
+					return StepResult{}, err
+				}
+				address, cost = uint32(int32(int16(extension))), 8
+			} else {
+				high, err := stream.consumeExtension()
+				if err != nil {
+					return StepResult{}, err
+				}
+				low, err := stream.consumeExtension()
+				if err != nil {
+					return StepResult{}, err
+				}
+				address, cost = uint32(high)<<16|uint32(low), 12
+			}
+		}
+		value, err := c.Bus.ReadByte(address&addressMask, stream.dataFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, readByteTransaction(address&addressMask, stream.dataFC, value))
+		result := byte(c.applyUnary(uint32(value), 8, negate))
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		if err := stream.writeByte(address, result); err != nil {
+			return StepResult{}, err
+		}
+		if mode == 3 {
+			c.setAddressRegister(reg, c.addressRegister(reg)+delta)
+		}
+		return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
+	}
+
+	initialPC := c.State.PC
+	bytes := uint32(2)
+	base := uint32(8)
+	if size == 2 {
+		bytes, base = 4, 12
+	}
+	address, cost, err := stream.andMemoryAddress(mode, reg, bytes)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if address&1 != 0 {
+		if size == 1 {
+			step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: initialPC}
+			return c.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), stream.transactions, 54+cost, stream.dataFC, "re", true)
+		}
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: initialPC}
+		return c.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), stream.transactions, 50+cost, stream.dataFC, "re", true)
+	}
+	if size == 1 {
+		value, err := c.Bus.ReadWord(address&addressMask, stream.dataFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
+		result := uint16(c.applyUnary(uint32(value), 16, negate))
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		if err := c.Bus.WriteWord(address&addressMask, result, stream.dataFC); err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, writeTransaction(address&addressMask, stream.dataFC, result))
+		return StepResult{Clocks: base + cost, Transactions: stream.transactions}, nil
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, c.addressRegister(reg)+4)
+	}
+	high, err := c.Bus.ReadWord(address&addressMask, stream.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := c.Bus.ReadWord((address+2)&addressMask, stream.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, high), readTransaction((address+2)&addressMask, stream.dataFC, low))
+	result := c.applyUnary(uint32(high)<<16|uint32(low), 32, negate)
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := c.Bus.WriteWord((address+2)&addressMask, uint16(result), stream.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, writeTransaction((address+2)&addressMask, stream.dataFC, uint16(result)))
+	if err := c.Bus.WriteWord(address&addressMask, uint16(result>>16), stream.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, writeTransaction(address&addressMask, stream.dataFC, uint16(result>>16)))
+	return StepResult{Clocks: base + cost, Transactions: stream.transactions}, nil
+}
+
+func (c *CPU) applyUnary(value uint32, bits uint8, negate bool) uint32 {
+	var mask uint32
+	switch bits {
+	case 8:
+		mask = 0xff
+	case 16:
+		mask = 0xffff
+	case 32:
+		mask = 0xffff_ffff
+	default:
+		panic("m68k: invalid unary width")
+	}
+	value &= mask
+	if negate {
+		result := -value & mask
+		c.setArithmeticFlags(0, value, result, bits, true)
+		return result
+	}
+	result := ^value & mask
+	c.setLogicalFlags(result, bits)
+	return result
 }
 
 func (c *CPU) stepMultiply(opcode uint16, signed bool) (StepResult, error) {

@@ -148,3 +148,8 @@
 - `MULS.json.bin`／`MULU.json.bin` 共 5,000 筆確認 16×16→32、word data EA、
   NZVC 與 vector-3 微時序。MULU clocks 為 38 加來源 popcount×2；MULS clocks 為
   38 加 Booth 相鄰位元轉換數×2，且必須把 bit 0 與虛擬前一位 0 的邊界算入。
+- DM12EN 的 ReDMCSB 產生組語中，NOT.W 54 次、NOT.L 2 次，NEG.W 28 次、
+  NEG.L 6 次，合計 90 個靜態使用點。
+- `NOT.b/w/l.json.bin` 與 `NEG.b/w/l.json.bin` 共 15,000 筆確認兩族的 Dn／完整
+  memory destination EA、RMW bus 次序、long low-word-first 寫回與 vector-3 微時序。
+  NOT 保留 X 並清 V／C；NEG 對非零 operand 同時設定 X／C，最小負值設定 V。

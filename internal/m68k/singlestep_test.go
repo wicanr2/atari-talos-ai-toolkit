@@ -310,6 +310,30 @@ func TestSingleStepMULU(t *testing.T) {
 	testSingleStepCorpus(t, "MULU.json.bin")
 }
 
+func TestSingleStepNOTByte(t *testing.T) {
+	testSingleStepCorpus(t, "NOT.b.json.bin")
+}
+
+func TestSingleStepNOTWord(t *testing.T) {
+	testSingleStepCorpus(t, "NOT.w.json.bin")
+}
+
+func TestSingleStepNOTLong(t *testing.T) {
+	testSingleStepCorpus(t, "NOT.l.json.bin")
+}
+
+func TestSingleStepNEGByte(t *testing.T) {
+	testSingleStepCorpus(t, "NEG.b.json.bin")
+}
+
+func TestSingleStepNEGWord(t *testing.T) {
+	testSingleStepCorpus(t, "NEG.w.json.bin")
+}
+
+func TestSingleStepNEGLong(t *testing.T) {
+	testSingleStepCorpus(t, "NEG.l.json.bin")
+}
+
 func isSUB(test corpusTest) bool {
 	opcode := test.Initial.CPU.Prefetch[0]
 	opmode := opcode >> 6 & 7

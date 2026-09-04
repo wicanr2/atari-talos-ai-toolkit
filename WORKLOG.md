@@ -86,3 +86,6 @@
 - 完成 `MULS.W` 與 `MULU.W`；兩份語料共 5,000 筆全數通過。signed／unsigned
   16×16→32、全部 word data EA、X／NZVC、prefetch、address-error 與資料相依 clocks
   均逐筆驗收；CPU 累計外部單步驗收 135,000 筆。
+- 完成 `NOT.B/W/L` 與 `NEG.B/W/L`；六份語料共 15,000 筆全數通過。Dn／memory、
+  三種寬度、邏輯反相、`0−operand`、X／NZVC、long low-word-first 寫回、prefetch、
+  clocks 與 address-error 均逐筆驗收；CPU 累計外部單步驗收 150,000 筆。
