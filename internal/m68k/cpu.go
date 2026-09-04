@@ -48,6 +48,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xf000 == 0x6000 && opcode&0x0f00 != 0x0100:
+		return c.stepBranch(opcode)
 	case opcode == 0x4e71:
 		// NOP changes only the prefetch pipeline.
 	case opcode&0xfff8 == 0x4840:
@@ -99,6 +101,115 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepBranch(opcode uint16) (StepResult, error) {
+	condition := uint8(opcode >> 8 & 0x0f)
+	taken := condition == 0 || branchCondition(condition, c.State.SR)
+	displacement8 := uint8(opcode)
+	base := c.State.PC - 2
+
+	if taken {
+		var displacement int32
+		if displacement8 == 0 {
+			displacement = int32(int16(c.State.Prefetch[1]))
+		} else {
+			displacement = int32(int8(displacement8))
+		}
+		target := uint32(int32(base) + displacement)
+		if target&1 != 0 {
+			return StepResult{}, fmt.Errorf("m68k: branch to odd address 0x%08x requires address error", target)
+		}
+		return c.refillBranch(target, 10)
+	}
+
+	if displacement8 != 0 {
+		address := c.State.PC & addressMask
+		fc := c.programFunctionCode()
+		word, err := c.Bus.ReadWord(address, fc)
+		if err != nil {
+			return StepResult{}, err
+		}
+		c.State.Prefetch[0] = c.State.Prefetch[1]
+		c.State.Prefetch[1] = word
+		c.State.PC += 2
+		return StepResult{Clocks: 8, Transactions: []Transaction{
+			readTransaction(address, fc, word),
+		}}, nil
+	}
+
+	return c.refillBranch(c.State.PC, 12)
+}
+
+func (c *CPU) refillBranch(address uint32, clocks uint32) (StepResult, error) {
+	fc := c.programFunctionCode()
+	firstAddress := address & addressMask
+	first, err := c.Bus.ReadWord(firstAddress, fc)
+	if err != nil {
+		return StepResult{}, err
+	}
+	secondAddress := (address + 2) & addressMask
+	second, err := c.Bus.ReadWord(secondAddress, fc)
+	if err != nil {
+		return StepResult{}, err
+	}
+	c.State.Prefetch = [2]uint16{first, second}
+	c.State.PC = address + 4
+	return StepResult{Clocks: clocks, Transactions: []Transaction{
+		readTransaction(firstAddress, fc, first),
+		readTransaction(secondAddress, fc, second),
+	}}, nil
+}
+
+func branchCondition(condition uint8, sr uint16) bool {
+	c := sr&0x0001 != 0
+	v := sr&0x0002 != 0
+	z := sr&0x0004 != 0
+	n := sr&0x0008 != 0
+	switch condition {
+	case 2:
+		return !c && !z
+	case 3:
+		return c || z
+	case 4:
+		return !c
+	case 5:
+		return c
+	case 6:
+		return !z
+	case 7:
+		return z
+	case 8:
+		return !v
+	case 9:
+		return v
+	case 10:
+		return !n
+	case 11:
+		return n
+	case 12:
+		return n == v
+	case 13:
+		return n != v
+	case 14:
+		return !z && n == v
+	case 15:
+		return z || n != v
+	default:
+		return false
+	}
+}
+
+func (c *CPU) programFunctionCode() uint8 {
+	if c.State.SR&supervisor != 0 {
+		return 6
+	}
+	return 2
+}
+
+func readTransaction(address uint32, fc uint8, data uint16) Transaction {
+	return Transaction{Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
+		Data: data, UDS: true, LDS: true}
 }
 
 func (c *CPU) setLogicalFlags(value uint32, bits uint8) {

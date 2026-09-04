@@ -19,3 +19,9 @@
   `prefetch[1]` 左移，在第 4 clock 從舊 PC 取 word，PC 再加 2。
 - MOVEQ 2,500 筆確認 8-bit 符號延伸、D0–D7 選擇，以及 X 保留、N/Z 更新、V/C 清除；
   其預取與 program bus read 與 NOP 共用同一個 4-clock 路徑。
+- Motorola／NXP《M68000 Family Programmer's Reference Manual》官方 PDF
+  <https://www.nxp.com/docs/en/reference-manual/M68000PRM.pdf>，SHA-256 為
+  `06e4864b78da0e815054cead9326b7ec9914661f240fd39a455f2061ff47c4e8`；Bcc 見
+  4-25～4-26，BRA 見 4-55。分支位移基準為指令字位址加 2，且不改 condition codes。
+- `Bcc.json.bin` 共 2,500 筆；其中 1,830 筆為正常偶數目標並已通過，670 筆包含
+  address-error transaction，必須等例外 stack frame 規格後驗收，不能當正常分支。

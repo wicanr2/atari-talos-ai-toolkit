@@ -21,12 +21,16 @@
   與 program bus read 驗收；每份指令語料各 2,500 筆，外部單步驗收累計 12,500 筆。
 - SWAP 與 EXT 族涵蓋暫存器轉換、不同運算寬度的 N／Z 判定及 X 保留；尚未延伸至
   68020 的 EXTB.L 或任何記憶體定址模式。
+- Bcc／BRA 正常控制流已通過 1,830 筆外部語料，涵蓋條件成立／不成立、byte／word
+  位移、預取重建與 8／10／12 clocks；CPU 正常外部單步驗收累計 14,330 筆。
+- Bcc 語料另有 670 筆奇數目標案例等待 address error 例外堆疊；目前會失敗即關閉且
+  不改狀態，不宣稱已通過這 670 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 撰寫例外、address error、interrupt acknowledge 與 reset vector 的 DRAFT 規格。
+2. 先完成 address error stack frame 規格與實作，解除 Bcc 剩餘 670 筆，再處理 BSR。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

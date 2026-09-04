@@ -39,3 +39,26 @@ func TestStepFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestOddBranchTargetFailsWithoutChangingState(t *testing.T) {
+	memory := SparseMemory{0x1002: 0xab, 0x1003: 0xcd}
+	cpu := CPU{Bus: memory, State: State{
+		D: [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+		A: [7]uint32{9, 10, 11, 12, 13, 14, 15},
+		SR: 0x2000, PC: 0x1004, Prefetch: [2]uint16{0x6001, 0xabcd},
+	}}
+	want := cpu.State
+	result, err := cpu.Step()
+	if err == nil {
+		t.Fatal("odd branch target unexpectedly succeeded")
+	}
+	if result.Clocks != 0 || len(result.Transactions) != 0 {
+		t.Fatalf("odd branch returned partial result: %#v", result)
+	}
+	if cpu.State != want {
+		t.Fatalf("odd branch changed CPU state\n got: %#v\nwant: %#v", cpu.State, want)
+	}
+	if memory[0x1002] != 0xab || memory[0x1003] != 0xcd || len(memory) != 2 {
+		t.Fatalf("odd branch changed memory: %#v", memory)
+	}
+}
