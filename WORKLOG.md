@@ -6,3 +6,5 @@
 - 建立 `talos-jsonl/1` 控制契約及 CLI；未完成模擬能力採失敗即關閉。
 - 固定使用既有 `golang:1.24-bookworm`，明示 `/usr/local/go/bin` 後全套測試與 CLI
   實際往返通過。
+- 建立 public GitHub repo，`main` 為預設分支；設定 `atari-st`、`emulator`、
+  `ai-tools`、`retrocomputing`、`golang`、`testing` 主題。

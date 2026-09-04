@@ -57,7 +57,7 @@ tools/go.sh build -o bin/ataritalos ./cmd/ataritalos
 
 | 里程碑 | 完成條件 | 狀態 |
 |---|---|---|
-| M0 | JSON Lines 契約、CLI、Docker 測試、文件與授權 | 進行中 |
+| M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | 未開始 |
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | 未開始 |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |

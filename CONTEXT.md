@@ -16,6 +16,7 @@
 
 - M0 控制契約已建立：`hello`、`capabilities`、`quit` 可用。
 - `run_frames` 等需要機器核心的命令明確回傳 `not_implemented`。
+- public repo 已建立：<https://github.com/wicanr2/atari-talos-ai-toolkit>，預設分支 `main`。
 - 尚未實作 68000 或任何 Atari ST 硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
