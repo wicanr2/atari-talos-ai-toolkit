@@ -79,3 +79,7 @@
 - 完成 `ASL.B/W/L`；三種寬度共 7,500 筆全數通過。立即值／暫存器 count、低六位
   截斷、零 count、逐步符號變化 V、最後移出位元 C／X、動態 clocks、word memory
   讀改寫與 address-error 均逐筆驗收；CPU 累計外部單步驗收 115,000 筆。
+- 完成 `ASR.B/W/L` 與 `LSR.B/W/L`；六份語料共 15,000 筆全數通過。立即值／
+  暫存器 count、低六位截斷、零 count、算術符號／邏輯零填入、最後移出位元 C／X、
+  動態 clocks、word memory 讀改寫與 address-error 均逐筆驗收；CPU 累計外部單步
+  驗收 130,000 筆。

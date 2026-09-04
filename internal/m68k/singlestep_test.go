@@ -278,6 +278,30 @@ func TestSingleStepASLLong(t *testing.T) {
 	testSingleStepCorpus(t, "ASL.l.json.bin")
 }
 
+func TestSingleStepASRByte(t *testing.T) {
+	testSingleStepCorpus(t, "ASR.b.json.bin")
+}
+
+func TestSingleStepASRWord(t *testing.T) {
+	testSingleStepCorpus(t, "ASR.w.json.bin")
+}
+
+func TestSingleStepASRLong(t *testing.T) {
+	testSingleStepCorpus(t, "ASR.l.json.bin")
+}
+
+func TestSingleStepLSRByte(t *testing.T) {
+	testSingleStepCorpus(t, "LSR.b.json.bin")
+}
+
+func TestSingleStepLSRWord(t *testing.T) {
+	testSingleStepCorpus(t, "LSR.w.json.bin")
+}
+
+func TestSingleStepLSRLong(t *testing.T) {
+	testSingleStepCorpus(t, "LSR.l.json.bin")
+}
+
 func isSUB(test corpusTest) bool {
 	opcode := test.Initial.CPU.Prefetch[0]
 	opmode := opcode >> 6 & 7

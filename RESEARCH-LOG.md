@@ -138,3 +138,8 @@
 - `ASL.b/w/l.json.bin` 共 7,500 筆確認立即值 count 的 0→8、Dn count 只取低六位、
   count 0 時 C 清除而 X 保留、ASL 的逐步符號變化 V、動態 clocks，以及 word memory
   型的 read／prefetch／write 與 vector-3 微時序。
+- DM12EN 的 ReDMCSB 產生組語中，ASR.W 125 次、ASR.B 4 次、ASR.L 25 次，合計
+  154；LSR.W 593 次、LSR.B 4 次、LSR.L 8 次，合計 605 個靜態使用點。
+- `ASR.b/w/l.json.bin` 與 `LSR.b/w/l.json.bin` 共 15,000 筆確認兩族共用 count、
+  clocks、C／X、NZV、memory RMW 與 vector-3 微時序；ASR 以原符號位填入，LSR
+  以零填入，count 大於 operand 寬度時仍依 68000 的低六位完整推進。

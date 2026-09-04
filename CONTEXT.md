@@ -78,6 +78,9 @@
 - `ASL.B/W/L` 共 7,500 筆全部通過；涵蓋立即值／Dn 低六位 count、零 count、
   byte／word／long 暫存器型、word 記憶體讀改寫、X／NZVC、動態 clocks 與 vector-3
   位址錯誤。CPU 累計外部單步驗收 115,000 筆。
+- `ASR.B/W/L` 與 `LSR.B/W/L` 共 15,000 筆全部通過；涵蓋立即值／Dn 低六位
+  count、零 count、算術符號填入／邏輯零填入、word 記憶體讀改寫、X／NZVC、
+  動態 clocks 與 vector-3 位址錯誤。CPU 累計外部單步驗收 130,000 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
