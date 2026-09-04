@@ -69,6 +69,9 @@
 - `TST.B/W/L` 共 7,500 筆全部通過；涵蓋 Dn、全部合法 memory data EA、X 保留、
   NZVC、無寫回、program prefetch 與 vector-3 位址錯誤。CPU 累計外部單步驗收
   92,500 筆。
+- `OR.B/W/L` 與同語料內的 `ORI.B/W/L` 共 7,500 筆全部通過；涵蓋雙方向 OR、
+  immediate、全部合法 EA、讀改寫 bus 次序、long low-word-first 寫回、CCR 與
+  address error。CPU 累計外部單步驗收 100,000 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步

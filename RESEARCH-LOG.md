@@ -121,3 +121,9 @@
   合計 470 個靜態使用點；此計數只用於模擬器實作優先序。
 - `TST.b/w/l.json.bin` 共 7,500 筆確認三種寬度只讀不寫、X 保留、NZVC 更新，以及
   memory EA 的 prefetch、clock 與 vector-3 微時序。
+- DM12EN 的 ReDMCSB 產生組語中，OR.W 291 次、OR.B 3 次、OR.L 61 次，ORI.W
+  61 次、ORI.B 63 次、ORI.L 1 次，合計 480 個靜態使用點；此計數只用於模擬器
+  實作優先序。
+- `OR.b/w/l.json.bin` 共 7,500 筆，其中一般 OR `<ea>→Dn` 3,857 筆、
+  `Dn→memory` 3,173 筆、ORI 470 筆。語料確認 OR 與 AND 使用相同 EA、clock、
+  prefetch、讀改寫及 vector-3 微時序，差異限於逐位元運算結果。

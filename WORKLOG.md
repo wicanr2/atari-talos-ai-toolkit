@@ -69,3 +69,6 @@
 - 完成 `TST.B/W/L`；三種寬度共 7,500 筆全數通過。Dn 與全部合法 memory data EA、
   X／NZVC、無寫回、prefetch、clock 與 word／long address-error 均逐筆驗收；CPU
   累計外部單步驗收 92,500 筆。
+- 完成 `OR.B/W/L` 與 `ORI.B/W/L`；三種寬度共 7,500 筆全數通過。一般 OR 雙方向、
+  immediate、窄寬度 Dn、全部合法 EA、讀改寫 bus 次序、long low-word-first 寫回與
+  address-error 均逐筆驗收；CPU 累計外部單步驗收 100,000 筆。

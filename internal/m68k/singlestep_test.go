@@ -335,6 +335,46 @@ func andEAToDn(test corpusTest) bool {
 	return opcode&0xf000 == 0xc000 && opcode>>6&7 <= 2
 }
 
+func TestSingleStepOR(t *testing.T) {
+	for _, item := range []struct {
+		name   string
+		file   string
+		want   int
+		filter func(corpusTest) bool
+	}{
+		{"byte-ea-dn", "OR.b.json.bin", 1255, orEAToDn},
+		{"byte-dn-ea", "OR.b.json.bin", 1084, func(test corpusTest) bool {
+			opcode := test.Initial.CPU.Prefetch[0]
+			return opcode&0xf000 == 0x8000 && opcode>>6&7 == 4
+		}},
+		{"byte-imm", "OR.b.json.bin", 161, isORImmediate},
+		{"word-ea-dn", "OR.w.json.bin", 1311, orEAToDn},
+		{"word-dn-ea", "OR.w.json.bin", 1040, func(test corpusTest) bool {
+			opcode := test.Initial.CPU.Prefetch[0]
+			return opcode&0xf000 == 0x8000 && opcode>>6&7 == 5
+		}},
+		{"word-imm", "OR.w.json.bin", 149, isORImmediate},
+		{"long-ea-dn", "OR.l.json.bin", 1291, orEAToDn},
+		{"long-dn-ea", "OR.l.json.bin", 1049, func(test corpusTest) bool {
+			opcode := test.Initial.CPU.Prefetch[0]
+			return opcode&0xf000 == 0x8000 && opcode>>6&7 == 6
+		}},
+		{"long-imm", "OR.l.json.bin", 160, isORImmediate},
+	} {
+		t.Run(item.name, func(t *testing.T) { testSingleStepCorpusFiltered(t, item.file, item.want, item.filter) })
+	}
+}
+
+func orEAToDn(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	return opcode&0xf000 == 0x8000 && opcode>>6&7 <= 2
+}
+
+func isORImmediate(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	return opcode&0xff00 == 0x0000 && opcode&0x003f != 0x003c
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {
