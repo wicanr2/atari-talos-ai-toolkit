@@ -48,6 +48,14 @@ func TestSingleStepBcc(t *testing.T) {
 	testSingleStepCorpus(t, "Bcc.json.bin")
 }
 
+func TestSingleStepBSR(t *testing.T) {
+	testSingleStepCorpus(t, "BSR.json.bin")
+}
+
+func TestSingleStepRTS(t *testing.T) {
+	testSingleStepCorpus(t, "RTS.json.bin")
+}
+
 func testSingleStepCorpus(t *testing.T, name string) {
 	t.Helper()
 	root := os.Getenv("TALOS_M68000_TESTS")

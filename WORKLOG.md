@@ -22,3 +22,5 @@
 - 完成 MC68000 address error 的 14-byte frame、模式切換、trace 清除、vector 3 與
   handler 預取；訂正 `re` 未定義 data bus 的初步解讀，不對 fault 位址虛構 RAM read。
   670 筆例外語料全數通過，CPU 累計外部單步驗收 15,000 筆。
+- 完成 BSR 與 RTS 的 active-stack call／return 垂直鏈；兩份各 2,500 筆語料均包含
+  正常與 address-error 路徑並全數通過，CPU 累計外部單步驗收 20,000 筆。

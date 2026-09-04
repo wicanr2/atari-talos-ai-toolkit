@@ -29,3 +29,7 @@
   user／supervisor 切換、trace 清除、寫入順序、vector 3 fetch 與 60 clocks。語料的
   `re` data bus 是未 assert AS 時的未定義殘值，且 fault 位址刻意不在 RAM map；驗收
   必須正規化該欄位，不能虛構一次 aligned RAM read。
+- BSR 2,500 筆分成 1,229 筆正常與 1,271 筆 address error；確認 return PC 會先寫入
+  原模式 active stack，奇數目標時 push 保留，例外 saved PC 為 fault target。
+- RTS 2,500 筆分成 1,263 筆正常與 1,237 筆 address error；確認先從 active stack
+  讀 long 並令 SP+4，奇數 return 時該更新保留，例外 saved PC 為 RTS opcode 後位址。

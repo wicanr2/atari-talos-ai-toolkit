@@ -49,6 +49,10 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode == 0x4e75:
+		return c.stepRTS(opcode)
+	case opcode&0xff00 == 0x6100:
+		return c.stepBSR(opcode)
 	case opcode&0xf000 == 0x6000 && opcode&0x0f00 != 0x0100:
 		return c.stepBranch(opcode)
 	case opcode == 0x4e71:
@@ -104,6 +108,87 @@ func (c *CPU) Step() (StepResult, error) {
 	}}}, nil
 }
 
+func (c *CPU) stepRTS(opcode uint16) (StepResult, error) {
+	stack := &c.State.USP
+	dataFC := uint8(1)
+	if c.State.SR&supervisor != 0 {
+		stack = &c.State.SSP
+		dataFC = 5
+	}
+	stackAddress := *stack & addressMask
+	returnHigh, err := c.Bus.ReadWord(stackAddress, dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	secondAddress := (*stack + 2) & addressMask
+	returnLow, err := c.Bus.ReadWord(secondAddress, dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	*stack += 4
+	returnPC := uint32(returnHigh)<<16 | uint32(returnLow)
+	prefix := []Transaction{
+		readTransaction(stackAddress, dataFC, returnHigh),
+		readTransaction(secondAddress, dataFC, returnLow),
+	}
+	if returnPC&1 != 0 {
+		return c.enterInstructionAddressError(opcode, returnPC, c.State.PC-2, prefix, 66)
+	}
+	result, err := c.refillBranch(returnPC, 16)
+	if err != nil {
+		return StepResult{}, err
+	}
+	result.Transactions = append(prefix, result.Transactions...)
+	return result, nil
+}
+
+func (c *CPU) stepBSR(opcode uint16) (StepResult, error) {
+	displacement8 := uint8(opcode)
+	base := c.State.PC - 2
+	returnPC := base
+	var displacement int32
+	if displacement8 == 0 {
+		displacement = int32(int16(c.State.Prefetch[1]))
+		returnPC = c.State.PC
+	} else {
+		displacement = int32(int8(displacement8))
+	}
+	target := uint32(int32(base) + displacement)
+
+	stack := &c.State.USP
+	dataFC := uint8(1)
+	if c.State.SR&supervisor != 0 {
+		stack = &c.State.SSP
+		dataFC = 5
+	}
+	newSP := *stack - 4
+	returnHigh := uint16(returnPC >> 16)
+	returnLow := uint16(returnPC)
+	firstAddress := newSP & addressMask
+	if err := c.Bus.WriteWord(firstAddress, returnHigh, dataFC); err != nil {
+		return StepResult{}, err
+	}
+	secondAddress := (newSP + 2) & addressMask
+	if err := c.Bus.WriteWord(secondAddress, returnLow, dataFC); err != nil {
+		return StepResult{}, err
+	}
+	*stack = newSP
+	prefix := []Transaction{
+		writeTransaction(firstAddress, dataFC, returnHigh),
+		writeTransaction(secondAddress, dataFC, returnLow),
+	}
+
+	if target&1 != 0 {
+		return c.enterInstructionAddressError(opcode, target, target, prefix, 68)
+	}
+	result, err := c.refillBranch(target, 18)
+	if err != nil {
+		return StepResult{}, err
+	}
+	result.Transactions = append(prefix, result.Transactions...)
+	return result, nil
+}
+
 func (c *CPU) stepBranch(opcode uint16) (StepResult, error) {
 	condition := uint8(opcode >> 8 & 0x0f)
 	taken := condition == 0 || branchCondition(condition, c.State.SR)
@@ -119,7 +204,7 @@ func (c *CPU) stepBranch(opcode uint16) (StepResult, error) {
 		}
 		target := uint32(int32(base) + displacement)
 		if target&1 != 0 {
-			return c.enterInstructionAddressError(opcode, target, base)
+			return c.enterInstructionAddressError(opcode, target, base, nil, 60)
 		}
 		return c.refillBranch(target, 10)
 	}
@@ -142,7 +227,13 @@ func (c *CPU) stepBranch(opcode uint16) (StepResult, error) {
 	return c.refillBranch(c.State.PC, 12)
 }
 
-func (c *CPU) enterInstructionAddressError(opcode uint16, target uint32, savedPC uint32) (StepResult, error) {
+func (c *CPU) enterInstructionAddressError(
+	opcode uint16,
+	target uint32,
+	savedPC uint32,
+	prefix []Transaction,
+	clocks uint32,
+) (StepResult, error) {
 	originalSR := c.State.SR
 	originalFC := c.programFunctionCode()
 	faultBusAddress := target & addressMask &^ 1
@@ -161,10 +252,10 @@ func (c *CPU) enterInstructionAddressError(opcode uint16, target uint32, savedPC
 		{newSP, ssw},
 		{newSP + 2, uint16(target >> 16)},
 	}
-	transactions := []Transaction{{
+	transactions := append(prefix, Transaction{
 		Kind: "re", Cycle: 4, FC: originalFC, Address: faultBusAddress,
 		Size: 2, Data: 0, UDS: true, LDS: true,
-	}}
+	})
 	for _, write := range writes {
 		address := write.address & addressMask
 		if err := c.Bus.WriteWord(address, write.value, 5); err != nil {
@@ -204,7 +295,7 @@ func (c *CPU) enterInstructionAddressError(opcode uint16, target uint32, savedPC
 	c.State.SR &^= 0x8000
 	c.State.Prefetch = [2]uint16{first, second}
 	c.State.PC = handler + 4
-	return StepResult{Clocks: 60, Transactions: transactions}, nil
+	return StepResult{Clocks: clocks, Transactions: transactions}, nil
 }
 
 func (c *CPU) refillBranch(address uint32, clocks uint32) (StepResult, error) {
