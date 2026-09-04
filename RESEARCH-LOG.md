@@ -90,3 +90,8 @@
 - CMPM odd-address fault 具有專用微時序：來源 fault 提交 `An+2`，目的 fault 不提交
   目的增量，兩者 saved PC 都比一般 mode-3 source fault 前進 2。此結論由 327 筆
   CMPM vector-3 語料逐筆確認。
+- DM12EN 的 ReDMCSB 產生組語中，一般 ADD 各寬度合計 668、ADDI 27、ADDQ 2,637，
+  共 3,332 個靜態使用點。`ADD.b/w/l.json.bin` 同時包含一般 ADD 4,637、ADDI 297、
+  ADDQ 2,566 筆。
+- ADDQ 寫 An 一律作 32-bit 加法且不改 CCR；寫 Dn 的 long 版本比 byte／word 多
+  4 clocks。記憶體目的端沿用 ADD 的讀改寫次序，這三條由固定語料確認。

@@ -51,6 +51,14 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x0600 && opcode>>6&3 <= 2:
+		return c.stepADDImmediate(opcode)
+	case opcode&0xf100 == 0x5000 && opcode>>6&3 <= 2:
+		return c.stepADDQuick(opcode)
+	case opcode&0xf000 == 0xd000 && opcode>>6&7 <= 2:
+		return c.stepADDToDataRegister(opcode)
+	case opcode&0xf000 == 0xd000 && opcode>>6&7 >= 4 && opcode>>6&7 <= 6 && opcode>>3&7 >= 2:
+		return c.stepADDToMemory(opcode)
 	case opcode&0xff00 == 0x0c00 && opcode>>6&3 <= 2:
 		return c.stepCMPImmediate(opcode)
 	case opcode&0xf138 == 0xb108:
@@ -146,6 +154,347 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {
+	opmode := uint8(opcode >> 6 & 7)
+	destination := uint8(opcode >> 9 & 7)
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	switch opmode {
+	case 0:
+		source, cost, _, err := stream.readSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		dest := byte(c.State.D[destination])
+		result := dest + source
+		c.State.D[destination] = c.State.D[destination]&0xffff_ff00 | uint32(result)
+		c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + cost, Transactions: stream.transactions}, nil
+	case 1:
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		source, cost, _, fault, err := step.readWordSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		dest := uint16(c.State.D[destination])
+		result := dest + source
+		c.State.D[destination] = c.State.D[destination]&0xffff_0000 | uint32(result)
+		c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 16)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + cost, Transactions: step.transactions}, nil
+	case 2:
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		source, cost, memory, fault, err := step.readLongSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		dest := c.State.D[destination]
+		result := dest + source
+		c.State.D[destination] = result
+		c.setAdditionFlags(dest, source, result, 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		clocks := uint32(6) + cost
+		if !memory {
+			clocks += 2
+		}
+		return StepResult{Clocks: clocks, Transactions: step.transactions}, nil
+	}
+	return StepResult{}, fmt.Errorf("m68k: invalid ADD opmode %d", opmode)
+}
+
+func (c *CPU) stepADDToMemory(opcode uint16) (StepResult, error) {
+	size := uint8(opcode >> 6 & 3)
+	base := uint32(8)
+	if size == 2 {
+		base = 12
+	}
+	return c.stepADDMemory(opcode, size, uint8(opcode>>3&7), uint8(opcode&7), c.State.D[opcode>>9&7], base)
+}
+
+func (c *CPU) stepADDImmediate(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	mode, reg, size := uint8(opcode>>3&7), uint8(opcode&7), uint8(opcode>>6&3)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid ADDI destination mode %d:%d", mode, reg)
+	}
+	if size < 2 {
+		immediate, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		if mode == 0 {
+			if size == 0 {
+				dest, source := byte(c.State.D[reg]), byte(immediate)
+				result := dest + source
+				c.State.D[reg] = c.State.D[reg]&0xffff_ff00 | uint32(result)
+				c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 8)
+			} else {
+				dest, source := uint16(c.State.D[reg]), immediate
+				result := dest + source
+				c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
+				c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 16)
+			}
+			if err := stream.refill(); err != nil {
+				return StepResult{}, err
+			}
+			return StepResult{Clocks: 8, Transactions: stream.transactions}, nil
+		}
+		return c.stepADDMemoryWithStream(opcode, size, mode, reg, uint32(immediate), 12, stream)
+	}
+	high, err := stream.consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := stream.consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	immediate := uint32(high)<<16 | uint32(low)
+	if mode == 0 {
+		dest := c.State.D[reg]
+		result := dest + immediate
+		c.State.D[reg] = result
+		c.setAdditionFlags(dest, immediate, result, 32)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 16, Transactions: stream.transactions}, nil
+	}
+	return c.stepADDMemoryWithStream(opcode, 2, mode, reg, immediate, 20, stream)
+}
+
+func (c *CPU) stepADDQuick(opcode uint16) (StepResult, error) {
+	size, mode, reg := uint8(opcode>>6&3), uint8(opcode>>3&7), uint8(opcode&7)
+	quick := uint32(opcode >> 9 & 7)
+	if quick == 0 {
+		quick = 8
+	}
+	if mode == 1 {
+		if size == 0 {
+			return StepResult{}, fmt.Errorf("m68k: ADDQ.B to An is invalid")
+		}
+		c.setAddressRegister(reg, c.addressRegister(reg)+quick)
+		return c.refillSequential(controlEA{returnPC: c.State.PC}, 8)
+	}
+	if mode == 0 {
+		switch size {
+		case 0:
+			dest, source := byte(c.State.D[reg]), byte(quick)
+			result := dest + source
+			c.State.D[reg] = c.State.D[reg]&0xffff_ff00 | uint32(result)
+			c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 8)
+		case 1:
+			dest, source := uint16(c.State.D[reg]), uint16(quick)
+			result := dest + source
+			c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
+			c.setAdditionFlags(uint32(dest), uint32(source), uint32(result), 16)
+		case 2:
+			dest := c.State.D[reg]
+			result := dest + quick
+			c.State.D[reg] = result
+			c.setAdditionFlags(dest, quick, result, 32)
+		}
+		clocks := uint32(4)
+		if size == 2 {
+			clocks = 8
+		}
+		return c.refillSequential(controlEA{returnPC: c.State.PC}, clocks)
+	}
+	base := uint32(8)
+	if size == 2 {
+		base = 12
+	}
+	return c.stepADDMemory(opcode, size, mode, reg, quick, base)
+}
+
+func (c *CPU) stepADDMemory(opcode uint16, size, mode, reg uint8, operand uint32, base uint32) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	return c.stepADDMemoryWithStream(opcode, size, mode, reg, operand, base, stream)
+}
+
+func (c *CPU) stepADDMemoryWithStream(opcode uint16, size, mode, reg uint8, operand uint32, base uint32, stream moveByteStep) (StepResult, error) {
+	if mode < 2 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid ADD memory mode %d:%d", mode, reg)
+	}
+	if size == 0 {
+		var address, delta, cost uint32
+		switch mode {
+		case 2:
+			address, cost = c.addressRegister(reg), 4
+		case 3:
+			address, delta, cost = c.addressRegister(reg), byteAddressDelta(reg), 4
+		case 4:
+			delta = byteAddressDelta(reg)
+			address, cost = c.addressRegister(reg)-delta, 6
+			c.setAddressRegister(reg, address)
+		case 5:
+			ext, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, cost = c.addressRegister(reg)+uint32(int32(int16(ext))), 8
+		case 6:
+			ext, err := stream.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			index, err := c.briefIndex(ext)
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, cost = c.addressRegister(reg)+index+uint32(int32(int8(ext))), 10
+		case 7:
+			if reg == 0 {
+				ext, err := stream.consumeExtension()
+				if err != nil {
+					return StepResult{}, err
+				}
+				address, cost = uint32(int32(int16(ext))), 8
+			} else {
+				high, err := stream.consumeExtension()
+				if err != nil {
+					return StepResult{}, err
+				}
+				low, err := stream.consumeExtension()
+				if err != nil {
+					return StepResult{}, err
+				}
+				address, cost = uint32(high)<<16|uint32(low), 12
+			}
+		}
+		value, err := c.Bus.ReadByte(address&addressMask, stream.dataFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, readByteTransaction(address&addressMask, stream.dataFC, value))
+		result := value + byte(operand)
+		c.setAdditionFlags(uint32(value), uint32(byte(operand)), uint32(result), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		if err := stream.writeByte(address, result); err != nil {
+			return StepResult{}, err
+		}
+		if mode == 3 {
+			c.setAddressRegister(reg, c.addressRegister(reg)+delta)
+		}
+		return StepResult{Clocks: base + cost, Transactions: stream.transactions}, nil
+	}
+	initialPC := c.State.PC
+	bytes := uint32(2)
+	if size == 2 {
+		bytes = 4
+	}
+	address, cost, err := stream.andMemoryAddress(mode, reg, bytes)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if address&1 != 0 {
+		if size == 1 {
+			step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: initialPC}
+			return c.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), stream.transactions, 54+cost+(base-8), stream.dataFC, "re", true)
+		}
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: initialPC}
+		return c.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), stream.transactions, 50+cost+(base-12), stream.dataFC, "re", true)
+	}
+	if size == 1 {
+		value, err := c.Bus.ReadWord(address&addressMask, stream.dataFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
+		result := value + uint16(operand)
+		c.setAdditionFlags(uint32(value), uint32(uint16(operand)), uint32(result), 16)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		if err := c.Bus.WriteWord(address&addressMask, result, stream.dataFC); err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, writeTransaction(address&addressMask, stream.dataFC, result))
+		return StepResult{Clocks: base + cost, Transactions: stream.transactions}, nil
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, c.addressRegister(reg)+4)
+	}
+	high, err := c.Bus.ReadWord(address&addressMask, stream.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := c.Bus.ReadWord((address+2)&addressMask, stream.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, high), readTransaction((address+2)&addressMask, stream.dataFC, low))
+	value := uint32(high)<<16 | uint32(low)
+	result := value + operand
+	c.setAdditionFlags(value, operand, result, 32)
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := c.Bus.WriteWord((address+2)&addressMask, uint16(result), stream.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, writeTransaction((address+2)&addressMask, stream.dataFC, uint16(result)))
+	if err := c.Bus.WriteWord(address&addressMask, uint16(result>>16), stream.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, writeTransaction(address&addressMask, stream.dataFC, uint16(result>>16)))
+	return StepResult{Clocks: base + cost, Transactions: stream.transactions}, nil
+}
+
+func (c *CPU) setAdditionFlags(destination, source, result uint32, bits uint8) {
+	var mask, sign uint32
+	switch bits {
+	case 8:
+		mask, sign = 0xff, 0x80
+	case 16:
+		mask, sign = 0xffff, 0x8000
+	case 32:
+		mask, sign = 0xffff_ffff, 0x8000_0000
+	default:
+		panic("m68k: invalid addition width")
+	}
+	destination &= mask
+	source &= mask
+	result &= mask
+	c.State.SR &^= 0x001f
+	if result == 0 {
+		c.State.SR |= 0x0004
+	}
+	if result&sign != 0 {
+		c.State.SR |= 0x0008
+	}
+	if ^(destination^source)&(destination^result)&sign != 0 {
+		c.State.SR |= 0x0002
+	}
+	if source > mask-destination {
+		c.State.SR |= 0x0011
+	}
 }
 
 func (c *CPU) stepCMP(opcode uint16) (StepResult, error) {

@@ -197,6 +197,18 @@ func TestSingleStepANDImmediateLong(t *testing.T) {
 	})
 }
 
+func TestSingleStepADDByte(t *testing.T) {
+	testSingleStepCorpus(t, "ADD.b.json.bin")
+}
+
+func TestSingleStepADDWord(t *testing.T) {
+	testSingleStepCorpus(t, "ADD.w.json.bin")
+}
+
+func TestSingleStepADDLong(t *testing.T) {
+	testSingleStepCorpus(t, "ADD.l.json.bin")
+}
+
 func TestSingleStepCMPByte(t *testing.T) {
 	testSingleStepCorpusFiltered(t, "CMP.b.json.bin", 1991, isCMP)
 }
