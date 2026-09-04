@@ -48,3 +48,6 @@
 - 依 DM12EN 產生組語盤點，完成高頻 `ADDA.W`／`ADDA.L`。兩份語料共 5,000 筆
   全數通過；其中 `ADDA.L` 的 memory source 比 register／immediate source 少 2 clocks，
   已分開建模。CPU 累計外部單步驗收 47,500 筆。
+- 完成 `AND.B/W/L` 與同組語料涵蓋的 `ANDI.B/W/L`；三種寬度共 7,500 筆全數通過。
+  讀改寫固定在最後一次 prefetch 後才 write，long write 為 low word 先行；word／long
+  postincrement 的 address-error 副作用分開建模。CPU 累計外部單步驗收 55,000 筆。

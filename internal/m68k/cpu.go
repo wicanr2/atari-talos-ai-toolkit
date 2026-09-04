@@ -51,6 +51,16 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x0200 && opcode&0x003f != 0x003c:
+		return c.stepANDImmediate(opcode)
+	case opcode&0xf000 == 0xc000 && opcode>>6&7 <= 2:
+		return c.stepANDToDataRegister(opcode)
+	case opcode&0xf000 == 0xc000 && opcode>>6&7 == 4:
+		return c.stepANDByteToMemory(opcode)
+	case opcode&0xf000 == 0xc000 && opcode>>6&7 == 5:
+		return c.stepANDWordToMemory(opcode)
+	case opcode&0xf000 == 0xc000 && opcode>>6&7 == 6:
+		return c.stepANDLongToMemory(opcode)
 	case opcode&0xf1c0 == 0xd0c0:
 		return c.stepADDAWord(opcode)
 	case opcode&0xf1c0 == 0xd1c0:
@@ -130,6 +140,337 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepANDImmediate(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	switch opcode >> 6 & 3 {
+	case 0:
+		immediate, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		if mode == 0 {
+			result := byte(c.State.D[reg]) & byte(immediate)
+			c.State.D[reg] = c.State.D[reg]&0xffff_ff00 | uint32(result)
+			c.setLogicalFlags(uint32(result), 8)
+			if err := stream.refill(); err != nil {
+				return StepResult{}, err
+			}
+			return StepResult{Clocks: 8, Transactions: stream.transactions}, nil
+		}
+		return stream.andByteMemory(mode, reg, byte(immediate), 12)
+	case 1:
+		immediate, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		if mode == 0 {
+			result := uint16(c.State.D[reg]) & immediate
+			c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
+			c.setLogicalFlags(uint32(result), 16)
+			if err := stream.refill(); err != nil {
+				return StepResult{}, err
+			}
+			return StepResult{Clocks: 8, Transactions: stream.transactions}, nil
+		}
+		return stream.andWordMemory(opcode, mode, reg, immediate, 12)
+	case 2:
+		high, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		low, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		immediate := uint32(high)<<16 | uint32(low)
+		if mode == 0 {
+			result := c.State.D[reg] & immediate
+			c.State.D[reg] = result
+			c.setLogicalFlags(result, 32)
+			if err := stream.refill(); err != nil {
+				return StepResult{}, err
+			}
+			return StepResult{Clocks: 16, Transactions: stream.transactions}, nil
+		}
+		return stream.andLongMemory(opcode, mode, reg, immediate, 20)
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid ANDI size in opcode 0x%04x", opcode)
+	}
+}
+
+func (c *CPU) stepANDByteToMemory(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	return stream.andByteMemory(uint8(opcode>>3&7), uint8(opcode&7), byte(c.State.D[opcode>>9&7]), 8)
+}
+
+func (s *moveByteStep) andByteMemory(mode, reg uint8, operand byte, baseClocks uint32) (StepResult, error) {
+	c := s.cpu
+	var address, delta uint32
+	var eaCost uint32
+	switch mode {
+	case 2:
+		address, eaCost = c.addressRegister(reg), 4
+	case 3:
+		address, delta, eaCost = c.addressRegister(reg), byteAddressDelta(reg), 4
+	case 4:
+		delta = byteAddressDelta(reg)
+		address, eaCost = c.addressRegister(reg)-delta, 6
+		c.setAddressRegister(reg, address)
+	case 5:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		address, eaCost = c.addressRegister(reg)+uint32(int32(int16(extension))), 8
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return StepResult{}, err
+		}
+		address = c.addressRegister(reg) + index + uint32(int32(int8(extension)))
+		eaCost = 10
+	case 7:
+		switch reg {
+		case 0:
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, eaCost = uint32(int32(int16(extension))), 8
+		case 1:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			low, err := s.consumeExtension()
+			if err != nil {
+				return StepResult{}, err
+			}
+			address, eaCost = uint32(high)<<16|uint32(low), 12
+		default:
+			return StepResult{}, fmt.Errorf("m68k: invalid AND.B memory mode %d:%d", mode, reg)
+		}
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid AND.B memory mode %d:%d", mode, reg)
+	}
+	value, err := c.Bus.ReadByte(address&addressMask, s.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, readByteTransaction(address&addressMask, s.dataFC, value))
+	result := value & operand
+	c.setLogicalFlags(uint32(result), 8)
+	if err := s.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := s.writeByte(address, result); err != nil {
+		return StepResult{}, err
+	}
+	if mode == 3 {
+		c.setAddressRegister(reg, c.addressRegister(reg)+delta)
+	}
+	return StepResult{Clocks: baseClocks + eaCost, Transactions: s.transactions}, nil
+}
+
+func (c *CPU) stepANDWordToMemory(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	return stream.andWordMemory(opcode, uint8(opcode>>3&7), uint8(opcode&7), uint16(c.State.D[opcode>>9&7]), 8)
+}
+
+func (s *moveByteStep) andWordMemory(opcode uint16, mode, reg uint8, operand uint16, baseClocks uint32) (StepResult, error) {
+	initialPC := s.cpu.State.PC
+	address, eaCost, err := s.andMemoryAddress(mode, reg, 2)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if address&1 != 0 {
+		step := moveWordStep{moveByteStep: *s, opcode: opcode, initialPC: initialPC}
+		return s.cpu.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), s.transactions, 54+eaCost+(baseClocks-8), s.dataFC, "re", true)
+	}
+	value, err := s.cpu.Bus.ReadWord(address&addressMask, s.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, readTransaction(address&addressMask, s.dataFC, value))
+	result := value & operand
+	s.cpu.setLogicalFlags(uint32(result), 16)
+	if err := s.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := s.cpu.Bus.WriteWord(address&addressMask, result, s.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, writeTransaction(address&addressMask, s.dataFC, result))
+	return StepResult{Clocks: baseClocks + eaCost, Transactions: s.transactions}, nil
+}
+
+func (c *CPU) stepANDLongToMemory(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	return stream.andLongMemory(opcode, uint8(opcode>>3&7), uint8(opcode&7), c.State.D[opcode>>9&7], 12)
+}
+
+func (s *moveByteStep) andLongMemory(opcode uint16, mode, reg uint8, operand uint32, baseClocks uint32) (StepResult, error) {
+	initialPC := s.cpu.State.PC
+	address, eaCost, err := s.andMemoryAddress(mode, reg, 4)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if address&1 != 0 {
+		step := moveLongStep{moveByteStep: *s, opcode: opcode, initialPC: initialPC}
+		return s.cpu.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), s.transactions, 50+eaCost+(baseClocks-12), s.dataFC, "re", true)
+	}
+	if mode == 3 {
+		s.cpu.setAddressRegister(reg, s.cpu.addressRegister(reg)+4)
+	}
+	high, err := s.cpu.Bus.ReadWord(address&addressMask, s.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, readTransaction(address&addressMask, s.dataFC, high))
+	low, err := s.cpu.Bus.ReadWord((address+2)&addressMask, s.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, readTransaction((address+2)&addressMask, s.dataFC, low))
+	result := (uint32(high)<<16 | uint32(low)) & operand
+	s.cpu.setLogicalFlags(result, 32)
+	if err := s.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := s.cpu.Bus.WriteWord((address+2)&addressMask, uint16(result), s.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, writeTransaction((address+2)&addressMask, s.dataFC, uint16(result)))
+	if err := s.cpu.Bus.WriteWord(address&addressMask, uint16(result>>16), s.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	s.transactions = append(s.transactions, writeTransaction(address&addressMask, s.dataFC, uint16(result>>16)))
+	return StepResult{Clocks: baseClocks + eaCost, Transactions: s.transactions}, nil
+}
+
+func (s *moveByteStep) andMemoryAddress(mode, reg uint8, size uint32) (uint32, uint32, error) {
+	c := s.cpu
+	switch mode {
+	case 2:
+		return c.addressRegister(reg), 4 * size / 2, nil
+	case 3:
+		address := c.addressRegister(reg)
+		if size == 2 {
+			c.setAddressRegister(reg, address+size)
+		}
+		return address, 4 * size / 2, nil
+	case 4:
+		address := c.addressRegister(reg) - size
+		c.setAddressRegister(reg, address)
+		return address, 4*size/2 + 2, nil
+	case 5:
+		extension, err := s.consumeExtension()
+		return c.addressRegister(reg) + uint32(int32(int16(extension))), 4*size/2 + 4, err
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, err
+		}
+		index, err := c.briefIndex(extension)
+		return c.addressRegister(reg) + index + uint32(int32(int8(extension))), 4*size/2 + 6, err
+	case 7:
+		switch reg {
+		case 0:
+			extension, err := s.consumeExtension()
+			return uint32(int32(int16(extension))), 4*size/2 + 4, err
+		case 1:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, err
+			}
+			low, err := s.consumeExtension()
+			return uint32(high)<<16 | uint32(low), 4*size/2 + 8, err
+		}
+	}
+	return 0, 0, fmt.Errorf("m68k: invalid AND memory mode %d:%d", mode, reg)
+}
+
+func (c *CPU) stepANDToDataRegister(opcode uint16) (StepResult, error) {
+	opmode := uint8(opcode >> 6 & 7)
+	destination := uint8(opcode >> 9 & 7)
+	sourceMode := uint8(opcode >> 3 & 7)
+	sourceReg := uint8(opcode & 7)
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+
+	switch opmode {
+	case 0:
+		value, sourceCost, _, err := stream.readSource(sourceMode, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		result := byte(c.State.D[destination]) & value
+		c.State.D[destination] = c.State.D[destination]&0xffff_ff00 | uint32(result)
+		c.setLogicalFlags(uint32(result), 8)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + sourceCost, Transactions: stream.transactions}, nil
+	case 1:
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		value, sourceCost, _, fault, err := step.readWordSource(sourceMode, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		result := uint16(c.State.D[destination]) & value
+		c.State.D[destination] = c.State.D[destination]&0xffff_0000 | uint32(result)
+		c.setLogicalFlags(uint32(result), 16)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 4 + sourceCost, Transactions: step.transactions}, nil
+	case 2:
+		step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		value, sourceCost, sourceMemory, fault, err := step.readLongSource(sourceMode, sourceReg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		result := c.State.D[destination] & value
+		c.State.D[destination] = result
+		c.setLogicalFlags(result, 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		clocks := uint32(6) + sourceCost
+		if !sourceMemory {
+			clocks += 2
+		}
+		return StepResult{Clocks: clocks, Transactions: step.transactions}, nil
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid AND opmode %d", opmode)
+	}
 }
 
 type moveByteStep struct {

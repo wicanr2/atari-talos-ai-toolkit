@@ -168,6 +168,76 @@ func TestSingleStepADDALongReadAddressErrors(t *testing.T) {
 	})
 }
 
+func TestSingleStepANDByteEAToDn(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.b.json.bin", 1317, andEAToDn)
+}
+
+func TestSingleStepANDByteDnToEA(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.b.json.bin", 1007, func(test corpusTest) bool {
+		opcode := test.Initial.CPU.Prefetch[0]
+		return opcode&0xf000 == 0xc000 && opcode>>6&7 == 4
+	})
+}
+
+func TestSingleStepANDImmediateByte(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.b.json.bin", 176, func(test corpusTest) bool {
+		return test.Initial.CPU.Prefetch[0]&0xff00 == 0x0200
+	})
+}
+
+func TestSingleStepANDImmediateWord(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.w.json.bin", 158, func(test corpusTest) bool {
+		return test.Initial.CPU.Prefetch[0]&0xff00 == 0x0200
+	})
+}
+
+func TestSingleStepANDImmediateLong(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.l.json.bin", 129, func(test corpusTest) bool {
+		return test.Initial.CPU.Prefetch[0]&0xff00 == 0x0200
+	})
+}
+
+func TestSingleStepANDWordEAToDn(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.w.json.bin", 1333, andEAToDn)
+}
+
+func TestSingleStepANDLongEAToDn(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.l.json.bin", 1315, andEAToDn)
+}
+
+func TestSingleStepANDWordDnToEANormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.w.json.bin", 512, func(test corpusTest) bool {
+		opcode := test.Initial.CPU.Prefetch[0]
+		return opcode&0xf000 == 0xc000 && opcode>>6&7 == 5 && !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepANDLongDnToEANormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.l.json.bin", 597, func(test corpusTest) bool {
+		opcode := test.Initial.CPU.Prefetch[0]
+		return opcode&0xf000 == 0xc000 && opcode>>6&7 == 6 && !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepANDWordDnToEAReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.w.json.bin", 497, func(test corpusTest) bool {
+		opcode := test.Initial.CPU.Prefetch[0]
+		return opcode&0xf000 == 0xc000 && opcode>>6&7 == 5 && hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepANDLongDnToEAReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "AND.l.json.bin", 459, func(test corpusTest) bool {
+		opcode := test.Initial.CPU.Prefetch[0]
+		return opcode&0xf000 == 0xc000 && opcode>>6&7 == 6 && hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func andEAToDn(test corpusTest) bool {
+	opcode := test.Initial.CPU.Prefetch[0]
+	return opcode&0xf000 == 0xc000 && opcode>>6&7 <= 2
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {

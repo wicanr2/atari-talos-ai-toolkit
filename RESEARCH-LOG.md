@@ -79,3 +79,8 @@
   正常 1,675、source `re` 825。兩者確認 word 符號延伸、32-bit 回繞、A7 active
   stack 與 CCR 不變。`ADDA.L` memory source 的 clocks 為 `6 + sourceCost`，而
   register direct／immediate 為 `8 + sourceCost`，不可直接沿用 MOVEA 的時序。
+- DM12EN 的 ReDMCSB 產生組語中，AND／ANDI 各寬度合計 2,197 個靜態使用點。
+  `AND.b/w/l.json.bin` 不只含一般 AND，也分別含 176／158／129 筆 ANDI。
+- 7,500 筆確認 memory destination 是 operand read → final prefetch → operand write；
+  long 結果固定 low word 先寫、high word 後寫。word `(An)+` 在 odd read fault 前提交
+  `An+2`，long 同類 fault 不提交 `An+4`；兩種寬度不可共用一條副作用規則。
