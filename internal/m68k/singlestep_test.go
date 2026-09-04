@@ -302,6 +302,14 @@ func TestSingleStepLSRLong(t *testing.T) {
 	testSingleStepCorpus(t, "LSR.l.json.bin")
 }
 
+func TestSingleStepMULS(t *testing.T) {
+	testSingleStepCorpus(t, "MULS.json.bin")
+}
+
+func TestSingleStepMULU(t *testing.T) {
+	testSingleStepCorpus(t, "MULU.json.bin")
+}
+
 func isSUB(test corpusTest) bool {
 	opcode := test.Initial.CPU.Prefetch[0]
 	opmode := opcode >> 6 & 7

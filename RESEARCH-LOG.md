@@ -143,3 +143,8 @@
 - `ASR.b/w/l.json.bin` 與 `LSR.b/w/l.json.bin` 共 15,000 筆確認兩族共用 count、
   clocks、C／X、NZV、memory RMW 與 vector-3 微時序；ASR 以原符號位填入，LSR
   以零填入，count 大於 operand 寬度時仍依 68000 的低六位完整推進。
+- DM12EN 的 ReDMCSB 產生組語中，MULS 324 次、MULU 77 次，合計 401 個靜態
+  使用點；此計數只用於模擬器實作優先序。
+- `MULS.json.bin`／`MULU.json.bin` 共 5,000 筆確認 16×16→32、word data EA、
+  NZVC 與 vector-3 微時序。MULU clocks 為 38 加來源 popcount×2；MULS clocks 為
+  38 加 Booth 相鄰位元轉換數×2，且必須把 bit 0 與虛擬前一位 0 的邊界算入。

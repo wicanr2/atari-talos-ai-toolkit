@@ -115,6 +115,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepANDWordToMemory(opcode)
 	case opcode&0xf000 == 0xc000 && opcode>>6&7 == 6:
 		return c.stepANDLongToMemory(opcode)
+	case opcode&0xf1c0 == 0xc0c0:
+		return c.stepMultiply(opcode, false)
+	case opcode&0xf1c0 == 0xc1c0:
+		return c.stepMultiply(opcode, true)
 	case opcode&0xf1c0 == 0xd0c0:
 		return c.stepADDAWord(opcode)
 	case opcode&0xf1c0 == 0xd1c0:
@@ -194,6 +198,62 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepMultiply(opcode uint16, signed bool) (StepResult, error) {
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 4 {
+		return StepResult{}, fmt.Errorf("m68k: invalid multiply source mode %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	source, cost, _, fault, err := step.readWordSource(mode, reg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	destination := uint16(c.State.D[opcode>>9&7])
+	var result uint32
+	var clocks uint32
+	if signed {
+		result = uint32(int32(int16(destination)) * int32(int16(source)))
+		clocks = multiplySignedClocks(source)
+	} else {
+		result = uint32(destination) * uint32(source)
+		clocks = multiplyUnsignedClocks(source)
+	}
+	c.State.D[opcode>>9&7] = result
+	c.setLogicalFlags(result, 32)
+	if err := step.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: clocks + cost, Transactions: step.transactions}, nil
+}
+
+func multiplyUnsignedClocks(multiplier uint16) uint32 {
+	clocks := uint32(38)
+	for value := multiplier; value != 0; value >>= 1 {
+		clocks += 2 * uint32(value&1)
+	}
+	return clocks
+}
+
+func multiplySignedClocks(multiplier uint16) uint32 {
+	clocks := uint32(38)
+	previous := uint16(0)
+	for bit := uint8(0); bit < 16; bit++ {
+		current := multiplier >> bit & 1
+		if current != previous {
+			clocks += 2
+		}
+		previous = current
+	}
+	return clocks
 }
 
 func (c *CPU) stepASRRegister(opcode uint16) (StepResult, error) {

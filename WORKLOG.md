@@ -83,3 +83,6 @@
   暫存器 count、低六位截斷、零 count、算術符號／邏輯零填入、最後移出位元 C／X、
   動態 clocks、word memory 讀改寫與 address-error 均逐筆驗收；CPU 累計外部單步
   驗收 130,000 筆。
+- 完成 `MULS.W` 與 `MULU.W`；兩份語料共 5,000 筆全數通過。signed／unsigned
+  16×16→32、全部 word data EA、X／NZVC、prefetch、address-error 與資料相依 clocks
+  均逐筆驗收；CPU 累計外部單步驗收 135,000 筆。
