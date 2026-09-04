@@ -62,7 +62,7 @@ TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 | 里程碑 | 完成條件 | 狀態 |
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
-| M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／LINK／UNLK／ADDA／AND／ANDI／OR／ORI／CMP／CMPI／CMPM／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST，共 107,500 筆外部語料已通過** |
+| M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／LINK／UNLK／ADDA／AND／ANDI／OR／ORI／CMP／CMPI／CMPM／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／ASL，共 115,000 筆外部語料已通過** |
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | 未開始 |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |

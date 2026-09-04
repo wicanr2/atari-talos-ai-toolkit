@@ -76,3 +76,6 @@
   通過。一般 SUB 雙方向、immediate、quick、An 特例、X／NZVC borrow 旗標、全部
   合法 EA、讀改寫 bus 次序與 address-error 均逐筆驗收；CPU 累計外部單步驗收
   107,500 筆。
+- 完成 `ASL.B/W/L`；三種寬度共 7,500 筆全數通過。立即值／暫存器 count、低六位
+  截斷、零 count、逐步符號變化 V、最後移出位元 C／X、動態 clocks、word memory
+  讀改寫與 address-error 均逐筆驗收；CPU 累計外部單步驗收 115,000 筆。

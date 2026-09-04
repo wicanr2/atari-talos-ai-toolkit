@@ -51,6 +51,10 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xffc0 == 0xe1c0:
+		return c.stepASLMemory(opcode)
+	case opcode&0xf118 == 0xe100 && opcode>>6&3 <= 2:
+		return c.stepASLRegister(opcode)
 	case opcode&0xff00 == 0x4a00 && opcode>>6&3 <= 2:
 		return c.stepTST(opcode)
 	case opcode&0xfff8 == 0x4e50:
@@ -182,6 +186,112 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepASLRegister(opcode uint16) (StepResult, error) {
+	size := uint8(opcode >> 6 & 3)
+	reg := uint8(opcode & 7)
+	count := uint32(opcode >> 9 & 7)
+	if opcode&0x0020 != 0 {
+		count = c.State.D[opcode>>9&7] & 63
+	} else if count == 0 {
+		count = 8
+	}
+
+	bits := uint8(8 << size)
+	value := c.State.D[reg]
+	result := c.arithmeticShiftLeft(value, bits, count)
+	switch size {
+	case 0:
+		c.State.D[reg] = value&0xffff_ff00 | result
+	case 1:
+		c.State.D[reg] = value&0xffff_0000 | result
+	case 2:
+		c.State.D[reg] = result
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid ASL register size %d", size)
+	}
+	clocks := uint32(6) + 2*count
+	if size == 2 {
+		clocks += 2
+	}
+	return c.refillSequential(controlEA{returnPC: c.State.PC}, clocks)
+}
+
+func (c *CPU) stepASLMemory(opcode uint16) (StepResult, error) {
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode < 2 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid ASL memory mode %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	initialPC := c.State.PC
+	address, cost, err := stream.andMemoryAddress(mode, reg, 2)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if address&1 != 0 {
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: initialPC}
+		return c.enterAddressError(opcode, address, step.sourceFaultPC(mode, reg), stream.transactions, 54+cost, stream.dataFC, "re", true)
+	}
+	value, err := c.Bus.ReadWord(address&addressMask, stream.dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
+	result := uint16(c.arithmeticShiftLeft(uint32(value), 16, 1))
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	if err := c.Bus.WriteWord(address&addressMask, result, stream.dataFC); err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, writeTransaction(address&addressMask, stream.dataFC, result))
+	return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
+}
+
+func (c *CPU) arithmeticShiftLeft(value uint32, bits uint8, count uint32) uint32 {
+	var mask, sign uint32
+	switch bits {
+	case 8:
+		mask, sign = 0xff, 0x80
+	case 16:
+		mask, sign = 0xffff, 0x8000
+	case 32:
+		mask, sign = 0xffff_ffff, 0x8000_0000
+	default:
+		panic("m68k: invalid ASL width")
+	}
+	result := value & mask
+	overflow := false
+	carry := false
+	c.State.SR &^= 0x000f
+	for shifted := uint32(0); shifted < count; shifted++ {
+		oldSign := result & sign
+		carry = oldSign != 0
+		result = result << 1 & mask
+		if result&sign != oldSign {
+			overflow = true
+		}
+	}
+	if result == 0 {
+		c.State.SR |= 0x0004
+	}
+	if result&sign != 0 {
+		c.State.SR |= 0x0008
+	}
+	if overflow {
+		c.State.SR |= 0x0002
+	}
+	if count != 0 {
+		c.State.SR &^= 0x0010
+		if carry {
+			c.State.SR |= 0x0011
+		}
+	}
+	return result
 }
 
 func (c *CPU) stepTST(opcode uint16) (StepResult, error) {

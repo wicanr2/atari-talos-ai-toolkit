@@ -133,3 +133,8 @@
 - `SUB.b/w/l.json.bin` 共 7,500 筆，其中一般 SUB 4,608 筆、SUBI 337 筆、
   SUBQ 2,555 筆。語料確認其 EA、clock、prefetch、讀改寫及 vector-3 微時序可與
   ADD 族共用，運算與 X／NZVC 必須使用減法及 borrow 規則。
+- DM12EN 的 ReDMCSB 產生組語中，ASL.W 257 次、ASL.L 547 次，合計 804 個靜態
+  使用點；此計數只用於模擬器實作優先序。
+- `ASL.b/w/l.json.bin` 共 7,500 筆確認立即值 count 的 0→8、Dn count 只取低六位、
+  count 0 時 C 清除而 X 保留、ASL 的逐步符號變化 V、動態 clocks，以及 word memory
+  型的 read／prefetch／write 與 vector-3 微時序。
