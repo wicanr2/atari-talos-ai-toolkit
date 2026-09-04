@@ -56,13 +56,16 @@
 - `ADD.B/W/L`、`ADDI.B/W/L` 與 `ADDQ.B/W/L` 共 7,500 筆全部通過；涵蓋雙向
   ADD、immediate、quick immediate 0→8、ADDQ 寫 An 不改 CCR、讀改寫 bus 次序與
   vector-3 位址錯誤。CPU 累計外部單步驗收 70,000 筆。
+- `CLR.B/W/L` 共 7,500 筆全部通過；涵蓋 Dn 與全部合法記憶體目的 EA、X 保留、
+  固定 Z、MC68000 operand read／prefetch／zero write 次序與 vector-3 位址錯誤。
+  CPU 累計外部單步驗收 77,500 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批；`ADDQ` 雖高頻，
-   但固定外部語料沒有獨立檔，須先補可驗收來源。
+2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
+   高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

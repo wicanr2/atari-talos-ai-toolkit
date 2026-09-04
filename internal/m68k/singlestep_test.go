@@ -44,6 +44,18 @@ func TestSingleStepEXTL(t *testing.T) {
 	testSingleStepCorpus(t, "EXT.l.json.bin")
 }
 
+func TestSingleStepCLRByte(t *testing.T) {
+	testSingleStepCorpus(t, "CLR.b.json.bin")
+}
+
+func TestSingleStepCLRWord(t *testing.T) {
+	testSingleStepCorpus(t, "CLR.w.json.bin")
+}
+
+func TestSingleStepCLRLong(t *testing.T) {
+	testSingleStepCorpus(t, "CLR.l.json.bin")
+}
+
 func TestSingleStepBcc(t *testing.T) {
 	testSingleStepCorpus(t, "Bcc.json.bin")
 }

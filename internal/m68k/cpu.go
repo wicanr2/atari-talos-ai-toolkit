@@ -51,6 +51,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x4200 && opcode>>6&3 <= 2:
+		return c.stepCLR(opcode)
 	case opcode&0xff00 == 0x0600 && opcode>>6&3 <= 2:
 		return c.stepADDImmediate(opcode)
 	case opcode&0xf100 == 0x5000 && opcode>>6&3 <= 2:
@@ -154,6 +156,46 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepCLR(opcode uint16) (StepResult, error) {
+	size, mode, reg := uint8(opcode>>6&3), uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid CLR destination mode %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	if mode == 0 {
+		switch size {
+		case 0:
+			c.State.D[reg] &= 0xffff_ff00
+		case 1:
+			c.State.D[reg] &= 0xffff_0000
+		case 2:
+			c.State.D[reg] = 0
+		}
+		c.setLogicalFlags(0, 8<<size)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		clocks := uint32(4)
+		if size == 2 {
+			clocks = 6
+		}
+		return StepResult{Clocks: clocks, Transactions: stream.transactions}, nil
+	}
+	switch size {
+	case 0:
+		return stream.andByteMemory(mode, reg, 0, 8)
+	case 1:
+		return stream.andWordMemory(opcode, mode, reg, 0, 8)
+	case 2:
+		return stream.andLongMemory(opcode, mode, reg, 0, 12)
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid CLR size %d", size)
+	}
 }
 
 func (c *CPU) stepADDToDataRegister(opcode uint16) (StepResult, error) {

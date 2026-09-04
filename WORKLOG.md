@@ -57,3 +57,6 @@
 - 完成 `ADD.B/W/L`、`ADDI.B/W/L` 與 `ADDQ.B/W/L`；三種寬度共 7,500 筆全數通過。
   ADDQ 的 0→8 immediate、An 特例、long 額外時鐘，以及所有記憶體讀改寫與
   address-error 路徑均逐筆驗收；CPU 累計外部單步驗收 70,000 筆。
+- 完成 `CLR.B/W/L`；三種寬度共 7,500 筆全數通過。Dn 的窄寬度保留、X／NZVC、
+  記憶體讀改寫 bus 次序、long low-word-first 寫回與 address-error 路徑均逐筆驗收；
+  CPU 累計外部單步驗收 77,500 筆。

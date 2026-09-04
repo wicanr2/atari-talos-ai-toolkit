@@ -95,3 +95,7 @@
   ADDQ 2,566 筆。
 - ADDQ 寫 An 一律作 32-bit 加法且不改 CCR；寫 Dn 的 long 版本比 byte／word 多
   4 clocks。記憶體目的端沿用 ADD 的讀改寫次序，這三條由固定語料確認。
+- DM12EN 的 ReDMCSB 產生組語中，CLR.W 858 次、CLR.B 64 次、CLR.L 80 次，
+  合計 1,002 個靜態使用點；此計數只用於模擬器實作優先序。
+- `CLR.b/w/l.json.bin` 共 7,500 筆確認 MC68000 的記憶體 CLR 仍會先讀 operand，
+  再做最後一次 program prefetch 與 zero write；long 寫回為 low word 先行。
