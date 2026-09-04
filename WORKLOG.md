@@ -24,3 +24,6 @@
   670 筆例外語料全數通過，CPU 累計外部單步驗收 15,000 筆。
 - 完成 BSR 與 RTS 的 active-stack call／return 垂直鏈；兩份各 2,500 筆語料均包含
   正常與 address-error 路徑並全數通過，CPU 累計外部單步驗收 20,000 筆。
+- 完成 JMP／JSR 共用 control-EA 解碼與各自 bus 次序，七種 68000 control mode 共
+  5,000 筆全數通過。依官方相容性文字與語料訂正 extension bits 10–8：68000 忽略，
+  不誤判為 full-extension 例外。CPU 累計外部單步驗收 25,000 筆。

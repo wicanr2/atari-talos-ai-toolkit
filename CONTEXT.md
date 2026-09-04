@@ -26,12 +26,15 @@
   supervisor 切換、vector 3 與 handler 預取。CPU 外部單步驗收累計 15,000 筆。
 - BSR 與 RTS 各 2,500 筆全部通過，涵蓋 user／supervisor stack、return PC、正常預取，
   以及 push／pop 完成後才發生的奇數目標 address error；CPU 累計驗收 20,000 筆。
+- JMP／JSR 各 2,500 筆全部通過，涵蓋七種 68000 control effective address、PC-relative、
+  Dn／An word／long index、A7、absolute long、stack 次序與 address error；CPU 累計
+  外部單步驗收 25,000 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 接續處理 JSR／JMP effective-address 定址，擴大 Dungeon Master 呼叫主幹。
+2. 將 control-EA 經驗收的定址元件推廣至 MOVE／LEA 等 Dungeon Master 高頻指令。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

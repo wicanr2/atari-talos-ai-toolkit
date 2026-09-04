@@ -33,3 +33,9 @@
   原模式 active stack，奇數目標時 push 保留，例外 saved PC 為 fault target。
 - RTS 2,500 筆分成 1,263 筆正常與 1,237 筆 address error；確認先從 active stack
   讀 long 並令 SP+4，奇數 return 時該更新保留，例外 saved PC 為 RTS opcode 後位址。
+- JMP／JSR 各 2,500 筆涵蓋七種 68000 control effective address。JMP 為 1,272 筆
+  正常、1,228 筆 address error；JSR 為 1,341 筆正常、1,159 筆 address error。
+- 官方 brief-extension 相容性文字與語料共同確認：68000 忽略 extension bits 10–8，
+  不把後代 CPU 使用的 scale／format 編碼解成例外；初版「bit 8 非零應拒絕」已撤回。
+- JSR 會先嘗試讀 target 第一個 word，成功後才 push return PC，再讀 target+2；因此
+  奇數 target 不修改 active stack，與 BSR 先 push 再嘗試 target 的順序不同。

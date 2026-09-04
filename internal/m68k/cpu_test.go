@@ -33,6 +33,7 @@ func TestStepFailsClosed(t *testing.T) {
 	for _, test := range []CPU{
 		{State: State{Prefetch: [2]uint16{0x4e71}}},
 		{Bus: SparseMemory{}, State: State{Prefetch: [2]uint16{0x4e70}}},
+		{Bus: SparseMemory{}, State: State{Prefetch: [2]uint16{0x4ec0}}},
 	} {
 		if _, err := test.Step(); err == nil {
 			t.Fatal("Step unexpectedly succeeded")
@@ -47,8 +48,8 @@ func TestOddBranchTargetEntersAddressError(t *testing.T) {
 		0x2000: 0x4e, 0x2001: 0x71, 0x2002: 0x70, 0x2003: 0x01,
 	}
 	cpu := CPU{Bus: memory, State: State{
-		D:   [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
-		A:   [7]uint32{9, 10, 11, 12, 13, 14, 15},
+		D: [8]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+		A: [7]uint32{9, 10, 11, 12, 13, 14, 15},
 		USP: 0x8000, SSP: 0x9000,
 		SR: 0x8000, PC: 0x1004, Prefetch: [2]uint16{0x6001, 0xabcd},
 	}}

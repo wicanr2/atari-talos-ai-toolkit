@@ -49,6 +49,10 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xffc0 == 0x4ec0:
+		return c.stepJMP(opcode)
+	case opcode&0xffc0 == 0x4e80:
+		return c.stepJSR(opcode)
 	case opcode == 0x4e75:
 		return c.stepRTS(opcode)
 	case opcode&0xff00 == 0x6100:
@@ -106,6 +110,161 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+type controlEA struct {
+	target       uint32
+	returnPC     uint32
+	extraClocks  uint32
+	transactions []Transaction
+}
+
+func (c *CPU) decodeControlEA(opcode uint16) (controlEA, error) {
+	mode := uint8(opcode >> 3 & 7)
+	reg := uint8(opcode & 7)
+	basePC := c.State.PC - 2
+	result := controlEA{returnPC: basePC}
+	switch mode {
+	case 2:
+		result.target = c.addressRegister(reg)
+	case 5:
+		result.target = c.addressRegister(reg) + uint32(int32(int16(c.State.Prefetch[1])))
+		result.returnPC = c.State.PC
+		result.extraClocks = 2
+	case 6:
+		index, err := c.briefIndex(c.State.Prefetch[1])
+		if err != nil {
+			return controlEA{}, err
+		}
+		result.target = c.addressRegister(reg) + index + uint32(int32(int8(c.State.Prefetch[1])))
+		result.returnPC = c.State.PC
+		result.extraClocks = 6
+	case 7:
+		switch reg {
+		case 0:
+			result.target = uint32(int32(int16(c.State.Prefetch[1])))
+			result.returnPC = c.State.PC
+			result.extraClocks = 2
+		case 1:
+			address := c.State.PC & addressMask
+			fc := c.programFunctionCode()
+			low, err := c.Bus.ReadWord(address, fc)
+			if err != nil {
+				return controlEA{}, err
+			}
+			result.target = uint32(c.State.Prefetch[1])<<16 | uint32(low)
+			result.returnPC = c.State.PC + 2
+			result.extraClocks = 4
+			result.transactions = []Transaction{readTransaction(address, fc, low)}
+		case 2:
+			result.target = basePC + uint32(int32(int16(c.State.Prefetch[1])))
+			result.returnPC = c.State.PC
+			result.extraClocks = 2
+		case 3:
+			index, err := c.briefIndex(c.State.Prefetch[1])
+			if err != nil {
+				return controlEA{}, err
+			}
+			result.target = basePC + index + uint32(int32(int8(c.State.Prefetch[1])))
+			result.returnPC = c.State.PC
+			result.extraClocks = 6
+		default:
+			return controlEA{}, fmt.Errorf("m68k: invalid control addressing mode %d:%d", mode, reg)
+		}
+	default:
+		return controlEA{}, fmt.Errorf("m68k: invalid control addressing mode %d:%d", mode, reg)
+	}
+	return result, nil
+}
+
+func (c *CPU) briefIndex(extension uint16) (uint32, error) {
+	reg := uint8(extension >> 12 & 7)
+	value := c.State.D[reg]
+	if extension&0x8000 != 0 {
+		value = c.addressRegister(reg)
+	}
+	if extension&0x0800 == 0 {
+		value = uint32(int32(int16(value)))
+	}
+	return value, nil
+}
+
+func (c *CPU) addressRegister(reg uint8) uint32 {
+	if reg < 7 {
+		return c.State.A[reg]
+	}
+	if c.State.SR&supervisor != 0 {
+		return c.State.SSP
+	}
+	return c.State.USP
+}
+
+func (c *CPU) stepJMP(opcode uint16) (StepResult, error) {
+	ea, err := c.decodeControlEA(opcode)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if ea.target&1 != 0 {
+		return c.enterInstructionAddressError(
+			opcode, ea.target, c.State.PC-2, ea.transactions, 58+ea.extraClocks,
+		)
+	}
+	result, err := c.refillBranch(ea.target, 8+ea.extraClocks)
+	if err != nil {
+		return StepResult{}, err
+	}
+	result.Transactions = append(ea.transactions, result.Transactions...)
+	return result, nil
+}
+
+func (c *CPU) stepJSR(opcode uint16) (StepResult, error) {
+	ea, err := c.decodeControlEA(opcode)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if ea.target&1 != 0 {
+		return c.enterInstructionAddressError(
+			opcode, ea.target, ea.returnPC, ea.transactions, 58+ea.extraClocks,
+		)
+	}
+
+	programFC := c.programFunctionCode()
+	targetAddress := ea.target & addressMask
+	first, err := c.Bus.ReadWord(targetAddress, programFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions := append(ea.transactions, readTransaction(targetAddress, programFC, first))
+	stack := &c.State.USP
+	dataFC := uint8(1)
+	if c.State.SR&supervisor != 0 {
+		stack = &c.State.SSP
+		dataFC = 5
+	}
+	newSP := *stack - 4
+	returnHigh := uint16(ea.returnPC >> 16)
+	returnLow := uint16(ea.returnPC)
+	stackAddress := newSP & addressMask
+	if err := c.Bus.WriteWord(stackAddress, returnHigh, dataFC); err != nil {
+		return StepResult{}, err
+	}
+	stackLowAddress := (newSP + 2) & addressMask
+	if err := c.Bus.WriteWord(stackLowAddress, returnLow, dataFC); err != nil {
+		return StepResult{}, err
+	}
+	*stack = newSP
+	transactions = append(transactions,
+		writeTransaction(stackAddress, dataFC, returnHigh),
+		writeTransaction(stackLowAddress, dataFC, returnLow))
+	secondAddress := (ea.target + 2) & addressMask
+	second, err := c.Bus.ReadWord(secondAddress, programFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions, readTransaction(secondAddress, programFC, second))
+	c.State.Prefetch = [2]uint16{first, second}
+	c.State.PC = ea.target + 4
+	return StepResult{Clocks: 16 + ea.extraClocks, Transactions: transactions}, nil
 }
 
 func (c *CPU) stepRTS(opcode uint16) (StepResult, error) {
