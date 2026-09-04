@@ -63,3 +63,6 @@
 - 完成 `MOVEM.W/L`；兩種寬度共 5,000 筆全數通過。雙向 register mask、word
   符號延伸、predecrement 反序、postincrement、記憶體載入末尾虛讀、PC-relative
   program FC 與 address-error 微時序均逐筆驗收；CPU 累計外部單步驗收 82,500 筆。
+- 完成 `LINK` 與 `UNLK` 正常函式框架路徑。LINK 2,500 筆外部語料全數通過；UNLK
+  因上游無獨立語料，以官方契約加固定本地 state／RAM／clock／bus 測試，odd frame
+  維持失敗即關閉。CPU 累計外部單步驗收 85,000 筆。

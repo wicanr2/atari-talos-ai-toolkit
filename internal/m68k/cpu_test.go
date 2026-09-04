@@ -44,6 +44,39 @@ func TestStepFailsClosed(t *testing.T) {
 	}
 }
 
+func TestUNLKRestoresFrameAndActiveStack(t *testing.T) {
+	memory := SparseMemory{
+		0x8000: 0x12, 0x8001: 0x34, 0x8002: 0x56, 0x8003: 0x78,
+		0x1004: 0x4e, 0x1005: 0x71,
+	}
+	cpu := CPU{Bus: memory, State: State{
+		A: [7]uint32{0x8000}, USP: 0x9000, SSP: 0xa000, SR: 0x001f,
+		PC: 0x1004, Prefetch: [2]uint16{0x4e58, 0xabcd},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cpu.State.A[0] != 0x12345678 || cpu.State.USP != 0x8004 || cpu.State.SSP != 0xa000 || cpu.State.SR != 0x001f {
+		t.Fatalf("unexpected UNLK state: %#v", cpu.State)
+	}
+	want := []Transaction{
+		{Kind: "r", Cycle: 4, FC: 1, Address: 0x8000, Size: 2, Data: 0x1234, UDS: true, LDS: true},
+		{Kind: "r", Cycle: 4, FC: 1, Address: 0x8002, Size: 2, Data: 0x5678, UDS: true, LDS: true},
+		{Kind: "r", Cycle: 4, FC: 2, Address: 0x1004, Size: 2, Data: 0x4e71, UDS: true, LDS: true},
+	}
+	if result.Clocks != 12 || !reflect.DeepEqual(result.Transactions, want) {
+		t.Fatalf("unexpected UNLK bus result: %#v", result)
+	}
+}
+
+func TestUNLKOddFrameFailsClosed(t *testing.T) {
+	cpu := CPU{Bus: SparseMemory{}, State: State{A: [7]uint32{0x8001}, Prefetch: [2]uint16{0x4e58}}}
+	if _, err := cpu.Step(); err == nil {
+		t.Fatal("UNLK with odd frame address unexpectedly succeeded")
+	}
+}
+
 func TestMOVEBytePostIncrementA7AndBusLane(t *testing.T) {
 	memory := SparseMemory{
 		0x1004: 0x12, 0x1005: 0x34,

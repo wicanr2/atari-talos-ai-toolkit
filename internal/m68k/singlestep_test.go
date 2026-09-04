@@ -64,6 +64,10 @@ func TestSingleStepMOVEMLong(t *testing.T) {
 	testSingleStepCorpus(t, "MOVEM.l.json.bin")
 }
 
+func TestSingleStepLINK(t *testing.T) {
+	testSingleStepCorpus(t, "LINK.json.bin")
+}
+
 func TestSingleStepBcc(t *testing.T) {
 	testSingleStepCorpus(t, "Bcc.json.bin")
 }

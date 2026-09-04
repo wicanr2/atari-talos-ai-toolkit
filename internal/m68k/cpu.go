@@ -51,6 +51,10 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xfff8 == 0x4e50:
+		return c.stepLINK(opcode)
+	case opcode&0xfff8 == 0x4e58:
+		return c.stepUNLK(opcode)
 	case opcode&0xfb80 == 0x4880 && opcode>>3&7 >= 2:
 		return c.stepMOVEM(opcode)
 	case opcode&0xff00 == 0x4200 && opcode>>6&3 <= 2:
@@ -158,6 +162,64 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepLINK(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	displacement, err := stream.consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	reg := uint8(opcode & 7)
+	oldAddress := c.addressRegister(reg)
+	stackTransactions, err := c.pushLong(oldAddress)
+	if err != nil {
+		return StepResult{}, err
+	}
+	stream.transactions = append(stream.transactions, stackTransactions...)
+	frame := c.addressRegister(7)
+	c.setAddressRegister(reg, frame)
+	c.setAddressRegister(7, frame+uint32(int32(int16(displacement))))
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 16, Transactions: stream.transactions}, nil
+}
+
+func (c *CPU) stepUNLK(opcode uint16) (StepResult, error) {
+	reg := uint8(opcode & 7)
+	frame := c.addressRegister(reg)
+	if frame&1 != 0 {
+		return StepResult{}, fmt.Errorf("m68k: UNLK odd frame address 0x%08x is not implemented", frame)
+	}
+	c.setAddressRegister(7, frame)
+	dataFC := uint8(1)
+	if c.State.SR&supervisor != 0 {
+		dataFC = 5
+	}
+	high, err := c.Bus.ReadWord(frame&addressMask, dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := c.Bus.ReadWord((frame+2)&addressMask, dataFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	value := uint32(high)<<16 | uint32(low)
+	c.setAddressRegister(reg, value)
+	c.setAddressRegister(7, frame+4)
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: dataFC,
+		transactions: []Transaction{
+			readTransaction(frame&addressMask, dataFC, high),
+			readTransaction((frame+2)&addressMask, dataFC, low),
+		}}
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 12, Transactions: stream.transactions}, nil
 }
 
 func (c *CPU) stepMOVEM(opcode uint16) (StepResult, error) {

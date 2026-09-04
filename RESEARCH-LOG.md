@@ -112,3 +112,8 @@
   SHA-256、image 與 Hatari 版本、顯示與輸入邊界、逐步事件、截圖 SHA-256、證據等級、
   unknown、next gate、artifact retention 及 `supersededBy` 勘誤鏈。Atari Talos 可沿用
   這些資訊需求，但公開契約要採 bundle、JSONL 或兩者並存仍是未定案的架構決策。
+- DM12EN 的 ReDMCSB 產生組語中，LINK 與 UNLK 各 445 次，合計 890 個靜態使用點；
+  兩者是 Megamax C 產物中成對且高頻的函式框架指令。
+- 固定語料只有 `LINK.json.bin` 2,500 筆，沒有 UNLK 檔。LINK 語料確認 extension
+  prefetch → active-stack long push → 最後 program prefetch 的順序及 16 clocks；UNLK
+  目前只依官方契約與本地正常路徑測試，odd frame 的 vector-3 微時序維持未實作。
