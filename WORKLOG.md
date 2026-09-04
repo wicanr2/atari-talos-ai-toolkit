@@ -27,3 +27,5 @@
 - 完成 JMP／JSR 共用 control-EA 解碼與各自 bus 次序，七種 68000 control mode 共
   5,000 筆全數通過。依官方相容性文字與語料訂正 extension bits 10–8：68000 忽略，
   不誤判為 full-extension 例外。CPU 累計外部單步驗收 25,000 筆。
+- 將 control-EA 接到 LEA／PEA；保留 PEA absolute modes 在最後一次預取前插入 stack
+  write 的 microcode 次序。兩份共 5,000 筆全部通過，CPU 累計外部單步驗收 30,000 筆。

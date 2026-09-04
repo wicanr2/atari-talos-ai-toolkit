@@ -29,12 +29,14 @@
 - JMP／JSR 各 2,500 筆全部通過，涵蓋七種 68000 control effective address、PC-relative、
   Dn／An word／long index、A7、absolute long、stack 次序與 address error；CPU 累計
   外部單步驗收 25,000 筆。
+- LEA／PEA 各 2,500 筆全部通過；control EA 已可寫入 An／A7 或依真實 microcode
+  排程推入 active stack。CPU 外部單步驗收累計 30,000 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 將 control-EA 經驗收的定址元件推廣至 MOVE／LEA 等 Dungeon Master 高頻指令。
+2. 建立一般 data-EA 讀寫層，開始接入 Dungeon Master 使用量最高的 MOVE 指令族。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

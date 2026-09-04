@@ -39,3 +39,7 @@
   不把後代 CPU 使用的 scale／format 編碼解成例外；初版「bit 8 非零應拒絕」已撤回。
 - JSR 會先嘗試讀 target 第一個 word，成功後才 push return PC，再讀 target+2；因此
   奇數 target 不修改 active stack，與 BSR 先 push 再嘗試 target 的順序不同。
+- LEA 與 PEA 各 2,500 筆均完整涵蓋七種 control EA；LEA 驗證目的 An／A7 與
+  extension 後的順序預取，PEA 驗證 effective address high／low 寫入 active stack。
+- PEA 的 absolute word／long 會在最後一次預取前完成兩次 stack write；其他 control
+  modes 則先完成該 instruction 的預取再寫 stack。最終狀態相同不足以驗證此差異。
