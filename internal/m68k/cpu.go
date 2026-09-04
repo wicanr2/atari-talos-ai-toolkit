@@ -51,6 +51,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xf0f8 == 0x50c8:
+		return c.stepDBcc(opcode)
 	case opcode&0xf0c0 == 0x50c0:
 		return c.stepScc(opcode)
 	case opcode&0xff00 == 0x4600 && opcode>>6&3 <= 2:
@@ -204,6 +206,26 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepDBcc(opcode uint16) (StepResult, error) {
+	condition := uint8(opcode >> 8 & 15)
+	if condition == 0 || condition != 1 && branchCondition(condition, c.State.SR) {
+		return c.refillBranch(c.State.PC, 12)
+	}
+	reg := uint8(opcode & 7)
+	result := uint16(c.State.D[reg]) - 1
+	if result == 0xffff {
+		c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
+		return c.refillBranch(c.State.PC, 14)
+	}
+	base := c.State.PC - 2
+	target := uint32(int32(base) + int32(int16(c.State.Prefetch[1])))
+	if target&1 != 0 {
+		return c.enterInstructionAddressError(opcode, target, c.State.PC, nil, 60)
+	}
+	c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(result)
+	return c.refillBranch(target, 10)
 }
 
 func (c *CPU) stepScc(opcode uint16) (StepResult, error) {

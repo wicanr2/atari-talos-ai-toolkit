@@ -92,3 +92,6 @@
 - 完成全部 16 種 `Scc.B`；固定語料 2,500 筆全數通過。真假條件、Dn 不同 clocks、
   SR 完全不變、所有 memory destination EA、operand read → prefetch → byte write、
   UDS／LDS 與 A7 delta 均逐筆驗收；CPU 累計外部單步驗收 152,500 筆。
+- 完成全部 16 種 `DBcc.W`；固定語料 2,500 筆全數通過。condition 成立、計數到期、
+  成功分支三條正常時序與奇數目標 vector 3 均逐筆驗收；CPU 累計外部單步驗收
+  155,000 筆。

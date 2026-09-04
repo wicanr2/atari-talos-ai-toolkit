@@ -90,6 +90,9 @@
 - 完整 16 種 `Scc.B` 共 2,500 筆全部通過；涵蓋真假 condition、Dn 真／假不同
   clocks、所有合法可修改 memory EA、SR 不變、operand read、prefetch、byte write、
   UDS／LDS 與 A7 byte delta。CPU 累計外部單步驗收 152,500 筆。
+- 完整 16 種 `DBcc.W` 共 2,500 筆全部通過；涵蓋 condition 成立、低 16-bit 計數
+  到期／成功分支、10／12／14 clocks 與奇數目標 vector 3。例外不提交 Dn 遞減，
+  fault address 與 frame saved PC 分開建模。CPU 累計外部單步驗收 155,000 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步

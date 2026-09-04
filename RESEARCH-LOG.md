@@ -157,3 +157,8 @@
   SNE 54，其餘分布於 SCC、SGE、SGT、SHI、SLE、SLS、SLT、SMI、SPL、ST、SVC、SVS。
 - `Scc.json.bin` 2,500 筆確認 Dn 成立為 6 clocks、不成立為 4 clocks；memory 型
   無論結果都先讀原 byte，再 prefetch 並寫 `ff`／`00`，且完全不改 SR。
+- DM12EN 的 ReDMCSB 產生組語中，DBF 有 14 個靜態使用點，未見其他 DBcc 條件；
+  此計數只用於模擬器實作優先序。
+- `DBcc.json.bin` 2,500 筆確認 condition 成立、計數到期與成功分支分別為 12、14、
+  10 clocks。奇數分支目標進入 vector 3 時不提交 Dn 遞減；fault address 是計算出的
+  奇數目標，frame saved PC 則是 extension 之後的順序 PC，兩者不可混用。

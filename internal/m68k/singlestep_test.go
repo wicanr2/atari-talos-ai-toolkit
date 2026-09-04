@@ -338,6 +338,10 @@ func TestSingleStepScc(t *testing.T) {
 	testSingleStepCorpus(t, "Scc.json.bin")
 }
 
+func TestSingleStepDBcc(t *testing.T) {
+	testSingleStepCorpus(t, "DBcc.json.bin")
+}
+
 func isSUB(test corpusTest) bool {
 	opcode := test.Initial.CPU.Prefetch[0]
 	opmode := opcode >> 6 & 7
