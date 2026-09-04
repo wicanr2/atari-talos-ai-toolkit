@@ -4,7 +4,9 @@
 |---|---|---|---|
 | JSON Lines 解碼與回覆關聯 | protocol／CLI golden test | 不適用 | 已建立 |
 | 未知欄位與未知命令拒絕 | protocol／CLI test | 不適用 | 已建立 |
-| 68000 指令 | 待建立 | 公開硬體測試語料 | 未開始 |
+| 68000 NOP | 本地 pipeline／fail-closed 測試 | SingleStepTests 2,500 筆狀態＋bus trace | 通過 |
+| 68000 MOVEQ | 本地 immediate／CCR 測試 | SingleStepTests 2,500 筆狀態＋bus trace | 通過 |
+| 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 未開始 |
 | TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |

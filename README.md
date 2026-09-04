@@ -51,6 +51,10 @@ $ printf '%s\n' '{"id":"3","op":"run_frames","frames":1}' | ataritalos
 ```sh
 tools/go.sh test ./...
 tools/go.sh build -o bin/ataritalos ./cmd/ataritalos
+
+# 下載固定版本的外部 CPU 語料，再跑逐 clock／bus 驗收
+tools/fetch-m68000-tests.sh
+TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 ```
 
 ## 里程碑
@@ -58,7 +62,7 @@ tools/go.sh build -o bin/ataritalos ./cmd/ataritalos
 | 里程碑 | 完成條件 | 狀態 |
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
-| M1 | 68000 核心通過公開指令語料與邊界測試 | 未開始 |
+| M1 | 68000 核心通過公開指令語料與邊界測試 | **NOP＋MOVEQ 共 5,000 筆已通過；其餘指令未實作** |
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | 未開始 |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |

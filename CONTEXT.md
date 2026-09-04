@@ -17,11 +17,15 @@
 - M0 控制契約已建立：`hello`、`capabilities`、`quit` 可用。
 - `run_frames` 等需要機器核心的命令明確回傳 `not_implemented`。
 - public repo 已建立：<https://github.com/wicanr2/atari-talos-ai-toolkit>，預設分支 `main`。
-- 尚未實作 68000 或任何 Atari ST 硬體，不宣稱可開機或執行遊戲。
+- Motorola 68000 第一條垂直切片已完成：NOP 的狀態、預取、4 clocks 與 program bus
+  read 通過 SingleStepTests/MAME 產生的 2,500 筆外部語料；其餘指令未實作。
+- 第二個指令族 MOVEQ 也通過 2,500 筆；覆蓋 D0–D7、立即數符號延伸、X 保留及
+  N／Z／V／C 更新。CPU 外部語料目前合計 5,000 筆。
+- 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
-1. 固定第一批 Motorola 68000 公開測試語料及其授權、版本與雜湊。
-2. 撰寫 68000 暫存器、例外、匯流排與週期契約的 DRAFT 規格。
-3. 建立最小指令解碼垂直切片；通過獨立語料後才擴充 opcode。
-4. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
+1. 依 NOP 已驗證的 pipeline／bus 模型，逐組擴充 68000 opcode；每組先寫 READY 規格。
+2. 撰寫例外、address error、interrupt acknowledge 與 reset vector 的 DRAFT 規格。
+3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
+4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。
