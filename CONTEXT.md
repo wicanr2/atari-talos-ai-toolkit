@@ -43,12 +43,17 @@
 - `MOVEA.W`／`MOVEA.L` 各 2,500 筆全部通過：word 正常 1,658／fault 842，long
   正常 1,655／fault 845；涵蓋符號延伸、全部 source EA、A0–A7、active stack、alias
   與不改 CCR。CPU 累計外部單步驗收 42,500 筆。
+- `ADDA.W`／`ADDA.L` 各 2,500 筆全部通過：word 正常 1,683／fault 817，long
+  正常 1,675／fault 825；涵蓋 word 符號延伸、32-bit 回繞、全部 source EA、A0–A7、
+  active stack、alias、不改 CCR，以及 long memory source 的獨立 clock 規則。CPU
+  累計外部單步驗收 47,500 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 依 Dungeon Master 實際 opcode 使用清單選下一組 ALU／比較／位移指令。
+2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數，下一批優先評估 AND／CMP 類；
+   `ADDQ` 雖更高頻，但固定外部語料沒有獨立檔，須先補可驗收來源。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。

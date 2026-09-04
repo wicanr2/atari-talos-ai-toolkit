@@ -73,3 +73,9 @@
 - `MOVEA.w.json.bin` 固定分為正常 1,658、source `re` 842；`MOVEA.l.json.bin` 為
   正常 1,655、source `re` 845。兩者的 source EA、prefetch 與 fault frame 分別和
   MOVE.W／MOVE.L 相同；差異只在目的為 An、word 符號延伸且 CCR 完全不變。
+- DM12EN 的 ReDMCSB `OBJECT/ENGINE/FULL` 產生組語中，`ADDA` 出現 1,539 次、
+  `ADDA.L` 18 次；這是靜態編譯產物計數，只作模擬器優先序，不等同執行期頻率。
+- `ADDA.w.json.bin` 固定分為正常 1,683、source `re` 817；`ADDA.l.json.bin` 為
+  正常 1,675、source `re` 825。兩者確認 word 符號延伸、32-bit 回繞、A7 active
+  stack 與 CCR 不變。`ADDA.L` memory source 的 clocks 為 `6 + sourceCost`，而
+  register direct／immediate 為 `8 + sourceCost`，不可直接沿用 MOVEA 的時序。

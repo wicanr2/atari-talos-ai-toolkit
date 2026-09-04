@@ -93,6 +93,45 @@ func TestMOVEBytePostIncrementSourceAndDestinationAlias(t *testing.T) {
 	}
 }
 
+func TestADDAWordSignExtendsAndPreservesSR(t *testing.T) {
+	memory := SparseMemory{
+		0x1004: 0x4e, 0x1005: 0x71,
+		0x1006: 0x70, 0x1007: 0x01,
+	}
+	cpu := CPU{Bus: memory, State: State{
+		A: [7]uint32{0x100}, SR: 0x001f,
+		PC: 0x1004, Prefetch: [2]uint16{0xd0fc, 0xffff},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cpu.State.A[0] != 0xff || cpu.State.SR != 0x001f {
+		t.Fatalf("unexpected ADDA.W state: %#v", cpu.State)
+	}
+	if result.Clocks != 12 || cpu.State.PC != 0x1008 || cpu.State.Prefetch != [2]uint16{0x4e71, 0x7001} {
+		t.Fatalf("unexpected ADDA.W pipeline: state=%#v result=%#v", cpu.State, result)
+	}
+}
+
+func TestADDALongWritesActiveStackAndPreservesSR(t *testing.T) {
+	memory := SparseMemory{0x1004: 0x4e, 0x1005: 0x71}
+	cpu := CPU{Bus: memory, State: State{
+		D: [8]uint32{2}, USP: 0x8000, SSP: 0x9000, SR: 0x001f,
+		PC: 0x1004, Prefetch: [2]uint16{0xdfc0, 0xabcd},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cpu.State.USP != 0x8002 || cpu.State.SSP != 0x9000 || cpu.State.SR != 0x001f {
+		t.Fatalf("unexpected ADDA.L state: %#v", cpu.State)
+	}
+	if result.Clocks != 8 {
+		t.Fatalf("unexpected ADDA.L clocks: %#v", result)
+	}
+}
+
 func TestOddBranchTargetEntersAddressError(t *testing.T) {
 	memory := SparseMemory{
 		0x1002: 0xab, 0x1003: 0xcd,

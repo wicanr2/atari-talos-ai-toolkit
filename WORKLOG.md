@@ -45,3 +45,6 @@
 - 完成 `MOVEA.W`／`MOVEA.L`：重用已驗證的 word／long source EA 與 address-error
   路徑，新增 word 符號延伸及 An／A7 destination。兩份共 5,000 筆全數通過，CPU
   累計外部單步驗收 42,500 筆。
+- 依 DM12EN 產生組語盤點，完成高頻 `ADDA.W`／`ADDA.L`。兩份語料共 5,000 筆
+  全數通過；其中 `ADDA.L` 的 memory source 比 register／immediate source 少 2 clocks，
+  已分開建模。CPU 累計外部單步驗收 47,500 筆。

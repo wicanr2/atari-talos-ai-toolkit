@@ -144,6 +144,30 @@ func TestSingleStepMOVEALongReadAddressErrors(t *testing.T) {
 	})
 }
 
+func TestSingleStepADDAWordNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "ADDA.w.json.bin", 1683, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepADDAWordReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "ADDA.w.json.bin", 817, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepADDALongNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "ADDA.l.json.bin", 1675, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepADDALongReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "ADDA.l.json.bin", 825, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {
