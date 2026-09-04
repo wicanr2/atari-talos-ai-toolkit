@@ -34,5 +34,7 @@
 | 68000 Scc.B | **CONFORMED** | 16 conditions、Dn／memory、真假 clock、SR、RAM 與 bus 共 2,500 筆全同 |
 | 68000 DBcc.W | **CONFORMED** | 16 conditions、計數器、三條正常時序與奇數目標 vector 3 共 2,500 筆全同 |
 | 其餘 68000 指令 | 進行中 | 每組 READY 後實作，逐組通過外部語料 |
-| ST／STF memory map | 待辦 | TOS ROM 唯讀、RAM 邊界與 bus error 有規格及測試 |
+| ST／STF 基礎 memory map | **CONFORMED** | 512 KiB／1 MiB RAM、reset shadow、192 KiB TOS ROM、保護與 typed bus fault 測試通過 |
+| 68000 bus error／vector 2 | 待辦 | memory backend fault 轉成完整 MC68000 exception frame，外部語料或 Hatari probe 驗收 |
+| ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

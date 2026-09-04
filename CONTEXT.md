@@ -95,6 +95,9 @@
   fault address 與 frame saved PC 分開建模。CPU 累計外部單步驗收 155,000 筆。
 - 補入先前漏列的 UNLK 外部語料 2,500 筆後，CPU 累計外部單步驗收為 157,500 筆；
   原限定完成狀態已撤除。
+- ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
+  reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
+  read-only 與 typed bus fault 均有測試。CPU vector 2、實際 I/O 裝置與 TOS 開機仍未完成。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -104,4 +107,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。
+4. 將 ST memory backend fault 接成 MC68000 vector 2，再加入啟動所需 I/O，走
+   EmuTOS reset／開機的最小路徑。

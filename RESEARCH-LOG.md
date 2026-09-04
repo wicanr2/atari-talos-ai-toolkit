@@ -163,3 +163,8 @@
 - `DBcc.json.bin` 2,500 筆確認 condition 成立、計數到期與成功分支分別為 12、14、
   10 clocks。奇數分支目標進入 vector 3 時不提交 Dn 遞減；fault address 是計算出的
   奇數目標，frame saved PC 則是 extension 之後的順序 PC，兩者不可混用。
+- Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
+  System》（1986-01-07）保存掃描 SHA-256 為
+  `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁
+  確認低 2 KiB 與 I/O supervisor protection、reset 前 8 bytes ROM shadow、512 KiB／
+  1 MiB RAM、`FC0000–FEFFFF` 192 KiB ROM 及 `FF0000–FFFFFF` I/O space。

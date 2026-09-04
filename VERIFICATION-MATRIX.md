@@ -33,6 +33,7 @@
 | 68000 NOT／NEG.B／W／L | Dn／memory、邏輯／borrow 旗標、RMW bus 次序測試 | 六份語料 15,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 Scc.B | 16 conditions、Dn 真／假 clock、memory RMW、SR 不變測試 | Scc 2,500 筆完整 state／RAM／clock／bus trace | 通過 |
 | 68000 DBcc.W | 16 conditions、低 16-bit 計數、三條正常時序與奇數目標測試 | DBcc 2,500 筆完整 state／RAM／clock／bus／vector-3 frame | 通過 |
+| ST／STF 基礎 memory map | RAM 容量／邊界、reset shadow、ROM、FC 權限、word 與 fault 測試 | 自建非原版 pattern；Atari 1986 hardware spec 第 25–27 頁 | 通過；CPU vector 2／I/O 待補 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
