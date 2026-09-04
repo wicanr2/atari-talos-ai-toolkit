@@ -51,10 +51,14 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xf000 == 0x2000 && opcode>>6&7 == 1:
+		return c.stepMOVEALong(opcode)
 	case opcode&0xf000 == 0x1000:
 		return c.stepMOVEByte(opcode)
 	case opcode&0xf000 == 0x2000:
 		return c.stepMOVELong(opcode)
+	case opcode&0xf000 == 0x3000 && opcode>>6&7 == 1:
+		return c.stepMOVEAWord(opcode)
 	case opcode&0xf000 == 0x3000:
 		return c.stepMOVEWord(opcode)
 	case opcode&0xf1c0 == 0x41c0 && isControlMode(opcode):
@@ -1017,6 +1021,46 @@ func (s *moveLongStep) writeLongWord(address uint32, value uint16) error {
 	}
 	s.transactions = append(s.transactions, writeTransaction(address, s.dataFC, value))
 	return nil
+}
+
+func (c *CPU) stepMOVEAWord(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	value, sourceCost, _, fault, err := step.readWordSource(uint8(opcode>>3&7), uint8(opcode&7))
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	c.setAddressRegister(uint8(opcode>>9&7), uint32(int32(int16(value))))
+	if err := step.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 4 + sourceCost, Transactions: step.transactions}, nil
+}
+
+func (c *CPU) stepMOVEALong(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	value, sourceCost, _, fault, err := step.readLongSource(uint8(opcode>>3&7), uint8(opcode&7))
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	c.setAddressRegister(uint8(opcode>>9&7), value)
+	if err := step.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 4 + sourceCost, Transactions: step.transactions}, nil
 }
 
 type controlEA struct {

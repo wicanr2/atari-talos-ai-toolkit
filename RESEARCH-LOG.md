@@ -70,3 +70,6 @@
 - `MOVE.L` destination address error 的 CCR 取決於故障所在微操作階段；register／
   immediate 與 memory source、直接／延伸目的模式不可共用單一「先更新完整 flags」假設。
   規格 015 已保存各組合，618 筆完整 exception frame 與 transaction 全序均已通過。
+- `MOVEA.w.json.bin` 固定分為正常 1,658、source `re` 842；`MOVEA.l.json.bin` 為
+  正常 1,655、source `re` 845。兩者的 source EA、prefetch 與 fault frame 分別和
+  MOVE.W／MOVE.L 相同；差異只在目的為 An、word 符號延伸且 CCR 完全不變。

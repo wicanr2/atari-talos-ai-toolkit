@@ -120,6 +120,30 @@ func TestSingleStepMOVELongWriteAddressErrors(t *testing.T) {
 	})
 }
 
+func TestSingleStepMOVEAWordNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVEA.w.json.bin", 1658, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepMOVEAWordReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVEA.w.json.bin", 842, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepMOVEALongNormal(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVEA.l.json.bin", 1655, func(test corpusTest) bool {
+		return !hasTransactionKind(test.Transactions, "re")
+	})
+}
+
+func TestSingleStepMOVEALongReadAddressErrors(t *testing.T) {
+	testSingleStepCorpusFiltered(t, "MOVEA.l.json.bin", 845, func(test corpusTest) bool {
+		return hasTransactionKind(test.Transactions, "re")
+	})
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {

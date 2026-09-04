@@ -42,3 +42,6 @@
 - 完成 `MOVE.L` 全部合法 source／destination EA、兩次 word 組成的 long bus access
   與 data address error。固定分母正常 1,013、source fault 869、destination fault 618；
   2,500 筆全數通過，CPU 累計外部單步驗收 37,500 筆。
+- 完成 `MOVEA.W`／`MOVEA.L`：重用已驗證的 word／long source EA 與 address-error
+  路徑，新增 word 符號延伸及 An／A7 destination。兩份共 5,000 筆全數通過，CPU
+  累計外部單步驗收 42,500 筆。

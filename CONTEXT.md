@@ -40,12 +40,15 @@
 - 完整 `MOVE.L` 2,500 筆已全部通過：1,013 筆正常執行、869 筆來源讀取位址錯誤、
   618 筆目的寫入位址錯誤；涵蓋分段 long bus access、predecrement 反向 word-write、
   fault-time CCR／saved PC／An 副作用與 absolute-long 特殊管線。CPU 累計驗收 37,500 筆。
+- `MOVEA.W`／`MOVEA.L` 各 2,500 筆全部通過：word 正常 1,658／fault 842，long
+  正常 1,655／fault 845；涵蓋符號延伸、全部 source EA、A0–A7、active stack、alias
+  與不改 CCR。CPU 累計外部單步驗收 42,500 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
-2. 依 Dungeon Master 實際 opcode 使用清單選下一組指令，優先盤點 MOVEA.W／MOVEA.L。
+2. 依 Dungeon Master 實際 opcode 使用清單選下一組 ALU／比較／位移指令。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 建立 ST／STF memory map，先走 EmuTOS reset／開機的最小路徑。
