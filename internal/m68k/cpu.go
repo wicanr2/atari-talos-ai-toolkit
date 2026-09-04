@@ -51,6 +51,8 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xfb80 == 0x4880 && opcode>>3&7 >= 2:
+		return c.stepMOVEM(opcode)
 	case opcode&0xff00 == 0x4200 && opcode>>6&3 <= 2:
 		return c.stepCLR(opcode)
 	case opcode&0xff00 == 0x0600 && opcode>>6&3 <= 2:
@@ -156,6 +158,232 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepMOVEM(opcode uint16) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	mask, err := stream.consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	direction := opcode>>10&1 != 0
+	long := opcode&0x0040 != 0
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if direction {
+		if mode == 4 || mode < 2 || mode == 7 && reg > 3 {
+			return StepResult{}, fmt.Errorf("m68k: invalid MOVEM memory-to-register mode %d:%d", mode, reg)
+		}
+	} else if mode == 3 || mode < 2 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid MOVEM register-to-memory mode %d:%d", mode, reg)
+	}
+	address, eaClocks, err := stream.movemAddress(mode, reg, direction)
+	if err != nil {
+		return StepResult{}, err
+	}
+	operandFC := stream.dataFC
+	if direction && mode == 7 && (reg == 2 || reg == 3) {
+		operandFC = stream.programFC
+	}
+	faultAddress := address
+	if !direction && mode == 4 {
+		faultAddress -= 2
+	}
+	if faultAddress&1 != 0 {
+		kind := "we"
+		if direction {
+			kind = "re"
+		}
+		return c.enterAddressError(opcode, faultAddress, c.State.PC, stream.transactions, 62+eaClocks, operandFC, kind, direction)
+	}
+	count := uint32(0)
+	for bits := mask; bits != 0; bits &= bits - 1 {
+		count++
+	}
+	if direction {
+		endAddress, err := stream.movemLoad(address, mask, long, operandFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		dummy, err := c.Bus.ReadWord(endAddress&addressMask, operandFC)
+		if err != nil {
+			return StepResult{}, err
+		}
+		stream.transactions = append(stream.transactions, readTransaction(endAddress&addressMask, operandFC, dummy))
+		if mode == 3 {
+			step := uint32(2)
+			if long {
+				step = 4
+			}
+			c.setAddressRegister(reg, address+step*count)
+		}
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		perRegister := uint32(4)
+		if long {
+			perRegister = 8
+		}
+		return StepResult{Clocks: 12 + eaClocks + perRegister*count, Transactions: stream.transactions}, nil
+	}
+	if err := stream.movemStore(address, mask, long, mode == 4, reg); err != nil {
+		return StepResult{}, err
+	}
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	perRegister := uint32(4)
+	if long {
+		perRegister = 8
+	}
+	return StepResult{Clocks: 8 + eaClocks + perRegister*count, Transactions: stream.transactions}, nil
+}
+
+func (s *moveByteStep) movemAddress(mode, reg uint8, memoryToRegisters bool) (uint32, uint32, error) {
+	c := s.cpu
+	switch mode {
+	case 2, 3, 4:
+		return c.addressRegister(reg), 0, nil
+	case 5:
+		extension, err := s.consumeExtension()
+		return c.addressRegister(reg) + uint32(int32(int16(extension))), 4, err
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, err
+		}
+		index, err := c.briefIndex(extension)
+		return c.addressRegister(reg) + index + uint32(int32(int8(extension))), 6, err
+	case 7:
+		switch reg {
+		case 0:
+			extension, err := s.consumeExtension()
+			return uint32(int32(int16(extension))), 4, err
+		case 1:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, err
+			}
+			low, err := s.consumeExtension()
+			return uint32(high)<<16 | uint32(low), 8, err
+		case 2:
+			if !memoryToRegisters {
+				break
+			}
+			base := c.State.PC - 2
+			extension, err := s.consumeExtension()
+			return base + uint32(int32(int16(extension))), 4, err
+		case 3:
+			if !memoryToRegisters {
+				break
+			}
+			base := c.State.PC - 2
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, err
+			}
+			index, err := c.briefIndex(extension)
+			return base + index + uint32(int32(int8(extension))), 6, err
+		}
+	}
+	return 0, 0, fmt.Errorf("m68k: invalid MOVEM effective address %d:%d", mode, reg)
+}
+
+func (s *moveByteStep) movemLoad(address uint32, mask uint16, long bool, operandFC uint8) (uint32, error) {
+	for register := uint8(0); register < 16; register++ {
+		if mask&(uint16(1)<<register) == 0 {
+			continue
+		}
+		high, err := s.cpu.Bus.ReadWord(address&addressMask, operandFC)
+		if err != nil {
+			return 0, err
+		}
+		s.transactions = append(s.transactions, readTransaction(address&addressMask, operandFC, high))
+		address += 2
+		value := uint32(int32(int16(high)))
+		if long {
+			low, err := s.cpu.Bus.ReadWord(address&addressMask, operandFC)
+			if err != nil {
+				return 0, err
+			}
+			s.transactions = append(s.transactions, readTransaction(address&addressMask, operandFC, low))
+			address += 2
+			value = uint32(high)<<16 | uint32(low)
+		}
+		s.cpu.setMOVEMRegister(register, value)
+	}
+	return address, nil
+}
+
+func (s *moveByteStep) movemStore(address uint32, mask uint16, long, predecrement bool, eaRegister uint8) error {
+	var registers [16]uint32
+	for register := uint8(0); register < 16; register++ {
+		registers[register] = s.cpu.movemRegister(register)
+	}
+	for bit := uint8(0); bit < 16; bit++ {
+		if mask&(uint16(1)<<bit) == 0 {
+			continue
+		}
+		register := bit
+		if predecrement {
+			register = 15 - bit
+		}
+		value := registers[register]
+		if predecrement {
+			if long {
+				address -= 2
+				if err := s.movemWriteWord(address, uint16(value)); err != nil {
+					return err
+				}
+			}
+			address -= 2
+			word := uint16(value)
+			if long {
+				word = uint16(value >> 16)
+			}
+			if err := s.movemWriteWord(address, word); err != nil {
+				return err
+			}
+			s.cpu.setAddressRegister(eaRegister, address)
+			continue
+		}
+		if long {
+			if err := s.movemWriteWord(address, uint16(value>>16)); err != nil {
+				return err
+			}
+			address += 2
+		}
+		if err := s.movemWriteWord(address, uint16(value)); err != nil {
+			return err
+		}
+		address += 2
+	}
+	return nil
+}
+
+func (s *moveByteStep) movemWriteWord(address uint32, value uint16) error {
+	if err := s.cpu.Bus.WriteWord(address&addressMask, value, s.dataFC); err != nil {
+		return err
+	}
+	s.transactions = append(s.transactions, writeTransaction(address&addressMask, s.dataFC, value))
+	return nil
+}
+
+func (c *CPU) movemRegister(register uint8) uint32 {
+	if register < 8 {
+		return c.State.D[register]
+	}
+	return c.addressRegister(register - 8)
+}
+
+func (c *CPU) setMOVEMRegister(register uint8, value uint32) {
+	if register < 8 {
+		c.State.D[register] = value
+		return
+	}
+	c.setAddressRegister(register-8, value)
 }
 
 func (c *CPU) stepCLR(opcode uint16) (StepResult, error) {

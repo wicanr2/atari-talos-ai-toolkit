@@ -60,3 +60,6 @@
 - 完成 `CLR.B/W/L`；三種寬度共 7,500 筆全數通過。Dn 的窄寬度保留、X／NZVC、
   記憶體讀改寫 bus 次序、long low-word-first 寫回與 address-error 路徑均逐筆驗收；
   CPU 累計外部單步驗收 77,500 筆。
+- 完成 `MOVEM.W/L`；兩種寬度共 5,000 筆全數通過。雙向 register mask、word
+  符號延伸、predecrement 反序、postincrement、記憶體載入末尾虛讀、PC-relative
+  program FC 與 address-error 微時序均逐筆驗收；CPU 累計外部單步驗收 82,500 筆。

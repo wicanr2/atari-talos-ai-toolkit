@@ -59,6 +59,9 @@
 - `CLR.B/W/L` 共 7,500 筆全部通過；涵蓋 Dn 與全部合法記憶體目的 EA、X 保留、
   固定 Z、MC68000 operand read／prefetch／zero write 次序與 vector-3 位址錯誤。
   CPU 累計外部單步驗收 77,500 筆。
+- `MOVEM.W/L` 共 5,000 筆全部通過；涵蓋雙向 register mask、word 符號延伸、
+  predecrement 反序、postincrement、額外虛讀、PC-relative program FC、完整 bus 次序與
+  vector-3 位址錯誤。CPU 累計外部單步驗收 82,500 筆。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步

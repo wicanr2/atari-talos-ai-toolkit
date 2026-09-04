@@ -99,3 +99,8 @@
   合計 1,002 個靜態使用點；此計數只用於模擬器實作優先序。
 - `CLR.b/w/l.json.bin` 共 7,500 筆確認 MC68000 的記憶體 CLR 仍會先讀 operand，
   再做最後一次 program prefetch 與 zero write；long 寫回為 low word 先行。
+- DM12EN 的 ReDMCSB 產生組語中，`MOVEM.L` 有 660 個靜態使用點，未見未加寬度的
+  `MOVEM`；此計數只用於模擬器實作優先序。
+- `MOVEM.w/l.json.bin` 共 5,000 筆確認 memory-to-register 在最後一個實際 operand 後
+  還有一次 word 虛讀；PC-relative operand 使用 program FC。predecrement long 的
+  odd-address write fault 落在先寫 low word 的第一個 `An-2` 微操作，而不是最終 `An-4`。

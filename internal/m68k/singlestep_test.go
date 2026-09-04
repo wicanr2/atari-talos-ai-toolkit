@@ -56,6 +56,14 @@ func TestSingleStepCLRLong(t *testing.T) {
 	testSingleStepCorpus(t, "CLR.l.json.bin")
 }
 
+func TestSingleStepMOVEMWord(t *testing.T) {
+	testSingleStepCorpus(t, "MOVEM.w.json.bin")
+}
+
+func TestSingleStepMOVEMLong(t *testing.T) {
+	testSingleStepCorpus(t, "MOVEM.l.json.bin")
+}
+
 func TestSingleStepBcc(t *testing.T) {
 	testSingleStepCorpus(t, "Bcc.json.bin")
 }
