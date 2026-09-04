@@ -95,6 +95,10 @@
   fault address 與 frame saved PC 分開建模。CPU 累計外部單步驗收 155,000 筆。
 - 補入先前漏列的 UNLK 外部語料 2,500 筆後，CPU 累計外部單步驗收為 157,500 筆；
   原限定完成狀態已撤除。
+- `BTST`／`BCHG`／`BCLR`／`BSET` 四份語料共 10,000 筆全部通過；涵蓋 dynamic／
+  immediate bit number、Dn modulo 32、byte memory modulo 8、Z、A7 byte delta、
+  PC-relative program FC、讀改寫 bus 次序與 bit 16–31 的資料相依 clock。DM12EN
+  靜態使用 96 點；CPU 累計外部單步驗收 167,500 筆。
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
   read-only 與 typed bus fault 均有測試。

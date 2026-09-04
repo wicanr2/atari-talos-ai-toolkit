@@ -101,6 +101,9 @@
 - 依 Atari Corporation 1986 硬體規格建立 ST／STF 基礎 memory map；加入兩種 RAM
   容量、reset ROM shadow、TOS ROM、24-bit mask、FC 權限、big-endian word、read-only、
   未映射／保留 I/O typed bus fault 與原子寫入測試。vector 2 與 I/O 裝置仍另待規格。
+- 依 DM12EN 靜態使用量選出 bit 指令族；完成 `BTST`／`BCHG`／`BCLR`／`BSET`
+  dynamic／immediate、Dn／byte memory、Z、EA、bus 與資料相依 clock，四份固定語料
+  10,000 筆全數通過，CPU 累計外部單步驗收 167,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

@@ -342,6 +342,12 @@ func TestSingleStepDBcc(t *testing.T) {
 	testSingleStepCorpus(t, "DBcc.json.bin")
 }
 
+func TestSingleStepBitOperations(t *testing.T) {
+	for _, name := range []string{"BTST.json.bin", "BCHG.json.bin", "BCLR.json.bin", "BSET.json.bin"} {
+		t.Run(name, func(t *testing.T) { testSingleStepCorpus(t, name) })
+	}
+}
+
 func TestSingleStepUNLINKNormal(t *testing.T) {
 	testSingleStepCorpusFiltered(t, "UNLINK.json.bin", 1385, func(test corpusTest) bool {
 		return !hasTransactionKind(test.Transactions, "re")

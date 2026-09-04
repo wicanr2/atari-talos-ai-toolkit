@@ -61,6 +61,10 @@ func (c *CPU) Step() (StepResult, error) {
 	}
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xff00 == 0x0800:
+		return c.stepBit(opcode, true)
+	case opcode&0xf100 == 0x0100:
+		return c.stepBit(opcode, false)
 	case opcode&0xf0f8 == 0x50c8:
 		return c.stepDBcc(opcode)
 	case opcode&0xf0c0 == 0x50c0:
@@ -216,6 +220,181 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepBit(opcode uint16, immediate bool) (StepResult, error) {
+	operation := uint8(opcode >> 6 & 3)
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && (reg > 4 || operation != 0 && reg > 1) {
+		return StepResult{}, fmt.Errorf("m68k: invalid bit destination mode %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+
+	var bitNumber uint32
+	if immediate {
+		extension, err := stream.consumeExtension()
+		if err != nil {
+			return StepResult{}, err
+		}
+		bitNumber = uint32(extension)
+	} else {
+		bitNumber = c.State.D[opcode>>9&7]
+	}
+
+	if mode == 0 {
+		bit := bitNumber & 31
+		mask := uint32(1) << bit
+		value := c.State.D[reg]
+		c.setBitZero(value&mask == 0)
+		switch operation {
+		case 1:
+			c.State.D[reg] = value ^ mask
+		case 2:
+			c.State.D[reg] = value &^ mask
+		case 3:
+			c.State.D[reg] = value | mask
+		}
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		clocks := uint32(6)
+		if operation == 2 {
+			clocks = 8
+		}
+		if immediate {
+			clocks += 4
+		}
+		if operation != 0 && bit >= 16 {
+			clocks += 2
+		}
+		return StepResult{Clocks: clocks, Transactions: stream.transactions}, nil
+	}
+
+	value, address, eaCost, memory, err := stream.readBitOperand(mode, reg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	bit := uint8(bitNumber & 7)
+	mask := byte(1 << bit)
+	c.setBitZero(value&mask == 0)
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	clocks := uint32(4) + eaCost
+	if immediate {
+		clocks += 4
+	}
+	if operation == 0 {
+		if !memory {
+			clocks = 10
+		}
+		return StepResult{Clocks: clocks, Transactions: stream.transactions}, nil
+	}
+	switch operation {
+	case 1:
+		value ^= mask
+	case 2:
+		value &^= mask
+	case 3:
+		value |= mask
+	}
+	if err := stream.writeByte(address, value); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: clocks + 4, Transactions: stream.transactions}, nil
+}
+
+func (c *CPU) setBitZero(clear bool) {
+	c.State.SR &^= 0x0004
+	if clear {
+		c.State.SR |= 0x0004
+	}
+}
+
+func (s *moveByteStep) readBitOperand(mode, reg uint8) (byte, uint32, uint32, bool, error) {
+	c := s.cpu
+	var address, cost uint32
+	readFC := s.dataFC
+	switch mode {
+	case 2:
+		address, cost = c.addressRegister(reg), 4
+	case 3:
+		address, cost = c.addressRegister(reg), 4
+	case 4:
+		address = c.addressRegister(reg) - byteAddressDelta(reg)
+		c.setAddressRegister(reg, address)
+		cost = 6
+	case 5:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, 0, false, err
+		}
+		address, cost = c.addressRegister(reg)+uint32(int32(int16(extension))), 8
+	case 6:
+		extension, err := s.consumeExtension()
+		if err != nil {
+			return 0, 0, 0, false, err
+		}
+		index, err := c.briefIndex(extension)
+		if err != nil {
+			return 0, 0, 0, false, err
+		}
+		address, cost = c.addressRegister(reg)+index+uint32(int32(int8(extension))), 10
+	case 7:
+		switch reg {
+		case 0:
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, 0, false, err
+			}
+			address, cost = uint32(int32(int16(extension))), 8
+		case 1:
+			high, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, 0, false, err
+			}
+			low, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, 0, false, err
+			}
+			address, cost = uint32(high)<<16|uint32(low), 12
+		case 2, 3:
+			base := c.State.PC - 2
+			extension, err := s.consumeExtension()
+			if err != nil {
+				return 0, 0, 0, false, err
+			}
+			address = base + uint32(int32(int16(extension)))
+			cost, readFC = 8, s.programFC
+			if reg == 3 {
+				index, indexErr := c.briefIndex(extension)
+				if indexErr != nil {
+					return 0, 0, 0, false, indexErr
+				}
+				address = base + index + uint32(int32(int8(extension)))
+				cost = 10
+			}
+		case 4:
+			extension, err := s.consumeExtension()
+			return byte(extension), 0, 4, false, err
+		default:
+			return 0, 0, 0, false, fmt.Errorf("m68k: invalid bit operand mode %d:%d", mode, reg)
+		}
+	default:
+		return 0, 0, 0, false, fmt.Errorf("m68k: invalid bit operand mode %d:%d", mode, reg)
+	}
+	value, err := c.Bus.ReadByte(address&addressMask, readFC)
+	if err != nil {
+		return 0, 0, 0, true, err
+	}
+	s.transactions = append(s.transactions, readByteTransaction(address&addressMask, readFC, value))
+	if mode == 3 {
+		c.setAddressRegister(reg, c.addressRegister(reg)+byteAddressDelta(reg))
+	}
+	return value, address & addressMask, cost, true, nil
 }
 
 func (c *CPU) stepDBcc(opcode uint16) (StepResult, error) {

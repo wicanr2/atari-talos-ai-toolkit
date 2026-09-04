@@ -44,6 +44,20 @@ func TestStepFailsClosed(t *testing.T) {
 	}
 }
 
+func TestBitOperationsRejectIllegalDestinationWithoutConsumingExtension(t *testing.T) {
+	for _, opcode := range []uint16{0x08c8, 0x08fa} {
+		initial := State{D: [8]uint32{1}, SR: 0x2004, PC: 0x1004,
+			Prefetch: [2]uint16{opcode, 0x001f}}
+		cpu := CPU{Bus: SparseMemory{0x1004: 0x4e, 0x1005: 0x71}, State: initial}
+		if _, err := cpu.Step(); err == nil {
+			t.Fatalf("opcode %04x unexpectedly accepted", opcode)
+		}
+		if cpu.State != initial {
+			t.Fatalf("opcode %04x changed state on rejection: %+v", opcode, cpu.State)
+		}
+	}
+}
+
 func TestUNLKRestoresFrameAndActiveStack(t *testing.T) {
 	memory := SparseMemory{
 		0x8000: 0x12, 0x8001: 0x34, 0x8002: 0x56, 0x8003: 0x78,
