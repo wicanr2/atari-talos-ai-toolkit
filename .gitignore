@@ -1,0 +1,12 @@
+/bin/
+/dist-all/
+/workplace/
+*.tos
+*.img
+*.st
+*.msa
+*.stx
+*.ipf
+*.ctr
+*.sav
+*.trace
