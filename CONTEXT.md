@@ -97,7 +97,11 @@
   原限定完成狀態已撤除。
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
-  read-only 與 typed bus fault 均有測試。CPU vector 2、實際 I/O 裝置與 TOS 開機仍未完成。
+  read-only 與 typed bus fault 均有測試。
+- CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
+  讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
+  saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
+  實際 I/O 裝置與 TOS 開機仍未完成。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步

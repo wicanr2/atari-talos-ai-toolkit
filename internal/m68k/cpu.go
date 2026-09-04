@@ -1,6 +1,9 @@
 package m68k
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	addressMask = 0x00ff_ffff
@@ -38,6 +41,13 @@ type Bus interface {
 	ReadWord(address uint32, functionCode uint8) (uint16, error)
 	WriteByte(address uint32, value byte, functionCode uint8) error
 	WriteWord(address uint32, value uint16, functionCode uint8) error
+}
+
+// BusFault exposes the information the MC68000 places in a bus-error frame.
+// Backends may implement it without importing this package.
+type BusFault interface {
+	error
+	M68KBusFault() (address uint32, functionCode uint8, write bool, size uint8)
 }
 
 type CPU struct {
@@ -2624,6 +2634,14 @@ func (s *moveWordStep) readWordSource(mode, reg uint8) (uint16, uint32, bool, *S
 	}
 	value, err := c.Bus.ReadWord(address&addressMask, readFC)
 	if err != nil {
+		var fault BusFault
+		if errors.As(err, &fault) {
+			faultAddress, faultFC, write, size := fault.M68KBusFault()
+			if !write && size == 2 {
+				result, faultErr := c.enterBusError(s.opcode, faultAddress, s.sourceFaultPC(mode, reg), s.transactions, 60+cost, faultFC, "re", true)
+				return 0, cost, true, &result, faultErr
+			}
+		}
 		return 0, 0, true, nil, err
 	}
 	s.transactions = append(s.transactions, readTransaction(address&addressMask, readFC, value))
@@ -3658,6 +3676,33 @@ func (c *CPU) enterAddressError(
 	faultKind string,
 	read bool,
 ) (StepResult, error) {
+	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x00000c)
+}
+
+func (c *CPU) enterBusError(
+	opcode uint16,
+	target uint32,
+	savedPC uint32,
+	prefix []Transaction,
+	clocks uint32,
+	faultFC uint8,
+	faultKind string,
+	read bool,
+) (StepResult, error) {
+	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x000008)
+}
+
+func (c *CPU) enterAccessError(
+	opcode uint16,
+	target uint32,
+	savedPC uint32,
+	prefix []Transaction,
+	clocks uint32,
+	faultFC uint8,
+	faultKind string,
+	read bool,
+	vectorAddress uint32,
+) (StepResult, error) {
 	originalSR := c.State.SR
 	faultBusAddress := target & addressMask &^ 1
 
@@ -3690,17 +3735,17 @@ func (c *CPU) enterAddressError(
 		transactions = append(transactions, writeTransaction(address, 5, write.value))
 	}
 
-	vectorHigh, err := c.Bus.ReadWord(0x00000c, 5)
+	vectorHigh, err := c.Bus.ReadWord(vectorAddress, 5)
 	if err != nil {
 		return StepResult{}, err
 	}
-	vectorLow, err := c.Bus.ReadWord(0x00000e, 5)
+	vectorLow, err := c.Bus.ReadWord(vectorAddress+2, 5)
 	if err != nil {
 		return StepResult{}, err
 	}
 	transactions = append(transactions,
-		readTransaction(0x00000c, 5, vectorHigh),
-		readTransaction(0x00000e, 5, vectorLow))
+		readTransaction(vectorAddress, 5, vectorHigh),
+		readTransaction(vectorAddress+2, 5, vectorLow))
 	handler := uint32(vectorHigh)<<16 | uint32(vectorLow)
 	handlerAddress := handler & addressMask
 	first, err := c.Bus.ReadWord(handlerAddress, 6)

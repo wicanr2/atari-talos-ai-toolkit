@@ -40,6 +40,10 @@ func (f *BusFault) Error() string {
 		direction, f.Size, f.Address, f.FunctionCode, f.Reason)
 }
 
+func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
+	return f.Address, f.FunctionCode, f.Write, f.Size
+}
+
 type Memory struct {
 	ram []byte
 	rom []byte

@@ -147,3 +147,42 @@ func TestMemoryBigEndianWordAndAtomicFailure(t *testing.T) {
 		t.Fatalf("cross-boundary word partially wrote RAM: %02x %v", last, err)
 	}
 }
+
+func TestMOVEWordProtectedReadEntersBusErrorVector2(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	const handler = uint32(0x1000)
+	for address, value := range map[uint32]uint16{
+		0x0008: 0x0000, 0x000a: uint16(handler),
+		handler: 0x60fe, handler + 2: 0x60fe,
+		0x2004: 0x0000,
+	} {
+		if err := memory.WriteWord(address, value, 5); err != nil {
+			t.Fatalf("seed 0x%x: %v", address, err)
+		}
+	}
+	cpu := m68k.CPU{Bus: memory, State: m68k.State{
+		D: [8]uint32{0x00fc0370}, SSP: 0x2000, SR: 0x0300,
+		PC: 0x2004, Prefetch: [2]uint16{0x3039, 0x0000},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 72 {
+		t.Fatalf("clocks=%d want 72", result.Clocks)
+	}
+	if cpu.State.SSP != 0x1ff2 || cpu.State.SR != 0x2300 || cpu.State.PC != handler+4 ||
+		cpu.State.Prefetch != [2]uint16{0x60fe, 0x60fe} || cpu.State.D[0] != 0x00fc0370 {
+		t.Fatalf("state=%+v", cpu.State)
+	}
+	wantFrame := []uint16{0x3031, 0x0000, 0x0000, 0x3039, 0x0300, 0x0000, 0x2006}
+	for index, want := range wantFrame {
+		got, readErr := memory.ReadWord(cpu.State.SSP+uint32(index*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+		}
+	}
+}
