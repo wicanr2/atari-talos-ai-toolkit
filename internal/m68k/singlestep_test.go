@@ -92,6 +92,14 @@ func TestSingleStepRTS(t *testing.T) {
 	testSingleStepCorpus(t, "RTS.json.bin")
 }
 
+func TestSingleStepTRAP(t *testing.T) {
+	testSingleStepCorpus(t, "TRAP.json.bin")
+}
+
+func TestSingleStepRTE(t *testing.T) {
+	testSingleStepCorpus(t, "RTE.json.bin")
+}
+
 func TestSingleStepJMP(t *testing.T) {
 	testSingleStepCorpus(t, "JMP.json.bin")
 }

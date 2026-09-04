@@ -170,6 +170,9 @@
   確認成功、overflow、word EA、vector 3 與資料相依迭代 clocks；語料未含 divisor=0。
   兩個 Hatari 最小探針補證 DIVU／DIVS register divisor=0 均為 40 clocks，先設 Z，
   Dn 不變，再建立 SR+PC 的 6-byte vector 5 frame。
+- DM12EN 重建組語有 `TRAP` 8、`RTE` 6 個靜態使用點。TRAP 語料 2,500 筆固定
+  34 clocks；RTE 2,500 筆分成正常 600、odd-target vector 3 共 614、user privilege
+  vector 8 共 1,286。RTE 先提交 SSP+6 與 masked restored SR，才嘗試奇數 target。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁

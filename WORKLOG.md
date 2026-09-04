@@ -107,6 +107,9 @@
 - 完成 `DIVS.W`／`DIVU.W` 的成功、overflow、word EA、資料相依 clocks 與 vector 3，
   固定語料 5,000 筆全數通過；再以 Hatari 兩個最小 PRG 補齊 divisor=0 vector 5 的
   40-clock、Z、Dn、6-byte frame 與 handler prefetch，累計外部單步驗收 172,500 筆。
+- 完成 `TRAP #0..#15` 與 MC68000 `RTE`；固定語料 5,000 筆涵蓋 format-0 frame、
+  vectors 32–47、normal return、user privilege vector 8、odd target vector 3、SR mask、
+  stack 提交點與 bus 次序，全數通過後累計外部單步驗收 177,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

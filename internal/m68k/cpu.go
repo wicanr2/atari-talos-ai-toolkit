@@ -169,6 +169,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepJSR(opcode)
 	case opcode == 0x4e75:
 		return c.stepRTS(opcode)
+	case opcode == 0x4e73:
+		return c.stepRTE(opcode)
+	case opcode&0xfff0 == 0x4e40:
+		return c.enterStandardException(uint8(32+opcode&15), c.State.PC-2, nil, 34)
 	case opcode&0xff00 == 0x6100:
 		return c.stepBSR(opcode)
 	case opcode&0xf000 == 0x6000 && opcode&0x0f00 != 0x0100:
@@ -3915,6 +3919,52 @@ func (c *CPU) stepRTS(opcode uint16) (StepResult, error) {
 	}
 	result.Transactions = append(prefix, result.Transactions...)
 	return result, nil
+}
+
+func (c *CPU) stepRTE(opcode uint16) (StepResult, error) {
+	if c.State.SR&supervisor == 0 {
+		return c.enterStandardException(8, c.State.PC-4, nil, 34)
+	}
+	frame := c.State.SSP
+	restoredSR, err := c.Bus.ReadWord(frame&addressMask, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	high, err := c.Bus.ReadWord((frame+2)&addressMask, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := c.Bus.ReadWord((frame+4)&addressMask, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions := []Transaction{
+		readTransaction(frame&addressMask, 5, restoredSR),
+		readTransaction((frame+2)&addressMask, 5, high),
+		readTransaction((frame+4)&addressMask, 5, low),
+	}
+	target := uint32(high)<<16 | uint32(low)
+	c.State.SSP = frame + 6
+	c.State.SR = restoredSR & 0xa71f
+	if target&1 != 0 {
+		return c.enterAddressError(opcode, target, c.State.PC-2, transactions, 70,
+			c.programFunctionCode(), "re", true)
+	}
+	fc := c.programFunctionCode()
+	first, err := c.Bus.ReadWord(target&addressMask, fc)
+	if err != nil {
+		return StepResult{}, err
+	}
+	second, err := c.Bus.ReadWord((target+2)&addressMask, fc)
+	if err != nil {
+		return StepResult{}, err
+	}
+	transactions = append(transactions,
+		readTransaction(target&addressMask, fc, first),
+		readTransaction((target+2)&addressMask, fc, second))
+	c.State.Prefetch = [2]uint16{first, second}
+	c.State.PC = target + 4
+	return StepResult{Clocks: 20, Transactions: transactions}, nil
 }
 
 func (c *CPU) stepBSR(opcode uint16) (StepResult, error) {
