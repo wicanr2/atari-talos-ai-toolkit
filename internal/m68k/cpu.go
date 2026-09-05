@@ -3320,8 +3320,16 @@ func (s *moveWordStep) readWordSource(mode, reg uint8) (uint16, uint32, bool, *S
 		var fault BusFault
 		if errors.As(err, &fault) {
 			faultAddress, faultFC, write, size := fault.M68KBusFault()
+			// The frame keeps the CPU's own 32-bit effective address. The bus only
+			// carries A1-A23, so whatever memory reports is necessarily masked; it
+			// is a cross-check, not the value to store (spec 052).
+			if faultAddress != address&addressMask {
+				return 0, 0, true, nil, fmt.Errorf(
+					"m68k: bus fault reported 0x%06x for effective address 0x%08x",
+					faultAddress, address)
+			}
 			if !write && size == 2 {
-				result, faultErr := c.enterBusError(s.opcode, faultAddress, s.sourceFaultPC(mode, reg), s.transactions, 60+cost, faultFC, "re", true)
+				result, faultErr := c.enterBusError(s.opcode, address, s.sourceFaultPC(mode, reg), s.transactions, 60+cost, faultFC, "re", true)
 				return 0, cost, true, &result, faultErr
 			}
 		}

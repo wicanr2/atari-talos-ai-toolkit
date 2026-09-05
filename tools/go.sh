@@ -67,8 +67,22 @@ if [ -n "${TALOS_UCSD_INTERP:-}" ]; then
   }
 fi
 
+if [ -n "${TALOS_TOS_ROM:-}" ]; then
+  case "$TALOS_TOS_ROM" in
+    /*) ROM=$TALOS_TOS_ROM ;;
+    *) ROM=$ROOT/$TALOS_TOS_ROM ;;
+  esac
+  [ -f "$ROM" ] || {
+    echo "TOS ROM not found: $ROM" >&2
+    exit 1
+  }
+fi
+
 # 由內往外疊 docker 參數，避免把使用者傳給 go 的參數重新加引號。
 set -- golang:1.24-bookworm /usr/local/go/bin/go "$@"
+if [ -n "${ROM:-}" ]; then
+  set -- -e TALOS_TOS_ROM=/tos.img -v "$ROM:/tos.img:ro" "$@"
+fi
 if [ -n "${INTERP:-}" ]; then
   set -- -e TALOS_UCSD_INTERP=/ucsd -v "$INTERP:/ucsd:ro" "$@"
 fi
