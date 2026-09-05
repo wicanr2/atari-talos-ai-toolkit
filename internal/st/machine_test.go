@@ -2,6 +2,7 @@ package st
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -1076,10 +1077,19 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 			t.Fatalf("post-USART step %d: %v", machine.Instructions+1, err)
 		}
 	}
-	if _, err := machine.Step(); err == nil || err.Error() != "m68k: opcode 0x4e72 is not implemented" ||
-		machine.Instructions != 7598 || machine.Clocks != 178092 || machine.CPU.State.PC != 0x00fcd09e {
-		t.Fatalf("next STOP boundary instructions=%d clocks=%d PC=%08x err=%v",
-			machine.Instructions, machine.Clocks, machine.CPU.State.PC, err)
+	stopPreState := machine.CPU.State
+	result, err := machine.Step()
+	if err != nil || result.Clocks != 4 || machine.Instructions != 7599 || machine.Clocks != 178096 ||
+		machine.CPU.State.SR != 0x2300 || !machine.CPU.IsStopped() ||
+		machine.CPU.State.PC != 0x00fcd09e || machine.CPU.State.Prefetch != [2]uint16{0x4e72, 0x2300} {
+		t.Fatalf("STOP result=%+v instructions=%d clocks=%d pre=%+v state=%+v err=%v",
+			result, machine.Instructions, machine.Clocks, stopPreState, machine.CPU.State, err)
+	}
+	if result, err := machine.Step(); !errors.Is(err, m68k.ErrStopped) || result.Clocks != 0 ||
+		len(result.Transactions) != 0 || len(result.Timeline) != 0 ||
+		machine.Instructions != 7599 || machine.Clocks != 178096 || !machine.CPU.IsStopped() {
+		t.Fatalf("stopped machine result=%+v instructions=%d clocks=%d state=%+v err=%v",
+			result, machine.Instructions, machine.Clocks, machine.CPU.State, err)
 	}
 }
 

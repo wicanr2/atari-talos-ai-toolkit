@@ -368,3 +368,11 @@
   `45046→45062`、TSR `45090→45106`，各 16 clocks，四 register 前後皆 `$00`。
   固定 EmuTOS 第 7,563 條／177,606 clocks 全狀態對拍；有界續跑至第 7,598 條／
   178,092 clocks，下一次嘗試在 PC `$FCD09E` 遇到 `STOP` `$4E72`。
+- NXP M68000 Programmer’s Reference Manual §6 確認 STOP 以執行前 SR 判 supervisor，
+  合法時載入完整 immediate SR 並停止 fetch／execute；trace、較高優先 interrupt 或
+  external reset 才喚醒。固定 `STOP.json.bin` 2,500 筆確認 supervisor 路徑 4 clocks、
+  SR mask `$A71F`，user 路徑為 vector 8／34 clocks。
+- 固定 ROM bytes 與 Hatari 均將首個相關 STOP 定位在 `$FCD09A: STOP #$2300`；Talos
+  的 pipeline PC `$FCD09E` 是下一指令位址，不是 opcode 位址。Hatari 該點
+  FrameCycles=`45752`、SR/prefetch 與 Talos一致；D2／D3 分別為 `$2710/$1`，Talos
+  為 `$2704/$0`，列為後續開機差異，不以 STOP 實作遮蔽。

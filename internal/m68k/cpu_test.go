@@ -1,10 +1,62 @@
 package m68k
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 )
+
+func TestMC68000STOPStateAndReset(t *testing.T) {
+	initial := State{D: [8]uint32{1}, A: [7]uint32{2}, USP: 3, SSP: 4,
+		SR: 0x2704, PC: 0x1004, Prefetch: [2]uint16{0x4e72, 0x2300}}
+	cpu := CPU{Bus: SparseMemory{}, State: initial}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := initial
+	want.SR = 0x2300
+	if result.Clocks != 4 || len(result.Transactions) != 0 || cpu.State != want || !cpu.IsStopped() {
+		t.Fatalf("result=%+v state=%+v stopped=%v", result, cpu.State, cpu.IsStopped())
+	}
+	stoppedState := cpu.State
+	if result, err := cpu.StepAt(1234); !errors.Is(err, ErrStopped) || result.Clocks != 0 ||
+		len(result.Transactions) != 0 || len(result.Timeline) != 0 ||
+		cpu.State != stoppedState || !cpu.IsStopped() {
+		t.Fatalf("stopped step result=%+v err=%v state=%+v stopped=%v",
+			result, err, cpu.State, cpu.IsStopped())
+	}
+
+	cpu.Bus = SparseMemory{
+		0: 0x00, 1: 0x00, 2: 0x30, 3: 0x00,
+		4: 0x00, 5: 0x00, 6: 0x10, 7: 0x00,
+		0x1000: 0x4e, 0x1001: 0x71, 0x1002: 0x4e, 0x1003: 0x71,
+	}
+	if err := cpu.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if cpu.IsStopped() {
+		t.Fatal("Reset did not clear stopped latch")
+	}
+}
+
+func TestMC68000STOPUserModePrivilegeViolationDoesNotStop(t *testing.T) {
+	memory := SparseMemory{
+		0x0020: 0x00, 0x0021: 0x00, 0x0022: 0x20, 0x0023: 0x00,
+		0x2000: 0x4e, 0x2001: 0x71, 0x2002: 0x4e, 0x2003: 0x71,
+	}
+	cpu := CPU{Bus: memory, State: State{USP: 0x4000, SSP: 0x3000, SR: 0x0004,
+		PC: 0x1004, Prefetch: [2]uint16{0x4e72, 0x2700}}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 34 || cpu.IsStopped() || cpu.State.SR != 0x2004 ||
+		cpu.State.SSP != 0x2ffa || cpu.State.PC != 0x2004 {
+		t.Fatalf("result=%+v state=%+v stopped=%v", result, cpu.State, cpu.IsStopped())
+	}
+}
 
 type resetRead struct {
 	address uint32

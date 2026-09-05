@@ -272,3 +272,9 @@
   EmuTOS 第 7,563 條／177,606 clocks 全狀態對拍，有界續跑至第 7,598 條後停在
   `STOP` `$4E72`。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build 通過，
   規格 071 升 CONFORMED。
+- 完成 MC68000 `STOP`：以 NXP manual 與固定 `STOP.json.bin` 建立 privilege、immediate
+  SR、4-clock 與 stopped latch 契約；CPU Reset 清 latch，未建模 interrupt 喚醒前後續
+  Step 明確回 `ErrStopped`。釐清 Talos PC 是 next-instruction `$FCD09E`、實際 opcode
+  位址為 `$FCD09A`，並保留 Hatari D2／D3 差異。2,500 筆 STOP 語料加入後累計
+  232,500 筆；固定 EmuTOS 第 7,599 條／178,096 clocks 進入停機。全測試、vet、build
+  通過，規格 072 升 CONFORMED。

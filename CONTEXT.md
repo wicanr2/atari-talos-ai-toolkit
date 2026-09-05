@@ -174,7 +174,7 @@
   `$FC00BE` line-F／vector 11 已完成：MC68000 核心 34 clocks，ST bus phase 加 2 clocks，
   第 19 條累計 532 clocks 進 `$FC00D4`；frame、SSP、SR 與 prefetch 對上 Hatari。
 - line-F 外部語料 `ILLEGAL_LINEF.json.bin` 2,500 筆 state／RAM／clocks／bus transaction
-  全同，CPU 累計外部單步驗收 230,000 筆。
+  全同；新增 STOP 2,500 筆後，CPU 累計外部單步驗收 232,500 筆。
 - 普通 ST／Ricoh `$FF860F` void byte read 與無 Mega-RTC 的 `$FFFC21–$FFFC3F`
   void byte range已依固定 Hatari／EmuTOS 原始碼與 tracepoint CONFORMED；read 回 `$FF`，
   RTC range byte write discard，且不取用主機 wall-clock。固定 EmuTOS 可成功完成
@@ -236,6 +236,12 @@
   軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
   第 7,563 條／177,606 clocks 的 state／prefetch 對上 Hatari；後續可完成至第 7,598
   條／178,092 clocks，第 7,599 次嘗試停在 PC `$FCD09E` 的 `STOP` `$4E72`。
+- MC68000 `STOP` 已 CONFORMED：執行前 supervisor 判權、immediate SR `$A71F`
+  masking、4 clocks、stopped latch、重複 Step 原子停止與 CPU Reset 清除均已接線；
+  2,500 筆固定外部語料全過。固定 EmuTOS 的 opcode 位址是 `$FCD09A`，Talos pipeline
+  PC `$FCD09E` 指向下一指令；第 7,599 條／178,096 clocks 後 SR=`$2300` 並停機。
+  Hatari 同點的 opcode／SR／prefetch 一致，但 Hatari D2=`$2710`、D3=`$1`，Talos
+  D2=`$2704`、D3=`$0`，故不宣稱這個較晚點已達全暫存器 parity。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -249,5 +255,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 PC `$FCD09E` 的 MC68000 `STOP`；須處理 immediate
-   SR、supervisor privilege、停止狀態與 interrupt 喚醒邊界，不以無限迴圈代替。
+4. 下一個整機切片先查證 STOP 後的 interrupt 喚醒入口與第一個實際 IRQ source；
+   同時追查 STOP 前 D2／D3 與 Hatari 的差異來源，不在 IRQ 尚未建模時假造 VBL。

@@ -10,6 +10,8 @@ const (
 	supervisor  = 0x2000
 )
 
+var ErrStopped = errors.New("m68k: processor is stopped")
+
 type State struct {
 	D        [8]uint32
 	A        [7]uint32
@@ -91,9 +93,14 @@ type ResetBus interface {
 }
 
 type CPU struct {
-	State State
-	Bus   Bus
-	epoch uint64
+	State   State
+	Bus     Bus
+	epoch   uint64
+	stopped bool
+}
+
+func (c *CPU) IsStopped() bool {
+	return c.stopped
 }
 
 func (c *CPU) Reset() error {
@@ -136,6 +143,7 @@ func (c *CPU) Reset() error {
 	c.State.SR = 0x2700
 	c.State.PC = initialPC + 4
 	c.State.Prefetch = [2]uint16{first, second}
+	c.stopped = false
 	return nil
 }
 
@@ -148,6 +156,9 @@ func (c *CPU) Step() (StepResult, error) {
 func (c *CPU) StepAt(epoch uint64) (StepResult, error) {
 	if c.Bus == nil {
 		return StepResult{}, fmt.Errorf("m68k: nil bus")
+	}
+	if c.stopped {
+		return StepResult{}, ErrStopped
 	}
 	c.epoch = epoch
 	opcode := c.State.Prefetch[0]
@@ -305,6 +316,13 @@ func (c *CPU) StepAt(epoch uint64) (StepResult, error) {
 		return c.stepRTS(opcode)
 	case opcode == 0x4e73:
 		return c.stepRTE(opcode)
+	case opcode == 0x4e72:
+		if c.State.SR&supervisor == 0 {
+			return c.enterStandardException(8, c.State.PC-4, nil, 34)
+		}
+		c.State.SR = c.State.Prefetch[1] & 0xa71f
+		c.stopped = true
+		return StepResult{Clocks: 4, Transactions: []Transaction{}}, nil
 	case opcode == 0x4e70:
 		if c.State.SR&supervisor == 0 {
 			return c.enterStandardException(8, c.State.PC-4, nil, 34)

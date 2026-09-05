@@ -7,9 +7,10 @@ reliably, producing deterministic input, frame stepping, state capture, and mach
 evidence for more accurate retro-game remakes.
 
 The project is at M2. The versioned JSON Lines control protocol and CLI exist; the MC68000 core
-passes 230,000 external corpus cases, and the incremental ST/STF machine core executes 7,598
-instructions of a fixed EmuTOS 1.3 ROM. The MFP USART reset-write boundary is in parity with
-Hatari; the next explicit stop is the unimplemented MC68000 `STOP` instruction at PC `$FCD09E`.
+passes 232,500 external corpus cases, and the incremental ST/STF machine core executes 7,599
+instructions of a fixed EmuTOS 1.3 ROM before correctly entering the MC68000 stopped state. The
+MFP USART reset-write boundary is in parity with Hatari; interrupt wake-up and peripheral IRQs are
+the next boot gate.
 Video, input, disk, and a complete TOS boot are not
 implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.

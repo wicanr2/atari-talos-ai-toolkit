@@ -600,6 +600,10 @@ func TestSingleStepEOR(t *testing.T) {
 	}
 }
 
+func TestSingleStepSTOP(t *testing.T) {
+	testSingleStepCorpus(t, "STOP.json.bin")
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {
