@@ -1,6 +1,6 @@
 # Atari Talos 目前狀態
 
-更新日期：2026-09-05。
+更新日期：2026-09-06。
 
 ## 已定案
 
@@ -319,6 +319,12 @@
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
   實際 I/O 裝置與 TOS 後續開機仍未完成。
+- MFP Timer D 系統時鐘週期與 channel 4 向量中斷已 CONFORMED：依 MC68901 固定
+  2,560 MFP clocks，自動 reload 並設定 IPRB bit 4；IERB／IMRB 仲裁後以 level 6、
+  vector 68 進 `$FC7884`，承認時 pending 轉入 software-EOI in-service。固定 EmuTOS
+  在 137,138 instructions／9 interrupts／1,587,632 clocks 抵達 handler，guest 自行
+  寫 ISRB=`$EF` 清除。因該 `MOVE.B` path 尚未供應 timed access，啟動 phase 暫採
+  instruction boundary 的 hardware-spec approximation，未宣稱逐 cycle parity。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -328,7 +334,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理Timer D 2560 MFP ticks recurrence、
-   channel 4 pending與MFP IACK，再補Timer C countdown／timeout／IRQ；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步補 Timer C countdown／timeout／IRQ；RGB／PNG
    色階契約與正常 50 Hz HBL310 提前重載仍須各自 READY，不得由 palette index或
    VBL 保底提交外推。

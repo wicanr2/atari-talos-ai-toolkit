@@ -69,6 +69,27 @@ func TestMC68000AutovectorTimedBus(t *testing.T) {
 	}
 }
 
+func TestMC68000VectoredInterruptUsesDeviceVector(t *testing.T) {
+	memory := SparseMemory{
+		0x110: 0x00, 0x111: 0x00, 0x112: 0x40, 0x113: 0x00,
+		0x4000: 0x4e, 0x4001: 0x71, 0x4002: 0x60, 0x4003: 0xfe,
+	}
+	cpu := CPU{Bus: memory, State: State{SSP: 0x1000, SR: 0x2300, PC: 0x3004,
+		Prefetch: [2]uint16{0x4e71, 0x60fe}}}
+	result, accepted, err := cpu.AcceptVectoredInterruptAt(6, 68, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !accepted || result.Clocks != 44 || cpu.State.SR != 0x2600 || cpu.State.SSP != 0x0ffa ||
+		cpu.State.PC != 0x4004 || cpu.State.Prefetch != [2]uint16{0x4e71, 0x60fe} {
+		t.Fatalf("result=%+v accepted=%v state=%+v", result, accepted, cpu.State)
+	}
+	if memory[0x0ffc] != 0 || memory[0x0ffd] != 0 || memory[0x0ffe] != 0x30 || memory[0x0fff] != 0 {
+		t.Fatalf("saved PC bytes=%02x%02x%02x%02x want 00003000",
+			memory[0x0ffc], memory[0x0ffd], memory[0x0ffe], memory[0x0fff])
+	}
+}
+
 func TestMC68000STOPStateAndReset(t *testing.T) {
 	initial := State{D: [8]uint32{1}, A: [7]uint32{2}, USP: 3, SSP: 4,
 		SR: 0x2704, PC: 0x1004, Prefetch: [2]uint16{0x4e72, 0x2300}}

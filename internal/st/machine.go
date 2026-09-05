@@ -21,6 +21,9 @@ type Machine struct {
 	ikbdResetRXDeadline uint64
 	ikbdResetRXClock    uint64
 	ikbdSecondTXClock   uint64
+	timerDClockStarted  bool
+	timerDPeriods       uint64
+	nextTimerDClock     uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -49,6 +52,9 @@ func (m *Machine) Reset() error {
 	m.ikbdResetRXDeadline = 0
 	m.ikbdResetRXClock = 0
 	m.ikbdSecondTXClock = 0
+	m.timerDClockStarted = false
+	m.timerDPeriods = 0
+	m.nextTimerDClock = 0
 	return nil
 }
 
@@ -57,6 +63,20 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	if m.CPU.IsStopped() && !m.vblPending && m.Clocks < m.nextVBLClock {
 		idle = m.nextVBLClock - m.Clocks
 		m.raiseVBL()
+	}
+	if m.mfpTimerDInterruptPending() {
+		result, accepted, err := m.CPU.AcceptVectoredInterruptAt(6, m.Memory.mfpTimerDVector(), m.Clocks+idle)
+		if err != nil {
+			return result, err
+		}
+		if accepted {
+			result = prependIdle(result, uint32(idle))
+			m.Memory.acknowledgeMFPTimerD()
+			m.Interrupts++
+			m.Clocks += uint64(result.Clocks)
+			m.advanceClockedDevices()
+			return result, nil
+		}
 	}
 	if m.vblPending {
 		acceptEpoch := m.Clocks + idle
@@ -94,6 +114,25 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 }
 
 func (m *Machine) advanceClockedDevices() {
+	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDStartClock != 0 {
+		m.timerDClockStarted = true
+		m.timerDPeriods = 1
+		m.nextTimerDClock = timerDDeadline(m.Memory.mfpTimerDStartClock, m.timerDPeriods)
+	}
+	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDSystemStage == 8 &&
+		m.Memory.mfpTimerDStart {
+		// MOVE.B has not yet migrated every effective-address path to TimedBus.
+		// Keep this fallback local until that CPU slice supplies the access clock.
+		m.Memory.mfpTimerDStartClock = m.Clocks
+		m.timerDClockStarted = true
+		m.timerDPeriods = 1
+		m.nextTimerDClock = timerDDeadline(m.Memory.mfpTimerDStartClock, m.timerDPeriods)
+	}
+	for m.timerDClockStarted && m.Clocks >= m.nextTimerDClock {
+		m.Memory.mfpIPRB |= 0x10
+		m.timerDPeriods++
+		m.nextTimerDClock = timerDDeadline(m.Memory.mfpTimerDStartClock, m.timerDPeriods)
+	}
 	if !m.aciaClockStarted && m.Memory != nil && m.Memory.ikbdACIAConfigured {
 		m.aciaClockStarted = true
 		m.nextACIABitClock = m.Clocks + 1024
@@ -104,6 +143,16 @@ func (m *Machine) advanceClockedDevices() {
 		m.Memory.deliverIKBDResetResponse()
 		m.ikbdResetRXDeadline = 0
 	}
+}
+
+func (m *Machine) mfpTimerDInterruptPending() bool {
+	return m.Memory != nil && m.Memory.mfpIPRB&m.Memory.mfpIERB&m.Memory.mfpIMRB&0x10 != 0
+}
+
+func timerDDeadline(start, periods uint64) uint64 {
+	const numerator uint64 = 2560 * 8021248
+	const denominator uint64 = 2457600
+	return start + periods*numerator/denominator
 }
 
 func (m *Machine) advanceDueACIAClocks() {

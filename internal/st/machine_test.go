@@ -1189,6 +1189,64 @@ func TestMachineAdvancesIKBDACIAAtFirstDeadline(t *testing.T) {
 	}
 }
 
+func TestTimerDDeadlineKeepsRationalPhase(t *testing.T) {
+	const start = uint64(1000)
+	if got := timerDDeadline(start, 1); got != 9355 {
+		t.Fatalf("first deadline=%d want 9355", got)
+	}
+	if got := timerDDeadline(start, 3); got != 26066 {
+		t.Fatalf("third deadline=%d want 26066", got)
+	}
+	if timerDDeadline(start, 3)-timerDDeadline(start, 2) != 8356 {
+		t.Fatalf("third period did not carry the rational remainder")
+	}
+}
+
+func TestMachineEmuTOSEntersTimerDHandler(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for machine.Interrupts < 9 && machine.Instructions < 150000 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step instructions=%d interrupts=%d clocks=%d PC=%08x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC, err)
+		}
+	}
+	state := machine.CPU.State
+	if machine.Interrupts != 9 || state.PC != 0x00fc7888 ||
+		state.Prefetch != [2]uint16{0x52b9, 0x0000} || state.SR>>8&7 != 6 ||
+		machine.Memory.mfpIPRB&0x10 != 0 || machine.Memory.mfpISRB&0x10 == 0 {
+		t.Fatalf("Timer D handler boundary instructions=%d interrupts=%d clocks=%d state=%+v IPRB/ISRB=%02x/%02x start/next=%d/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.mfpIPRB, machine.Memory.mfpISRB,
+			machine.Memory.mfpTimerDStartClock, machine.nextTimerDClock)
+	}
+	for i := 0; i < 8 && machine.Memory.mfpISRB&0x10 != 0; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if machine.Memory.mfpISRB&0x10 != 0 {
+		t.Fatalf("guest did not clear Timer D in-service: ISRB=%02x", machine.Memory.mfpISRB)
+	}
+}
+
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

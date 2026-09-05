@@ -1208,6 +1208,28 @@ func TestMFPTimerDSystemClockStart(t *testing.T) {
 	}
 }
 
+func TestMFPTimerDAcknowledgeUsesVectorAndSoftwareEOI(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpVR = 0x48
+	memory.mfpIPRB = 0x10
+	if got := memory.mfpTimerDVector(); got != 68 {
+		t.Fatalf("vector=%d want 68", got)
+	}
+	memory.acknowledgeMFPTimerD()
+	if memory.mfpIPRB != 0 || memory.mfpISRB != 0x10 {
+		t.Fatalf("pending/in-service=%02x/%02x want 00/10", memory.mfpIPRB, memory.mfpISRB)
+	}
+	if err := memory.WriteByte(MFPISRB, 0xef, 5); err != nil {
+		t.Fatal(err)
+	}
+	if memory.mfpISRB != 0 {
+		t.Fatalf("in-service=%02x want 00", memory.mfpISRB)
+	}
+}
+
 func TestIKBDACIAFirstTransmitData(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

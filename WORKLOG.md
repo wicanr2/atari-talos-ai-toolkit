@@ -401,3 +401,12 @@
   八段stage防止跳步，固定ROM在136,210 instructions／1,579,228 clocks完成啟動。
   完整目前corpus、全測試、vet與CLI build通過後，規格097升CONFORMED；recurrence、
   pending與MFP IACK明列為下一切片。
+- 完成 MFP Timer D recurrence 與 channel 4 向量中斷：MC68901 比例以累積有理數
+  `2560*8021248/2457600` 排程，避免逐期 floor 漂移；timeout 設 IPRB bit 4，
+  IERB／IMRB 仲裁後由新增的 CPU vectored-interrupt API 以 level 6、vector 68 建立
+  44-clock frame。Hatari 固定 trace 顯示暫定 autovector 30 的 `$78` 在 IACK 改成
+  `$110`，handler 為 `$FC7884`；Talos 正常 EmuTOS 在 137,138 instructions、
+  9 interrupts、1,587,632 clocks 抵達相同 handler，pending 轉入 ISRB bit 4，guest
+  隨後自行寫 `$EF` 清除。固定路徑的 `MOVE.B` 尚未供應 timed access，故 start phase
+  明列為 instruction-boundary hardware-spec approximation。完整 240,000 筆 corpus、
+  固定 ROM、全測試、vet 與 CLI build 通過，規格 098 升 CONFORMED。

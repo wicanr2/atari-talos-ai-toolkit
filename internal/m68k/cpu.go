@@ -113,6 +113,12 @@ func (c *CPU) AcceptAutovector(level uint8) (StepResult, bool, error) {
 
 // AcceptAutovectorAt is the cycle-aware form of AcceptAutovector.
 func (c *CPU) AcceptAutovectorAt(level uint8, epoch uint64) (StepResult, bool, error) {
+	return c.AcceptVectoredInterruptAt(level, 24+level, epoch)
+}
+
+// AcceptVectoredInterruptAt accepts an already-arbitrated level 1-6 interrupt
+// whose device supplied vector is known to the machine bus.
+func (c *CPU) AcceptVectoredInterruptAt(level, vector uint8, epoch uint64) (StepResult, bool, error) {
 	if c.Bus == nil {
 		return StepResult{}, false, fmt.Errorf("m68k: nil bus")
 	}
@@ -132,9 +138,9 @@ func (c *CPU) AcceptAutovectorAt(level uint8, epoch uint64) (StepResult, bool, e
 		err    error
 	)
 	if _, ok := c.Bus.(TimedBus); ok {
-		result, err = c.enterTimedStandardException(24+level, savedPC, 44)
+		result, err = c.enterTimedStandardException(vector, savedPC, 44)
 	} else {
-		result, err = c.enterStandardException(24+level, savedPC, nil, 44)
+		result, err = c.enterStandardException(vector, savedPC, nil, 44)
 	}
 	if err != nil {
 		return result, false, err
