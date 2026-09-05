@@ -20,6 +20,7 @@ func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
 }
 
 func (m *Machine) Reset() error {
+	m.Memory.ColdReset()
 	if err := m.CPU.Reset(); err != nil {
 		return err
 	}

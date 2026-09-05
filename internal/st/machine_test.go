@@ -20,6 +20,9 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	machine.CPU.State.A[0] = 0x87654321
 	machine.CPU.State.USP = 0x00abcdef
 	machine.Instructions, machine.Clocks = 99, 1234
+	if err := machine.Memory.WriteByte(MMUConfig, 0x0a, 5); err != nil {
+		t.Fatal(err)
+	}
 	if err := machine.Reset(); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +37,9 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	if machine.Instructions != 0 || machine.Clocks != 0 {
 		t.Fatalf("reset counters=%d/%d", machine.Instructions, machine.Clocks)
 	}
+	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+		t.Fatalf("machine cold-reset MMU=%02x err=%v", got, err)
+	}
 	result, err := machine.Step()
 	if err != nil {
 		t.Fatal(err)
@@ -41,6 +47,42 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	if result.Clocks != 10 || machine.Instructions != 1 || machine.Clocks != 10 ||
 		machine.CPU.State.PC != 0x00fc0052 || machine.CPU.State.Prefetch != [2]uint16{0x46fc, 0x2700} {
 		t.Fatalf("first step result=%+v machine=%+v", result, machine)
+	}
+}
+
+func TestMachineEmuTOSReachesMOVECProbe(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 7; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	state := machine.CPU.State
+	if machine.Instructions != 7 || machine.Clocks != 92 || state.PC != 0x00fc0074 ||
+		state.Prefetch != [2]uint16{0x4e7b, 0x0801} || state.SSP != 0x1000 || state.SR != 0x2704 {
+		t.Fatalf("MOVEC probe boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+		t.Fatalf("MMU config at MOVEC probe=%02x err=%v", got, err)
 	}
 }
 

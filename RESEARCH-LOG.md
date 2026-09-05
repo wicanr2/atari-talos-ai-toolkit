@@ -218,3 +218,13 @@
   `60 2e 01 04 00 fc 00 30` 對應 `SSP=602e0104`、`PC=fc0030`。Hatari 2.4.1
   於首條 `BRA.W $001c` 後觀測 `PC=fc004e`、FrameCycles=10、`SR=2700`、
   `A7=602e0104`；因此初始 SSP 即使看似非法位址也不得代換。
+- Atari 一手硬體規格第 27 頁確認 `$FF8001` 是 supervisor-only byte R/W
+  MMU 組態；bits 3–2／1–0 分別選 bank0／bank1 的 128 KiB、512 KiB、2 MiB。
+  Hatari 2.4.1 同 ROM／1 MiB ST 第一 VBL I/O trace 為 read `$00` @`FC0052`、
+  write `$0A` @`FC0188`、write `$05` @`FC0218`。
+  表格的高四位不可臆測為固定零：Hatari debugger 寫 `$FA` 後讀回 `$FA`，
+  因此只在 bank 解碼時取低四位，latch 本身保留完整 byte。
+- 加入 MMU 後，EmuTOS 從 reset 連續 7 條指令到 `$FC0070`；Atari Talos
+  與 Hatari 均為 92 clocks、`SSP=00001000`、`SR=2704`、prefetch=`4e7b,0801`。
+  `$4E7B` 是 68010+ `MOVEC D0,VBR` CPU 型號探測；MC68000 應走 vector 4，
+  目前因 illegal-instruction exception 尚未建立而成為新的第一停點。

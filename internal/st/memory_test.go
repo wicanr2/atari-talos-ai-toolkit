@@ -60,6 +60,13 @@ func TestMemoryRAMBoundsAndAddressMask(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		config := byte(0x04)
+		if size == RAM1M {
+			config = 0x05
+		}
+		if err := memory.WriteByte(MMUConfig, config, 5); err != nil {
+			t.Fatal(err)
+		}
 		for _, address := range []uint32{8, 0x800, uint32(size - 1)} {
 			if err := memory.WriteByte(address, 0xa5, 5); err != nil {
 				t.Fatalf("RAM size %d write 0x%x: %v", size, address, err)
@@ -76,6 +83,64 @@ func TestMemoryRAMBoundsAndAddressMask(t *testing.T) {
 		if err != nil || got != 0x3c {
 			t.Fatalf("24-bit mask: got=%02x err=%v", got, err)
 		}
+	}
+}
+
+func TestMMUConfigurationRegisterAnd512KBankTranslation(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+		t.Fatalf("cold MMU config=%02x err=%v", got, err)
+	}
+	if err := memory.WriteByte(MMUConfig, 0xfa, 6); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0xfa {
+		t.Fatalf("preserved MMU config=%02x err=%v", got, err)
+	}
+	for _, test := range []struct {
+		logical  uint32
+		physical uint32
+	}{
+		{0x000800, 0x000400},
+		{0x080800, 0x040400},
+		{0x200800, 0x080400},
+		{0x280800, 0x0c0400},
+	} {
+		if err := memory.WriteByte(test.logical, byte(test.logical>>19)+1, 5); err != nil {
+			t.Fatalf("write logical %06x: %v", test.logical, err)
+		}
+		if got := memory.ram[test.physical]; got != byte(test.logical>>19)+1 {
+			t.Fatalf("logical %06x mapped physical %06x=%02x", test.logical, test.physical, got)
+		}
+	}
+	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(0x080000, 0xa5, 5); err != nil || memory.ram[0x080000] != 0xa5 {
+		t.Fatalf("identity bank1 write err=%v physical=%02x", err, memory.ram[0x080000])
+	}
+	if _, err := memory.ReadByte(MMUConfig, 1); err == nil {
+		t.Fatal("user MMU read unexpectedly succeeded")
+	}
+	memory.ColdReset()
+	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+		t.Fatalf("reset MMU config=%02x err=%v", got, err)
+	}
+}
+
+func TestMMUAbsentSecondPhysicalBankFaults(t *testing.T) {
+	memory, err := NewMemory(RAM512K, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := memory.ReadByte(0x080000, 5); err == nil {
+		t.Fatal("absent physical bank1 unexpectedly readable")
 	}
 }
 
@@ -127,6 +192,9 @@ func TestMemoryProtectionReadOnlyAndUnmappedFaults(t *testing.T) {
 func TestMemoryBigEndianWordAndAtomicFailure(t *testing.T) {
 	memory, err := NewMemory(RAM512K, testROM())
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(MMUConfig, 0x04, 5); err != nil {
 		t.Fatal(err)
 	}
 	if err := memory.WriteWord(0x800, 0x1234, 5); err != nil {

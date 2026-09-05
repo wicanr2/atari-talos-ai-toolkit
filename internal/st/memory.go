@@ -10,6 +10,7 @@ const (
 	TOSROMBase  = 0x00fc_0000
 	TOSROMEnd   = 0x00fe_ffff
 	IOBase      = 0x00ff_0000
+	MMUConfig   = 0x00ff_8001
 )
 
 type FaultReason string
@@ -45,8 +46,9 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 }
 
 type Memory struct {
-	ram []byte
-	rom []byte
+	ram       []byte
+	rom       []byte
+	mmuConfig byte
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -65,10 +67,15 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return 0, fault
 	}
 	switch {
+	case address == MMUConfig:
+		return m.mmuConfig, nil
 	case address < 8:
 		return m.rom[address], nil
-	case address < uint32(len(m.ram)):
-		return m.ram[address], nil
+	case address < 0x0040_0000:
+		if physical, ok := m.ramAddress(address); ok {
+			return m.ram[physical], nil
+		}
+		return 0, m.fault(address, functionCode, false, 1, FaultUnmapped)
 	case address >= TOSROMBase && address <= TOSROMEnd:
 		return m.rom[address-TOSROMBase], nil
 	default:
@@ -97,13 +104,18 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	if fault := m.validateAccess(address, functionCode, true, 1); fault != nil {
 		return fault
 	}
+	if address == MMUConfig {
+		m.mmuConfig = value
+		return nil
+	}
 	if address < 8 || address >= TOSROMBase && address <= TOSROMEnd {
 		return m.fault(address, functionCode, true, 1, FaultReadOnly)
 	}
-	if address >= uint32(len(m.ram)) {
+	physical, ok := m.ramAddress(address)
+	if !ok {
 		return m.fault(address, functionCode, true, 1, m.unmappedReason(address))
 	}
-	m.ram[address] = value
+	m.ram[physical] = value
 	return nil
 }
 
@@ -112,29 +124,74 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 	if address&1 != 0 {
 		return m.fault(address, functionCode, true, 2, FaultOddWordAddress)
 	}
-	if fault := m.validateWritableByte(address, functionCode, 2); fault != nil {
+	hi, fault := m.writableRAMAddress(address, functionCode, 2)
+	if fault != nil {
 		return fault
 	}
-	if fault := m.validateWritableByte((address+1)&AddressMask, functionCode, 2); fault != nil {
+	lo, fault := m.writableRAMAddress((address+1)&AddressMask, functionCode, 2)
+	if fault != nil {
 		fault.Address = address
 		return fault
 	}
-	m.ram[address] = byte(value >> 8)
-	m.ram[address+1] = byte(value)
+	m.ram[hi] = byte(value >> 8)
+	m.ram[lo] = byte(value)
 	return nil
 }
 
-func (m *Memory) validateWritableByte(address uint32, functionCode uint8, size uint8) *BusFault {
+func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uint8) (uint32, *BusFault) {
 	if fault := m.validateAccess(address, functionCode, true, size); fault != nil {
-		return fault
+		return 0, fault
 	}
 	if address < 8 || address >= TOSROMBase && address <= TOSROMEnd {
-		return m.fault(address, functionCode, true, size, FaultReadOnly)
+		return 0, m.fault(address, functionCode, true, size, FaultReadOnly)
 	}
-	if address >= uint32(len(m.ram)) {
-		return m.fault(address, functionCode, true, size, m.unmappedReason(address))
+	physical, ok := m.ramAddress(address)
+	if !ok {
+		return 0, m.fault(address, functionCode, true, size, m.unmappedReason(address))
 	}
-	return nil
+	return physical, nil
+}
+
+func (m *Memory) ColdReset() {
+	m.mmuConfig = 0
+}
+
+func (m *Memory) ramAddress(address uint32) (uint32, bool) {
+	logicalBank0 := mmuBankSize(m.mmuConfig >> 2 & 3)
+	logicalBank1 := mmuBankSize(m.mmuConfig & 3)
+	physicalBank0 := uint32(RAM512K)
+	physicalBank1 := uint32(len(m.ram) - RAM512K)
+
+	if address < logicalBank0 {
+		return translate512KBank(address, logicalBank0), true
+	}
+	if address < logicalBank0+logicalBank1 && physicalBank1 != 0 {
+		return physicalBank0 + translate512KBank(address, logicalBank1), true
+	}
+	return 0, false
+}
+
+func mmuBankSize(code byte) uint32 {
+	switch code {
+	case 0:
+		return 128 * 1024
+	case 1:
+		return 512 * 1024
+	case 2:
+		return 2 * 1024 * 1024
+	default:
+		return 0
+	}
+}
+
+func translate512KBank(address, logicalBankSize uint32) uint32 {
+	switch logicalBankSize {
+	case 2 * 1024 * 1024:
+		address = (address&0x0ff800)>>1 | address&0x03ff
+	case 128 * 1024:
+		address = (address&0x03fe00)<<1 | address&0x03ff
+	}
+	return address & (RAM512K - 1)
 }
 
 func (m *Memory) validateAccess(address uint32, functionCode uint8, write bool, size uint8) *BusFault {

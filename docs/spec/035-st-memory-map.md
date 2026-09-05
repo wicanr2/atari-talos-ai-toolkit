@@ -14,7 +14,8 @@ exception 的 CPU 微時序另立規格，不在此處猜補。
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`，來源：
   <https://bitsavers.trailing-edge.com/pdf/atari/ST/Atari_ST_GEM_Programming_1986/GEM_0904.pdf>。
 - 規格明列 24-bit address、512 KiB／1 MiB RAM、192 KiB ROM；`0x000000–0x000007`
-  是主 ROM 的 reset SSP／PC shadow，RAM 自 `0x000008` 起；主 ROM 位於
+  是主 ROM 的 reset SSP／PC shadow，實體 RAM 自 `0x000008` 起；邏輯 RAM
+  映射再由 spec 050 的 MMU 組態決定。主 ROM 位於
   `0xFC0000–0xFEFFFF`，I/O space 位於 `0xFF0000–0xFFFFFF`。
 - 第一個 2 KiB 與 I/O space 只允許 supervisor reference。user reference、ROM／shadow
   write、保留 I/O 與未映射位址必須失敗並保留存取 metadata。
@@ -23,8 +24,9 @@ exception 的 CPU 微時序另立規格，不在此處猜補。
 
 1. 建構器只接受 512 KiB 或 1 MiB RAM，以及恰好 192 KiB 的 TOS ROM；輸入 ROM
    必須複製，呼叫端後續修改不得改變機器內容。
-2. 所有位址先截為 24 bit。`0x000000–0x000007` read 對應 ROM offset 0–7；其後直到
-   配置容量末端為 RAM；`0xFC0000–0xFEFFFF` 對應完整 ROM。
+2. 所有位址先截為 24 bit。`0x000000–0x000007` read 對應 ROM offset 0–7；
+   其後 RAM 依 spec 050 的 MMU 邏輯 bank 映射至本規格建立的實體容量；
+   `0xFC0000–0xFEFFFF` 對應完整 ROM。
 3. FC 1／2 是 user data／program，FC 5／6 是 supervisor data／program；其他 FC
    在本切片失敗即關閉。user 對 `0x000000–0x0007FF` 或 I/O 的存取回傳 typed bus fault。
 4. byte／word 採 big-endian；word 必須偶數對齊。word write 在驗證兩個 byte 均可寫後

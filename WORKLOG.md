@@ -146,3 +146,8 @@
   以 EmuTOS 1.3 真實 ROM 執行首條 `BRA.W`，得到與 Hatari 相同的
   SSP／SR／PC／prefetch 與 10 clocks；完整 227,500 筆 CPU 語料回歸、
   Go 靜態檢查與建置均通過。
+- 以 EmuTOS 連續單步將開機首個失敗收旂到 `$FF8001` MMU 讀取；
+  完成 cold-reset latch、supervisor byte R/W、高位保留但不參與 bank 解碼，以及 512 KiB／1 MiB
+  實體 topology 在三種 STF 邏輯 bank 大小下的位址轉換。Hatari I/O trace
+  確認 `$00→$0A→$05`序列；同 ROM 前 7 條指令已至 `$FC0070`、
+  92 clocks 並全狀態一致。完整 CPU 語料回歸、靜態檢查與建置通過。

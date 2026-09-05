@@ -142,6 +142,10 @@
 - MC68000／ST power-on reset 已完成：以 FC=6 載入 SSP／PC 與 prefetch、
   staged failure 不提交、machine epoch counters 歸零；EmuTOS 1.3 真實 ROM
   第一條 `BRA.W` 後的 PC／prefetch／10 clocks 與 Hatari 一致。
+- ST MMU `$FF8001` 已完成 cold-reset latch、supervisor byte R/W、兩個
+  512 KiB 實體 bank 在 128 KiB／512 KiB／2 MiB 邏輯設定下的 STF
+  位址轉換。Hatari trace 的 `$00→$0A→$05` 序列已收據；Atari Talos
+  現可與 Hatari 同狀態到達 `$FC0070`（7 條指令、92 clocks）。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -156,4 +160,4 @@
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 擴充 MC68000 vector 2 其餘 fault 路徑，再加入啟動所需 I/O，由已對拍的
-   EmuTOS reset／第一條指令繼續向後開機。
+   EmuTOS `$FC0070` 邊界先建立 MC68000 illegal-instruction vector 4，再繼續向後開機。
