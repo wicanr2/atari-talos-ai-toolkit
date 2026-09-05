@@ -48,10 +48,10 @@ write，建立可供後續restore消費的DMA mode、FDC command/status與IRQ狀
 - 固定ROM自然完成`$D0`後鎖定CPU state／clock，再定位第二組mode／restore gate。
 - 完整CPU corpus、固定ROM、全測試、vet與build通過後才升 **CONFORMED**。
 
-固定ROM在289,612 instructions、234 interrupts、2,983,694 clocks完成`$D0`；完整
+固定ROM在289,612 instructions、234 interrupts、2,983,704 clocks完成`$D0`；完整
 D/A、SSP=`$0F38`、SR=`$2310`、pipeline PC=`$FC373A`、prefetch=`$4E75,$2F0A`
 與mode／command／status／IRQ／GPIP均鎖入回歸測試。下一gate在289,692
-instructions／2,984,438 clocks，為第二次`$FF8606=$0080`；pipeline PC=`$FC3728`、
+instructions／2,984,448 clocks，為第二次`$FF8606=$0080`；pipeline PC=`$FC3728`、
 prefetch=`$8606,$2039`。完整240,000筆CPU corpus、固定ROM、全測試、vet與build通過。
 
 本切片不修改Dungeon Master規則、資料、畫面、存檔或權利邊界；ROM與Hatari來源不入版控。

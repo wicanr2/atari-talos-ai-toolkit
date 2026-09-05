@@ -2,6 +2,7 @@ package st
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -1459,7 +1460,7 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 	state = machine.CPU.State
 	wantD = [8]uint32{0xffffffff, 0x2700, 0x01b4, 0, 0x00080000, 0x00100000, 5, 1}
 	wantA = [7]uint32{0xffff8800, 1, 0x00fc3924, 0, 0, 0x00fc01f4, 0x00000ffc}
-	if machine.Instructions != 289612 || machine.Interrupts != 234 || machine.Clocks != 2983694 ||
+	if machine.Instructions != 289612 || machine.Interrupts != 234 || machine.Clocks != 2983704 ||
 		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f38 ||
 		state.SR != 0x2310 || state.PC != 0x00fc373a ||
 		state.Prefetch != [2]uint16{0x4e75, 0x2f0a} || machine.Memory.fdcInitStage != 2 ||
@@ -1471,6 +1472,47 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.fdcInitStage, machine.Memory.dmaMode, machine.Memory.fdcCommand,
 			machine.Memory.fdcStatus, machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ,
 			machine.Memory.mfpGPIPIn)
+	}
+	for machine.Instructions < 400_000 && !machine.Memory.fdcRestoreIRQObserved {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("FDC restore instructions=%d interrupts=%d clocks=%d PC=%08x prefetch=%04x,%04x stage=%d polls=%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1],
+				machine.Memory.fdcInitStage, machine.Memory.fdcRestoreInactivePolls, err)
+		}
+	}
+	if !machine.Memory.fdcRestoreIRQObserved || machine.Memory.fdcInitStage != 5 ||
+		machine.Memory.fdcRestoreInactivePolls != 9 || machine.Memory.fdcRestorePending ||
+		machine.Memory.fdcStatus != 0x84 || !machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatalf("FDC restore boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/polls/pending/status/IRQ/GPIP/observed=%d/%d/%v/%02x/%v/%02x/%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.fdcInitStage, machine.Memory.fdcRestoreInactivePolls,
+			machine.Memory.fdcRestorePending, machine.Memory.fdcStatus, machine.Memory.fdcIRQ,
+			machine.Memory.mfpGPIPIn, machine.Memory.fdcRestoreIRQObserved)
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{0x028a, 0x0091, 0x0258, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA = [7]uint32{0xffff8800, 1, 0x00fc3720, 0, 0x00003008, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 289803 || machine.Interrupts != 234 || machine.Clocks != 2985654 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f22 ||
+		state.SR != 0x2308 || state.PC != 0x00fc6314 ||
+		state.Prefetch != [2]uint16{0x0801, 0x0005} ||
+		machine.Memory.fdcRestoreStartClock != 2984902 || machine.nextFDCRestoreClock != 0 {
+		t.Fatalf("FDC restore exact boundary instructions=%d interrupts=%d clocks=%d state=%+v start/next=%d/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.fdcRestoreStartClock, machine.nextFDCRestoreClock)
+	}
+	var nextGate error
+	for steps := 0; steps < 128 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	var busFault *BusFault
+	if !errors.As(nextGate, &busFault) || busFault.Address != STDMAControl || !busFault.Write ||
+		busFault.Size != 2 || machine.Instructions != 289818 || machine.Interrupts != 234 ||
+		machine.Clocks != 2985802 || machine.CPU.State.PC != 0x00fc3890 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
+		t.Fatalf("next FDC gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }
 
@@ -1501,6 +1543,83 @@ func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
 		memory.ikbdACIAStatus != 0x83 {
 		t.Fatalf("delivered deadline/RDR/status=%d/%02x/%02x", machine.ikbdResetRXDeadline,
 			memory.ikbdACIARDR, memory.ikbdACIAStatus)
+	}
+}
+
+func TestMachineCompletesFDCRestoreAtDeadline(t *testing.T) {
+	rom := testROM()
+	copy(rom[:8], []byte{0x00, 0x00, 0x10, 0x00, 0x00, 0xfc, 0x00, 0x00})
+	memory, err := NewMemory(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.fdcInitStage = 2
+	memory.dmaMode = 0x0080
+	memory.fdcCommand = 0xd0
+	memory.fdcStatus = 0x80
+	memory.fdcStatusTypeI = true
+	if err := memory.WriteWord(STDiskController, 0x000b, 5); err == nil ||
+		memory.fdcInitStage != 2 || memory.fdcCommand != 0xd0 {
+		t.Fatal("restore before second DMA mode unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 900, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 3 {
+		t.Fatalf("second mode wait/err/stage=%d/%v/%d", wait, err, memory.fdcInitStage)
+	}
+	if err := memory.WriteWord(STDiskController, 0x000a, 5); err == nil ||
+		memory.fdcInitStage != 3 || memory.fdcRestorePending {
+		t.Fatal("wrong restore command unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x000b,
+		m68k.BusAccess{Clock: 1000, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("restore wait/err=%d/%v", wait, err)
+	}
+	if memory.fdcInitStage != 4 || memory.fdcCommand != 0x0b || memory.fdcStatus != 0x81 ||
+		!memory.fdcStatusTypeI || memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 ||
+		!memory.fdcRestorePending || memory.fdcRestoreStartClock != 1000 {
+		t.Fatalf("restore start stage/command/status/typeI/IRQ/GPIP/pending/start=%d/%02x/%02x/%v/%v/%02x/%v/%d",
+			memory.fdcInitStage, memory.fdcCommand, memory.fdcStatus, memory.fdcStatusTypeI,
+			memory.fdcIRQ, memory.mfpGPIPIn, memory.fdcRestorePending, memory.fdcRestoreStartClock)
+	}
+	machine := &Machine{Memory: memory, Clocks: 1728}
+	machine.CPU.Bus = memory
+	machine.advanceClockedDevices()
+	if !machine.fdcRestoreClockStarted || machine.nextFDCRestoreClock != 1729 ||
+		!memory.fdcRestorePending || memory.fdcStatus != 0x81 || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("early scheduler/next/pending/status/GPIP=%v/%d/%v/%02x/%02x",
+			machine.fdcRestoreClockStarted, machine.nextFDCRestoreClock,
+			memory.fdcRestorePending, memory.fdcStatus, memory.mfpGPIPIn)
+	}
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 ||
+		memory.fdcRestoreInactivePolls != 1 || !memory.fdcRestorePending {
+		t.Fatalf("inactive poll=%02x err=%v polls=%d pending=%v", got, err,
+			memory.fdcRestoreInactivePolls, memory.fdcRestorePending)
+	}
+	machine.Clocks = 1729
+	machine.advanceClockedDevices()
+	if machine.fdcRestoreClockStarted || machine.nextFDCRestoreClock != 0 ||
+		memory.fdcRestorePending || memory.fdcInitStage != 5 || memory.fdcStatus != 0x84 ||
+		!memory.fdcIRQ || memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatalf("complete scheduler/next/pending/stage/status/IRQ/GPIP=%v/%d/%v/%d/%02x/%v/%02x",
+			machine.fdcRestoreClockStarted, machine.nextFDCRestoreClock, memory.fdcRestorePending,
+			memory.fdcInitStage, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+		!memory.fdcRestoreIRQObserved {
+		t.Fatalf("active poll=%02x err=%v observed=%v", got, err, memory.fdcRestoreIRQObserved)
+	}
+	machine.fdcRestoreClockStarted = true
+	machine.nextFDCRestoreClock = 2000
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if machine.fdcRestoreClockStarted || machine.nextFDCRestoreClock != 0 ||
+		memory.fdcRestorePending || memory.fdcRestoreStartClock != 0 ||
+		memory.fdcRestoreInactivePolls != 0 || memory.fdcRestoreIRQObserved {
+		t.Fatalf("reset scheduler/next/pending/start/polls/observed=%v/%d/%v/%d/%d/%v",
+			machine.fdcRestoreClockStarted, machine.nextFDCRestoreClock, memory.fdcRestorePending,
+			memory.fdcRestoreStartClock, memory.fdcRestoreInactivePolls, memory.fdcRestoreIRQObserved)
 	}
 }
 

@@ -1477,7 +1477,7 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 		t.Fatalf("RDR/status=%02x/%02x", memory.ikbdACIARDR, memory.ikbdACIAStatus)
 	}
 	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||
-		memory.ikbdACIAStatus != 2 || memory.ikbdStaleRDRReads != 1 {
+		memory.ikbdACIAStatus != 2 || memory.ikbdStaleRDRReads != 1 || memory.mfpGPIPIn&0x10 == 0 {
 		t.Fatalf("RDR read=%02x status=%02x err=%v", got, memory.ikbdACIAStatus, err)
 	}
 	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||

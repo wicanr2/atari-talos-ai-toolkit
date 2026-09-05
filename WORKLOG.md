@@ -448,3 +448,10 @@
   typed狀態，正常ROM在289,612 instructions／2,983,694 clocks完成；下一gate是第二次
   mode `$0080`，後接restore `$0B`。完整240,000筆corpus、固定ROM、全測試、vet與
   CLI build通過，規格104升CONFORMED。
+- 完成WD1772 restore與GPIP5 IRQ期限：固定Hatari `fdc.c`的prepare／track-zero／complete
+  共728 FDC clocks，依固定ST clock比例換算729 CPU clocks；Talos將EmuTOS實際使用的
+  `MOVE.W 6(A7),abs.w`接到timed word bus，未以指令結束時間猜補。固定ROM自clock
+  2,984,902開始，九次讀得`$B1`後於289,803 instructions／2,985,654 clocks讀得`$91`；
+  下一gate定位為289,818／2,985,802的`$FF8606` word write。完整240,000筆corpus亦確認
+  奇數來源／目的位址例外未被timed path繞過；全測試、vet與build通過，規格105升
+  CONFORMED。

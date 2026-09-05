@@ -26,6 +26,8 @@ stopped state，並經 E-clock 對齊的 level-4 autovector 進入真正的 EmuT
 掃描中的作用基址分離；第四個 VBL 現會在精確 deadline 535,528 將其提交為 active base。
 首個 320×200、4-plane big-endian 解碼器也已從 active base 產生 64,000 個 palette indices，
 並以 Hatari VBL7 真實 framebuffer dump 驗證；RGB／PNG 與非黑 Talos 正常路徑尚未接通。
+ST DMA／WD1772開機路徑已完成force-interrupt與restore首切片；restore依固定clock比例
+排程，在九次GPIP5 inactive輪詢後由EmuTOS讀到active-low IRQ，與固定Hatari trace一致。
 輸入、磁碟與完整 TOS
 開機仍未完成，因此目前**還不是可啟動遊戲的模擬器**；
 未具備的控制命令持續明確失敗，不會假裝成功。
@@ -79,7 +81,7 @@ TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／ROL／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE／STOP／line-F，共 240,000 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）** |
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP reset bank、固定 GPIP input、首個 external bus slot、level-4 autovector、reset 60 Hz recurring GLUE VBL、stopped-clock 快轉、video mode、16 色 palette、programmed／active framebuffer 基址已 CONFORMED；第四 VBL deadline 為 535,528** |
-| M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | **低解析度索引畫面首切片已 CONFORMED；RGB／PNG、鍵鼠與磁碟尚未開始** |
+| M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | **低解析度索引畫面及FDC force-interrupt／restore IRQ首切片已 CONFORMED；RGB／PNG、鍵鼠、status read與磁碟映像尚未完成** |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
 | M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |
 

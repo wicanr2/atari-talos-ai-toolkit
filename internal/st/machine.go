@@ -8,25 +8,27 @@ const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 type Machine struct {
-	CPU                 m68k.CPU
-	Memory              *Memory
-	Instructions        uint64
-	Interrupts          uint64
-	Clocks              uint64
-	nextVBLClock        uint64
-	vblFrameClocks      uint64
-	vblPending          bool
-	aciaClockStarted    bool
-	nextACIABitClock    uint64
-	ikbdResetRXDeadline uint64
-	ikbdResetRXClock    uint64
-	ikbdSecondTXClock   uint64
-	timerCClockStarted  bool
-	timerCPeriods       uint64
-	nextTimerCClock     uint64
-	timerDClockStarted  bool
-	timerDPeriods       uint64
-	nextTimerDClock     uint64
+	CPU                    m68k.CPU
+	Memory                 *Memory
+	Instructions           uint64
+	Interrupts             uint64
+	Clocks                 uint64
+	nextVBLClock           uint64
+	vblFrameClocks         uint64
+	vblPending             bool
+	aciaClockStarted       bool
+	nextACIABitClock       uint64
+	ikbdResetRXDeadline    uint64
+	ikbdResetRXClock       uint64
+	ikbdSecondTXClock      uint64
+	timerCClockStarted     bool
+	timerCPeriods          uint64
+	nextTimerCClock        uint64
+	timerDClockStarted     bool
+	timerDPeriods          uint64
+	nextTimerDClock        uint64
+	fdcRestoreClockStarted bool
+	nextFDCRestoreClock    uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -61,6 +63,8 @@ func (m *Machine) Reset() error {
 	m.timerDClockStarted = false
 	m.timerDPeriods = 0
 	m.nextTimerDClock = 0
+	m.fdcRestoreClockStarted = false
+	m.nextFDCRestoreClock = 0
 	return nil
 }
 
@@ -120,6 +124,17 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 }
 
 func (m *Machine) advanceClockedDevices() {
+	if !m.fdcRestoreClockStarted && m.Memory != nil && m.Memory.fdcRestorePending &&
+		m.Memory.fdcRestoreStartClock != 0 {
+		m.fdcRestoreClockStarted = true
+		m.nextFDCRestoreClock = fdcRestoreDeadline(m.Memory.fdcRestoreStartClock)
+	}
+	if m.fdcRestoreClockStarted && m.Memory != nil && m.Memory.fdcRestorePending &&
+		m.Clocks >= m.nextFDCRestoreClock {
+		m.Memory.completeFDCRestore()
+		m.fdcRestoreClockStarted = false
+		m.nextFDCRestoreClock = 0
+	}
 	if m.timerDClockStarted && m.Memory != nil && !m.Memory.mfpTimerDStart {
 		m.timerDClockStarted = false
 		m.timerDPeriods = 0
@@ -171,6 +186,12 @@ func (m *Machine) advanceClockedDevices() {
 		m.Memory.deliverIKBDResetResponse()
 		m.ikbdResetRXDeadline = 0
 	}
+}
+
+func fdcRestoreDeadline(start uint64) uint64 {
+	const numerator uint64 = 728 * 8021248
+	const denominator uint64 = 8000000
+	return start + numerator/denominator
 }
 
 func (m *Machine) mfpBInterruptChannel() (uint8, bool) {
