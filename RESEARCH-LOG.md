@@ -354,3 +354,9 @@
 - 固定 Hatari TACR trace為 FrameCycles `44650→44666`、TBCR `44694→44710`、
   TCDCR `44738→44754`，各 16 clocks；三 register 前後皆 `$00`。固定 EmuTOS
   第 7,531 條／177,254 clocks 對拍後，下一輪停在 `$FFFA1F` Timer A Data Register。
+- NXP MC68901 manual §6.2.1 確認四個 TDR/main counter reset=`$00`；timer stopped
+  時 write 同時載入 TDR 與 main counter，read 捕捉 main counter。active write 延後
+  到 count-through-01 reload，臨界 write 可能載入不定值，故留待完整 timer state machine。
+- 固定 Hatari TADR trace為 FrameCycles `44782→44798`、TBDR `44826→44842`、
+  TCDR `44870→44886`、TDDR `44914→44930`，各 16 clocks；四 register 前後皆
+  `$00`。固定 EmuTOS 第 7,547 條／177,430 clocks 對拍後，下一輪停在 `$FFFA27` SCR。

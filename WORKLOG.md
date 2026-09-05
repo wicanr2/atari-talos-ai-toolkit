@@ -260,3 +260,9 @@
   16 clocks；EmuTOS 第 7,531 條／177,254 clocks 全狀態對拍，下一停點 `$FFFA1F`
   Timer A Data Register。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build
   通過，規格 069 升 CONFORMED。
+- 合併完成 MFP TADR／TBDR／TCDR／TDDR `$FFFA1F/$FFFA21/$FFFA23/$FFFA25`
+  stopped-load：timer stopped 時任意 byte 同步載入 data/main counter，active timer
+  因 countdown、capture、reload 與臨界不定值尚未建模而 typed fail-closed。固定
+  Hatari 四次 trace 各 16 clocks；EmuTOS 第 7,547 條／177,430 clocks 全狀態對拍，
+  下一停點 `$FFFA27` SCR。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build
+  通過，規格 070 升 CONFORMED。

@@ -42,8 +42,8 @@ deadline 與 interrupt 仍未接線。
    回 `unsupported_device_state`，且不得改變 state；這是完整 timer state machine
    未接線前的失敗即關閉邊界。
 4. 三位址 byte access各增加 4 wait clocks；EmuTOS 同形 MOVE各 16 clocks。
-5. 完成 TCDCR 後，下一次迴圈在 `$FFFA1F` Timer A Data Register write 維持
-   reserved-I/O fault。
+5. 本規格驗收時以 `$FFFA1F` Timer A Data Register write 的 reserved-I/O fault
+   作為停止線；後續規格 070 只取代這條停止線，不改變 timer control 契約。
 
 ## 驗收與停止線
 
@@ -51,7 +51,8 @@ deadline 與 interrupt 仍未接線。
   user protection、word access及 TADR 未映射。
 - 固定 EmuTOS 應完成第 7,531 條、累計 177,254 clocks，state、prefetch 與三個
   control register 對上 Hatari；再三條控制指令後，第 7,535 次嘗試在 `$FFFA1F`
-  明確停止，成功完成數維持 7,534。
+  明確停止，成功完成數維持 7,534。該停止線其後由規格 070 取代，其他未規格化
+  register 仍未泛化。
 - 完整 230,000 筆 CPU corpus、固定 ROM、Go 測試、靜態檢查與建置均已通過。
 
 ## 玩家路徑、存檔與權利邊界
