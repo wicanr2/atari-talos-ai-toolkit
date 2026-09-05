@@ -29,6 +29,10 @@ func TestSingleStepNOP(t *testing.T) {
 	testSingleStepCorpus(t, "NOP.json.bin")
 }
 
+func TestSingleStepLineF(t *testing.T) {
+	testSingleStepCorpus(t, "ILLEGAL_LINEF.json.bin")
+}
+
 func TestSingleStepMOVEQ(t *testing.T) {
 	testSingleStepCorpus(t, "MOVE.q.json.bin")
 }

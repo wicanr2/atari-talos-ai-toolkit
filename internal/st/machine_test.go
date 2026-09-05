@@ -396,6 +396,57 @@ func TestMachineEmuTOSReachesLineFBoundary(t *testing.T) {
 	}
 }
 
+func TestMachineEmuTOSLineFVector11(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 19; i++ {
+		result, err := machine.Step()
+		if err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+		if i == 18 {
+			wantOffsets := []uint32{0, 6, 8, 12, 16, 20, 24, 28, 32}
+			if result.Clocks != 36 || len(result.Timeline) != len(wantOffsets) {
+				t.Fatalf("line-F timing result=%+v", result)
+			}
+			for phase, want := range wantOffsets {
+				if result.Timeline[phase].Offset != want {
+					t.Fatalf("line-F phase %d offset=%d want %d", phase, result.Timeline[phase].Offset, want)
+				}
+			}
+		}
+	}
+	state := machine.CPU.State
+	if machine.Instructions != 19 || machine.Clocks != 532 || state.PC != 0x00fc00d8 ||
+		state.Prefetch != [2]uint16{0x21fc, 0x00fc} || state.SSP != 0x0fe0 || state.SR != 0x2700 {
+		t.Fatalf("line-F handler instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	for address, want := range map[uint32]uint16{0x0fe0: 0x2700, 0x0fe2: 0x00fc, 0x0fe4: 0x00be} {
+		got, readErr := machine.Memory.ReadWord(address, 5)
+		if readErr != nil || got != want {
+			t.Fatalf("exception frame[%x]=%04x/%v want %04x", address, got, readErr, want)
+		}
+	}
+}
+
 func TestMachineResetWithEmuTOS(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {

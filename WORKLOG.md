@@ -193,3 +193,8 @@
   為 24／26 clocks；固定 EmuTOS 第 14 條由 390→416，RAM／state／prefetch 全同，
   再逐步驗至第 18 條／496 clocks 的 line-F 邊界。完整 227,500 筆語料、固定 ROM、
   靜態檢查與建置通過；規格 056 的正常偶數 destination 切片升 CONFORMED。
+- 完成 MC68000 line-F／vector 11：固定 MAME microcoded 語料 2,500 筆確認核心
+  exception 為 34 clocks，ST timed Bus 由 6-clock internal phase 起算並補 2-clock
+  slot wait。固定 EmuTOS 第 19 條累計 532 clocks 進 `$FC00D4`，6-byte frame、
+  SSP／SR／PC／prefetch 全部通過；CPU 外部語料累計 230,000 筆。向後有界探測至
+  第 6,851 條才停在 `$FF860F` 保留 I/O 讀取，作為下一個規格切片。

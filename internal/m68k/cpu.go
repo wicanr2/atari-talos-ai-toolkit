@@ -145,6 +145,11 @@ func (c *CPU) StepAt(epoch uint64) (StepResult, error) {
 	c.epoch = epoch
 	opcode := c.State.Prefetch[0]
 	switch {
+	case opcode&0xf000 == 0xf000:
+		if _, ok := c.Bus.(TimedBus); ok {
+			return c.enterTimedStandardException(11, c.State.PC-4, 34)
+		}
+		return c.enterStandardException(11, c.State.PC-4, nil, 34)
 	case opcode&0xff00 == 0x0800:
 		return c.stepBit(opcode, true)
 	case opcode&0xf100 == 0x0100:
@@ -1115,6 +1120,84 @@ func (c *CPU) enterStandardException(vector uint8, savedPC uint32, prefix []Tran
 	c.State.Prefetch = [2]uint16{first, second}
 	c.State.PC = handler + 4
 	return StepResult{Clocks: clocks, Transactions: transactions}, nil
+}
+
+func (c *CPU) enterTimedStandardException(vector uint8, savedPC uint32, clocks uint32) (StepResult, error) {
+	originalSR := c.State.SR
+	newSP := c.State.SSP - 6
+	transactions := make([]Transaction, 0, 7)
+	timeline := []BusPhase{{Cycles: clocks - 28}}
+	offset := clocks - 28
+
+	appendWait := func(wait uint32) {
+		if wait != 0 {
+			timeline = append(timeline, BusPhase{Offset: offset, Cycles: wait})
+			offset += wait
+		}
+	}
+	writeWord := func(address uint32, value uint16, fc uint8) error {
+		address &= addressMask
+		wait, err := c.writeWordAt(address, value, fc, offset)
+		if err != nil {
+			return err
+		}
+		appendWait(wait)
+		transaction := writeTransaction(address, fc, value)
+		transactions = append(transactions, transaction)
+		timeline = append(timeline, BusPhase{Offset: offset, Cycles: 4, Transaction: &transaction})
+		offset += 4
+		return nil
+	}
+	readWord := func(address uint32, fc uint8) (uint16, error) {
+		address &= addressMask
+		value, wait, err := c.readWordAt(address, fc, offset)
+		if err != nil {
+			return 0, err
+		}
+		appendWait(wait)
+		transaction := readTransaction(address, fc, value)
+		transactions = append(transactions, transaction)
+		timeline = append(timeline, BusPhase{Offset: offset, Cycles: 4, Transaction: &transaction})
+		offset += 4
+		return value, nil
+	}
+
+	for _, write := range []struct {
+		address uint32
+		value   uint16
+	}{
+		{newSP + 4, uint16(savedPC)},
+		{newSP, originalSR},
+		{newSP + 2, uint16(savedPC >> 16)},
+	} {
+		if err := writeWord(write.address, write.value, 5); err != nil {
+			return StepResult{}, err
+		}
+	}
+	vectorAddress := uint32(vector) * 4
+	high, err := readWord(vectorAddress, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := readWord(vectorAddress+2, 5)
+	if err != nil {
+		return StepResult{}, err
+	}
+	handler := uint32(high)<<16 | uint32(low)
+	first, err := readWord(handler, 6)
+	if err != nil {
+		return StepResult{}, err
+	}
+	second, err := readWord(handler+2, 6)
+	if err != nil {
+		return StepResult{}, err
+	}
+	c.State.SSP = newSP
+	c.State.SR = originalSR | supervisor
+	c.State.SR &^= 0x8000
+	c.State.Prefetch = [2]uint16{first, second}
+	c.State.PC = handler + 4
+	return StepResult{Clocks: offset, Transactions: transactions, Timeline: timeline}, nil
 }
 
 func divideUnsignedClocks(dividend uint32, divisor uint16) uint32 {

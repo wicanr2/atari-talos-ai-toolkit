@@ -19,7 +19,8 @@ if [ -n "${TALOS_M68000_TESTS:-}" ]; then
     /*) CORPUS=$TALOS_M68000_TESTS ;;
     *) CORPUS=$ROOT/$TALOS_M68000_TESTS ;;
   esac
-  [ -f "$CORPUS/NOP.json.bin" ] && [ -f "$CORPUS/MOVE.q.json.bin" ] && \
+  [ -f "$CORPUS/NOP.json.bin" ] && [ -f "$CORPUS/ILLEGAL_LINEF.json.bin" ] && \
+    [ -f "$CORPUS/MOVE.q.json.bin" ] && \
     [ -f "$CORPUS/SWAP.json.bin" ] && [ -f "$CORPUS/EXT.w.json.bin" ] && \
     [ -f "$CORPUS/EXT.l.json.bin" ] && [ -f "$CORPUS/Bcc.json.bin" ] && \
     [ -f "$CORPUS/BSR.json.bin" ] && [ -f "$CORPUS/RTS.json.bin" ] && \
