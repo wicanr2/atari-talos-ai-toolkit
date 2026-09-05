@@ -73,6 +73,12 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepUnaryModify(opcode, false)
 	case opcode&0xff00 == 0x4400 && opcode>>6&3 <= 2:
 		return c.stepUnaryModify(opcode, true)
+	case opcode&0xf1f8 == 0xc140:
+		return c.stepEXG(opcode, 0)
+	case opcode&0xf1f8 == 0xc148:
+		return c.stepEXG(opcode, 1)
+	case opcode&0xf1f8 == 0xc188:
+		return c.stepEXG(opcode, 2)
 	case opcode&0xffc0 == 0xe0c0:
 		return c.stepASRMemory(opcode)
 	case opcode&0xf118 == 0xe000 && opcode>>6&3 <= 2:
@@ -1989,6 +1995,25 @@ func arithmeticLong(destination, source uint32, subtract bool) uint32 {
 		return destination - source
 	}
 	return destination + source
+}
+
+func (c *CPU) stepEXG(opcode uint16, form uint8) (StepResult, error) {
+	left, right := uint8(opcode>>9&7), uint8(opcode&7)
+	switch form {
+	case 0:
+		c.State.D[left], c.State.D[right] = c.State.D[right], c.State.D[left]
+	case 1:
+		leftValue, rightValue := c.addressRegister(left), c.addressRegister(right)
+		c.setAddressRegister(left, rightValue)
+		c.setAddressRegister(right, leftValue)
+	case 2:
+		dataValue, addressValue := c.State.D[left], c.addressRegister(right)
+		c.State.D[left] = addressValue
+		c.setAddressRegister(right, dataValue)
+	default:
+		return StepResult{}, fmt.Errorf("m68k: invalid EXG form %d", form)
+	}
+	return c.refillSequential(controlEA{returnPC: c.State.PC}, 6)
 }
 
 func (c *CPU) stepCMP(opcode uint16) (StepResult, error) {

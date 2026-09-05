@@ -346,6 +346,10 @@ func TestSingleStepCMPA(t *testing.T) {
 	}
 }
 
+func TestSingleStepEXG(t *testing.T) {
+	testSingleStepCorpus(t, "EXG.json.bin")
+}
+
 func TestSingleStepMULS(t *testing.T) {
 	testSingleStepCorpus(t, "MULS.json.bin")
 }

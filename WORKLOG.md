@@ -122,6 +122,9 @@
 - 完成 `SUBA.W/L` 與 `CMPA.W/L`；四份固定語料 10,000 筆涵蓋 word sign extension、
   全部 data source EA、CCR／X、clocks、bus 與 vector 3；並以語料找出及修正
   CMPA.L An-direct 與 CMPM mask 的解碼重疊，累計外部單步驗收 210,000 筆。
+- 完成 `EXG` 三種合法形式；固定語料 2,500 筆涵蓋 Dn↔Dn、An↔An、Dn↔An、
+  A7 stack bank、SR 不變、固定 clocks 與 prefetch bus，全數通過後累計外部單步
+  驗收 212,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

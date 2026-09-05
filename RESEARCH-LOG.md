@@ -186,6 +186,9 @@
 - DM12EN 重建組語有 SUBA 8、CMPA 8 個靜態使用點。四份固定語料共 10,000 筆，
   確認 word source 符號延伸、long source、全部 data EA、CCR／X、clocks、bus 與
   vector 3；`CMPA.L An,An` 必須先於較寬鬆的 CMPM mask 解碼。
+- DM12EN 重建組語有 EXG 6 個靜態使用點，全部是 Dn↔Dn。固定語料 2,500 筆另完整
+  覆蓋 Dn↔Dn 834、An↔An 828、Dn↔An 838，確認 A7 stack bank、SR 不變、固定
+  6 clocks 與 prefetch bus。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁
