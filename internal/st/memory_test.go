@@ -78,6 +78,101 @@ func TestMemoryResetShadowAndROMMirror(t *testing.T) {
 	}
 }
 
+func TestShifterResolutionResetLowMode(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{ShifterResolution, 0xffff8260} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != 0xfc {
+			t.Fatalf("resolution %08x=%02x/%v want fc", address, got, err)
+		}
+		if err := memory.WriteByte(address, 0, 5); err != nil {
+			t.Fatalf("resolution zero write %08x: %v", address, err)
+		}
+	}
+	for _, value := range []byte{1, 2, 3, 0xff} {
+		err := memory.WriteByte(ShifterResolution, value, 5)
+		var fault *BusFault
+		if !errors.As(err, &fault) || fault.Reason != FaultUnsupportedDeviceState {
+			t.Fatalf("resolution value %02x err=%v", value, err)
+		}
+		if got, readErr := memory.ReadByte(ShifterResolution, 5); readErr != nil || got != 0xfc {
+			t.Fatalf("failed write committed value: got=%02x err=%v", got, readErr)
+		}
+	}
+	if _, err := memory.ReadByte(ShifterResolution, 1); err == nil {
+		t.Fatal("user resolution read unexpectedly succeeded")
+	}
+	if err := memory.WriteByte(ShifterResolution, 0, 1); err == nil {
+		t.Fatal("user resolution write unexpectedly succeeded")
+	}
+	for _, address := range []uint32{ShifterResolution - 1, ShifterResolution + 1} {
+		if _, err := memory.ReadByte(address, 5); err == nil {
+			t.Fatalf("adjacent resolution byte %06x unexpectedly mapped", address)
+		}
+	}
+	if _, err := memory.ReadWord(ShifterResolution, 5); err == nil {
+		t.Fatal("resolution word read unexpectedly succeeded")
+	}
+	if err := memory.WriteWord(ShifterResolution, 0, 5); err == nil {
+		t.Fatal("resolution word write unexpectedly succeeded")
+	}
+	if wait, err := memory.WriteByteAt(ShifterResolution, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 2 {
+		t.Fatalf("timed resolution write wait=%d err=%v want 2", wait, err)
+	}
+	memory.shifterResolution = 2
+	memory.ColdReset()
+	if got, err := memory.ReadByte(ShifterResolution, 5); err != nil || got != 0xfc {
+		t.Fatalf("reset resolution=%02x/%v want fc", got, err)
+	}
+}
+
+func TestVideoSyncResetAndFixed50HzTransition(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{VideoSyncMode, 0xffff820a} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != 0xfc {
+			t.Fatalf("sync %08x=%02x/%v want fc", address, got, err)
+		}
+	}
+	if err := memory.WriteByte(VideoSyncMode, 0, 5); err != nil || memory.videoSync50Transition {
+		t.Fatalf("sync zero write err=%v transition=%v", err, memory.videoSync50Transition)
+	}
+	if err := memory.WriteByte(VideoSyncMode, 2, 5); err != nil || !memory.videoSync50Transition {
+		t.Fatalf("sync 0->2 err=%v transition=%v", err, memory.videoSync50Transition)
+	}
+	if got, err := memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfe {
+		t.Fatalf("50 Hz sync=%02x/%v want fe", got, err)
+	}
+	memory.videoSync50Transition = false
+	if err := memory.WriteByte(VideoSyncMode, 2, 5); err != nil || memory.videoSync50Transition {
+		t.Fatalf("sync 2->2 err=%v transition=%v", err, memory.videoSync50Transition)
+	}
+	for _, value := range []byte{0, 1, 3, 0xff} {
+		err := memory.WriteByte(VideoSyncMode, value, 5)
+		var fault *BusFault
+		if !errors.As(err, &fault) || fault.Reason != FaultUnsupportedDeviceState {
+			t.Fatalf("sync value %02x err=%v", value, err)
+		}
+		if got, readErr := memory.ReadByte(VideoSyncMode, 5); readErr != nil || got != 0xfe {
+			t.Fatalf("failed sync write committed: got=%02x err=%v", got, readErr)
+		}
+	}
+	if _, err := memory.ReadByte(VideoSyncMode, 1); err == nil {
+		t.Fatal("user sync read unexpectedly succeeded")
+	}
+	if _, err := memory.ReadWord(VideoSyncMode, 5); err == nil {
+		t.Fatal("sync word read unexpectedly succeeded")
+	}
+	memory.ColdReset()
+	if got, err := memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfc || memory.videoSync50Transition {
+		t.Fatalf("reset sync=%02x/%v transition=%v", got, err, memory.videoSync50Transition)
+	}
+}
+
 func TestMemoryRAMBoundsAndAddressMask(t *testing.T) {
 	for _, size := range []int{RAM512K, RAM1M} {
 		memory, err := NewMemory(size, testROM())

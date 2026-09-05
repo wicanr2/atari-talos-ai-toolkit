@@ -3,16 +3,19 @@ package st
 import "github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
 
 const firstColorSTVBLClock uint64 = 263*508 + 64
+const colorST60HzFrameClocks uint64 = 263 * 508
 const colorST50HzFrameClocks uint64 = 313 * 512
+const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 type Machine struct {
-	CPU          m68k.CPU
-	Memory       *Memory
-	Instructions uint64
-	Interrupts   uint64
-	Clocks       uint64
-	nextVBLClock uint64
-	vblPending   bool
+	CPU            m68k.CPU
+	Memory         *Memory
+	Instructions   uint64
+	Interrupts     uint64
+	Clocks         uint64
+	nextVBLClock   uint64
+	vblFrameClocks uint64
+	vblPending     bool
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -34,6 +37,7 @@ func (m *Machine) Reset() error {
 	m.Interrupts = 0
 	m.Clocks = 0
 	m.nextVBLClock = firstColorSTVBLClock
+	m.vblFrameClocks = colorST60HzFrameClocks
 	m.vblPending = false
 	return nil
 }
@@ -43,7 +47,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	if m.CPU.IsStopped() && !m.vblPending && m.Clocks < m.nextVBLClock {
 		idle = m.nextVBLClock - m.Clocks
 		m.vblPending = true
-		m.nextVBLClock += colorST50HzFrameClocks
+		m.nextVBLClock += m.vblFrameClocks
 	}
 	if m.vblPending {
 		acceptEpoch := m.Clocks + idle
@@ -66,6 +70,14 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
+	if m.Memory != nil && m.Memory.videoSync50Transition {
+		if m.nextVBLClock != firstColorSTVBLClock+3*colorST60HzFrameClocks {
+			return result, &BusFault{Address: VideoSyncMode, FunctionCode: 5, Write: true, Size: 1, Reason: FaultUnsupportedDeviceState}
+		}
+		m.Memory.videoSync50Transition = false
+		m.nextVBLClock += colorSTLineZero50HzExtension
+		m.vblFrameClocks = colorST50HzFrameClocks
+	}
 	m.raiseDueVBL()
 	return result, nil
 }
@@ -73,7 +85,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 func (m *Machine) raiseDueVBL() {
 	if m.nextVBLClock != 0 && m.Clocks >= m.nextVBLClock {
 		m.vblPending = true
-		m.nextVBLClock += colorST50HzFrameClocks
+		m.nextVBLClock += m.vblFrameClocks
 	}
 }
 

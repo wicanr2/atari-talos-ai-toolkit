@@ -7,44 +7,46 @@ import (
 )
 
 const (
-	AddressMask   = 0x00ff_ffff
-	RAM512K       = 512 * 1024
-	RAM1M         = 1024 * 1024
-	TOSROMSize    = 192 * 1024
-	TOSROMBase    = 0x00fc_0000
-	TOSROMEnd     = 0x00fe_ffff
-	CartridgeBase = 0x00fa_0000
-	CartridgeEnd  = 0x00fb_ffff
-	CartridgeSize = 128 * 1024
-	IOBase        = 0x00ff_0000
-	MMUConfig     = 0x00ff_8001
-	MFPGPIP       = 0x00ff_fa01
-	MFPAER        = 0x00ff_fa03
-	MFPDDR        = 0x00ff_fa05
-	MFPIERA       = 0x00ff_fa07
-	MFPIERB       = 0x00ff_fa09
-	MFPIPRA       = 0x00ff_fa0b
-	MFPIPRB       = 0x00ff_fa0d
-	MFPISRA       = 0x00ff_fa0f
-	MFPISRB       = 0x00ff_fa11
-	MFPIMRA       = 0x00ff_fa13
-	MFPIMRB       = 0x00ff_fa15
-	MFPVR         = 0x00ff_fa17
-	MFPTACR       = 0x00ff_fa19
-	MFPTBCR       = 0x00ff_fa1b
-	MFPTCDCR      = 0x00ff_fa1d
-	MFPTADR       = 0x00ff_fa1f
-	MFPTBDR       = 0x00ff_fa21
-	MFPTCDR       = 0x00ff_fa23
-	MFPTDDR       = 0x00ff_fa25
-	MFPSCR        = 0x00ff_fa27
-	MFPUCR        = 0x00ff_fa29
-	MFPRSR        = 0x00ff_fa2b
-	MFPTSR        = 0x00ff_fa2d
-	MFPUDR        = 0x00ff_fa2f
-	STVoidDMAByte = 0x00ff_860f
-	STVoidRTCBase = 0x00ff_fc21
-	STVoidRTCEnd  = 0x00ff_fc3f
+	AddressMask       = 0x00ff_ffff
+	RAM512K           = 512 * 1024
+	RAM1M             = 1024 * 1024
+	TOSROMSize        = 192 * 1024
+	TOSROMBase        = 0x00fc_0000
+	TOSROMEnd         = 0x00fe_ffff
+	CartridgeBase     = 0x00fa_0000
+	CartridgeEnd      = 0x00fb_ffff
+	CartridgeSize     = 128 * 1024
+	IOBase            = 0x00ff_0000
+	MMUConfig         = 0x00ff_8001
+	VideoSyncMode     = 0x00ff_820a
+	ShifterResolution = 0x00ff_8260
+	MFPGPIP           = 0x00ff_fa01
+	MFPAER            = 0x00ff_fa03
+	MFPDDR            = 0x00ff_fa05
+	MFPIERA           = 0x00ff_fa07
+	MFPIERB           = 0x00ff_fa09
+	MFPIPRA           = 0x00ff_fa0b
+	MFPIPRB           = 0x00ff_fa0d
+	MFPISRA           = 0x00ff_fa0f
+	MFPISRB           = 0x00ff_fa11
+	MFPIMRA           = 0x00ff_fa13
+	MFPIMRB           = 0x00ff_fa15
+	MFPVR             = 0x00ff_fa17
+	MFPTACR           = 0x00ff_fa19
+	MFPTBCR           = 0x00ff_fa1b
+	MFPTCDCR          = 0x00ff_fa1d
+	MFPTADR           = 0x00ff_fa1f
+	MFPTBDR           = 0x00ff_fa21
+	MFPTCDR           = 0x00ff_fa23
+	MFPTDDR           = 0x00ff_fa25
+	MFPSCR            = 0x00ff_fa27
+	MFPUCR            = 0x00ff_fa29
+	MFPRSR            = 0x00ff_fa2b
+	MFPTSR            = 0x00ff_fa2d
+	MFPUDR            = 0x00ff_fa2f
+	STVoidDMAByte     = 0x00ff_860f
+	STVoidRTCBase     = 0x00ff_fc21
+	STVoidRTCEnd      = 0x00ff_fc3f
 )
 
 type FaultReason string
@@ -81,38 +83,41 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 }
 
 type Memory struct {
-	ram       []byte
-	rom       []byte
-	mmuConfig byte
-	mfpGPIP   byte
-	mfpGPIPIn byte
-	mfpAER    byte
-	mfpDDR    byte
-	mfpIERA   byte
-	mfpIERB   byte
-	mfpIPRA   byte
-	mfpIPRB   byte
-	mfpISRA   byte
-	mfpISRB   byte
-	mfpIMRA   byte
-	mfpIMRB   byte
-	mfpVR     byte
-	mfpTACR   byte
-	mfpTBCR   byte
-	mfpTCDCR  byte
-	mfpTADR   byte
-	mfpTBDR   byte
-	mfpTCDR   byte
-	mfpTDDR   byte
-	mfpTAMain byte
-	mfpTBMain byte
-	mfpTCMain byte
-	mfpTDMain byte
-	mfpSCR    byte
-	mfpUCR    byte
-	mfpRSR    byte
-	mfpTSR    byte
-	mfpTSRSet bool
+	ram                   []byte
+	rom                   []byte
+	mmuConfig             byte
+	videoSyncMode         byte
+	videoSync50Transition bool
+	shifterResolution     byte
+	mfpGPIP               byte
+	mfpGPIPIn             byte
+	mfpAER                byte
+	mfpDDR                byte
+	mfpIERA               byte
+	mfpIERB               byte
+	mfpIPRA               byte
+	mfpIPRB               byte
+	mfpISRA               byte
+	mfpISRB               byte
+	mfpIMRA               byte
+	mfpIMRB               byte
+	mfpVR                 byte
+	mfpTACR               byte
+	mfpTBCR               byte
+	mfpTCDCR              byte
+	mfpTADR               byte
+	mfpTBDR               byte
+	mfpTCDR               byte
+	mfpTDDR               byte
+	mfpTAMain             byte
+	mfpTBMain             byte
+	mfpTCMain             byte
+	mfpTDMain             byte
+	mfpSCR                byte
+	mfpUCR                byte
+	mfpRSR                byte
+	mfpTSR                byte
+	mfpTSRSet             bool
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -151,6 +156,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	switch {
 	case address == MMUConfig:
 		return m.mmuConfig, nil
+	case address == VideoSyncMode:
+		return m.videoSyncMode | 0xfc, nil
+	case address == ShifterResolution:
+		return m.shifterResolution | 0xfc, nil
 	case address == MFPGPIP:
 		m.mfpGPIP = m.mfpGPIP&m.mfpDDR | m.mfpGPIPIn&^m.mfpDDR
 		return m.mfpGPIP, nil
@@ -281,6 +290,22 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	}
 	if address == MMUConfig {
 		m.mmuConfig = value
+		return nil
+	}
+	if address == VideoSyncMode {
+		if value&^byte(2) != 0 || m.videoSyncMode == 2 && value == 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		if m.videoSyncMode == 0 && value == 2 {
+			m.videoSyncMode = 2
+			m.videoSync50Transition = true
+		}
+		return nil
+	}
+	if address == ShifterResolution {
+		if m.shifterResolution != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		return nil
 	}
 	if address == MFPGPIP {
@@ -506,6 +531,9 @@ func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uin
 
 func (m *Memory) ColdReset() {
 	m.mmuConfig = 0
+	m.videoSyncMode = 0
+	m.videoSync50Transition = false
+	m.shifterResolution = 0
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0

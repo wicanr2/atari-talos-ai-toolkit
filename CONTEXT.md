@@ -253,10 +253,14 @@
   raise pending，mask 7 期間保留，於 `$FC6904` 前 mask 3 接受。`--fast-boot false`
   的 Hatari 與 Talos 在 `$FC0446` handler 入口 D/A、SSP、SR、frame、prefetch 全同；
   guest opcode 真正令 `$466 frclock` 從 0 變 1，沒有由 host 直接寫記憶體。規格 076
-  已補上 50 Hz recurring deadline、E-clock／video IACK 與 STOP 快轉；第二次 handler
-  在 293,984 clocks 完整 state／frame 對上 Hatari，guest 將 `$466` 由 1 增至 2。
-  有界續跑跨過第三次 VBL 後，在 7,654 instructions／3 interrupts／454,504 clocks
-  對 `$FF8260` Shifter resolution byte write 失敗即關閉，這是目前真實 gate。
+  已補上 reset 60 Hz recurring deadline、E-clock／video IACK 與 STOP 快轉；第二次 handler
+  在 267,332 clocks 完整 state／frame 對上 Hatari，guest 將 `$466` 由 1 增至 2。
+  有界續跑跨過第三次 VBL 後，規格 077 已接 `$FF8260` reset／low-resolution 同值寫入：
+  `$FC69E6` 以 12 clocks 完成且完整 state 對上 Hatari。再續跑至 7,662 instructions／
+  3 interrupts／401,270 clocks 抵達 `$FF820A` video sync byte write；規格 078 已接
+  60→50 Hz transition，12 clocks 後把第四 VBL deadline 從 534,480 修正為 Hatari 的
+  535,528，之後 period 為 160,256。再續跑至 7,671 instructions／401,366 clocks，
+  對 `$FF8240` palette word write 失敗即關閉，這是目前真實 gate。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -270,5 +274,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查 Atari Shifter 規格與固定 Hatari trace，規格化 `$FF8260`
-   resolution byte write；不得在 framebuffer／video mode 尚未收斂前把它當普通 latch。
+4. 下一個整機切片先查 Atari Shifter palette 規格與固定 Hatari trace，規格化
+   `$FF8240` word write、ST 9-bit color mask 與 bus timing；不得先假造 framebuffer。

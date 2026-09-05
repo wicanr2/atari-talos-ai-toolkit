@@ -103,7 +103,7 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	machine.CPU.State.A[0] = 0x87654321
 	machine.CPU.State.USP = 0x00abcdef
 	machine.Instructions, machine.Interrupts, machine.Clocks = 99, 3, 1234
-	machine.nextVBLClock, machine.vblPending = 9999, true
+	machine.nextVBLClock, machine.vblFrameClocks, machine.vblPending = 9999, 8888, true
 	if err := machine.Memory.WriteByte(MMUConfig, 0x0a, 5); err != nil {
 		t.Fatal(err)
 	}
@@ -119,9 +119,9 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 		t.Fatalf("reset changed unspecified registers: %+v", state)
 	}
 	if machine.Instructions != 0 || machine.Interrupts != 0 || machine.Clocks != 0 ||
-		machine.nextVBLClock != firstColorSTVBLClock || machine.vblPending {
-		t.Fatalf("reset counters/events instructions=%d interrupts=%d clocks=%d next=%d pending=%v",
-			machine.Instructions, machine.Interrupts, machine.Clocks, machine.nextVBLClock, machine.vblPending)
+		machine.nextVBLClock != firstColorSTVBLClock || machine.vblFrameClocks != colorST60HzFrameClocks || machine.vblPending {
+		t.Fatalf("reset counters/events instructions=%d interrupts=%d clocks=%d next=%d period=%d pending=%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.nextVBLClock, machine.vblFrameClocks, machine.vblPending)
 	}
 	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("machine cold-reset MMU=%02x err=%v", got, err)
@@ -1101,8 +1101,8 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 	}
 	result, err = machine.Step()
 	state = machine.CPU.State
-	if err != nil || result.Clocks != 115740 || machine.Instructions != 7604 || machine.Interrupts != 2 ||
-		machine.Clocks != 293984 || machine.CPU.IsStopped() || state.D != wantSTOPD || state.A != wantSTOPA ||
+	if err != nil || result.Clocks != 89088 || machine.Instructions != 7604 || machine.Interrupts != 2 ||
+		machine.Clocks != 267332 || machine.CPU.IsStopped() || state.D != wantSTOPD || state.A != wantSTOPA ||
 		state.SSP != 0x0f6a || state.SR != 0x2400 || state.PC != 0x00fc044a ||
 		state.Prefetch != [2]uint16{0x52b8, 0x0466} {
 		t.Fatalf("second VBL result=%+v instructions=%d clocks=%d state=%+v err=%v",

@@ -16,11 +16,11 @@ func TestMachineFirstVBLPendingSurvivesMask(t *testing.T) {
 	}
 	machine := Machine{CPU: m68k.CPU{Bus: bus, State: m68k.State{
 		SSP: 0x3000, SR: 0x2700, PC: 0x1004, Prefetch: [2]uint16{0x4e71, 0x4e71},
-	}}, Clocks: firstColorSTVBLClock - 4, nextVBLClock: firstColorSTVBLClock}
+	}}, Clocks: firstColorSTVBLClock - 4, nextVBLClock: firstColorSTVBLClock, vblFrameClocks: colorST60HzFrameClocks}
 	if _, err := machine.Step(); err != nil {
 		t.Fatal(err)
 	}
-	if machine.nextVBLClock != firstColorSTVBLClock+colorST50HzFrameClocks || !machine.vblPending || machine.Instructions != 1 || machine.Interrupts != 0 {
+	if machine.nextVBLClock != firstColorSTVBLClock+colorST60HzFrameClocks || !machine.vblPending || machine.Instructions != 1 || machine.Interrupts != 0 {
 		t.Fatalf("deadline state=%+v", machine)
 	}
 	if _, err := machine.Step(); err != nil {
@@ -102,16 +102,16 @@ func TestMachineStoppedAdvancesToRecurringVBL(t *testing.T) {
 	if _, err := cpu.Step(); err != nil {
 		t.Fatal(err)
 	}
-	machine := Machine{CPU: cpu, Clocks: 200000, nextVBLClock: 293924}
+	machine := Machine{CPU: cpu, Clocks: 200000, nextVBLClock: 267272, vblFrameClocks: colorST60HzFrameClocks}
 	result, err := machine.Step()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Clocks != 93982 || machine.Clocks != 293982 || machine.Interrupts != 1 ||
-		machine.Instructions != 0 || machine.vblPending || machine.nextVBLClock != 454180 {
+	if result.Clocks != 67332 || machine.Clocks != 267332 || machine.Interrupts != 1 ||
+		machine.Instructions != 0 || machine.vblPending || machine.nextVBLClock != 400876 {
 		t.Fatalf("machine=%+v result=%+v", machine, result)
 	}
-	if len(result.Timeline) == 0 || result.Timeline[0] != (m68k.BusPhase{Cycles: 93938}) {
+	if len(result.Timeline) == 0 || result.Timeline[0] != (m68k.BusPhase{Cycles: 67288}) {
 		t.Fatalf("timeline=%+v", result.Timeline)
 	}
 }
@@ -120,9 +120,87 @@ func TestVideoIACKExtraClocks(t *testing.T) {
 	for _, test := range []struct {
 		epoch uint64
 		want  uint32
-	}{{293924, 14}, {133672, 16}, {177950, 18}} {
+	}{{267272, 16}, {400876, 12}, {133672, 16}, {177950, 18}} {
 		if got := videoIACKExtraClocks(test.epoch); got != test.want {
 			t.Fatalf("epoch=%d got=%d want=%d", test.epoch, got, test.want)
 		}
+	}
+}
+
+func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for machine.CPU.State.Prefetch != [2]uint16{0x11c0, 0x8260} {
+		if machine.Instructions > 7700 {
+			t.Fatal("EmuTOS Shifter resolution write was not reached")
+		}
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d clocks=%d: %v", machine.Instructions+1, machine.Clocks, err)
+		}
+	}
+	wantD := [8]uint32{0, 0x18, 1, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA := [7]uint32{0xfffffa2f, 0x3156, 0x00fc68fa, 0, 0, 0x00fc01f4, 0x0ffc}
+	before := machine.CPU.State
+	if machine.Instructions != 7654 || machine.Interrupts != 3 || machine.Clocks != 401192 ||
+		before.D != wantD || before.A != wantA || before.SSP != 0x0f84 || before.SR != 0x2714 ||
+		before.PC != 0x00fc69ea {
+		t.Fatalf("Shifter pre-state instructions=%d interrupts=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, before)
+	}
+	result, err := machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := machine.CPU.State
+	if result.Clocks != 12 || machine.Instructions != 7655 || machine.Clocks != 401204 ||
+		after.D != wantD || after.A != wantA || after.SSP != 0x0f84 || after.SR != 0x2714 ||
+		after.PC != 0x00fc69ee || after.Prefetch != [2]uint16{0x3239, 0x00fc} {
+		t.Fatalf("Shifter post-state result=%+v machine=%+v", result, machine)
+	}
+	if got, err := machine.Memory.ReadByte(ShifterResolution, 5); err != nil || got != 0xfc {
+		t.Fatalf("Shifter resolution=%02x/%v want fc", got, err)
+	}
+	for machine.CPU.State.Prefetch != [2]uint16{0x11c1, 0x820a} {
+		if machine.Instructions > 7700 {
+			t.Fatal("EmuTOS video sync write was not reached")
+		}
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("post-Shifter step %d clocks=%d: %v", machine.Instructions+1, machine.Clocks, err)
+		}
+	}
+	wantSyncD := [8]uint32{0, 2, 1, 0, 0x00080000, 0x00100000, 5, 1}
+	before = machine.CPU.State
+	if machine.Instructions != 7662 || machine.Interrupts != 3 || machine.Clocks != 401270 ||
+		before.D != wantSyncD || before.A != wantA || before.SSP != 0x0f84 || before.SR != 0x2710 ||
+		before.PC != 0x00fc6a06 || machine.nextVBLClock != 534480 ||
+		machine.vblFrameClocks != colorST60HzFrameClocks {
+		t.Fatalf("sync pre-state machine=%+v", machine)
+	}
+	result, err = machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	after = machine.CPU.State
+	if result.Clocks != 12 || machine.Instructions != 7663 || machine.Clocks != 401282 ||
+		after.D != wantSyncD || after.A != wantA || after.SSP != 0x0f84 || after.SR != 0x2710 ||
+		after.PC != 0x00fc6a0a || after.Prefetch != [2]uint16{0x4267, 0x3f00} ||
+		machine.nextVBLClock != 535528 || machine.vblFrameClocks != colorST50HzFrameClocks {
+		t.Fatalf("sync post-state result=%+v machine=%+v", result, machine)
+	}
+	if got, err := machine.Memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfe {
+		t.Fatalf("video sync=%02x/%v want fe", got, err)
 	}
 }

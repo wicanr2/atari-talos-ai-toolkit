@@ -297,11 +297,28 @@
   真正令 `$466` 由 0 變 1，返回後 D3=1；新 STOP gate 為 7,604 instructions、1 interrupt、
   178,228 clocks。完整 232,500 筆 corpus、固定 ROM、全測試、
   `go vet -stdmethods=false ./...` 與 CLI build 通過，規格 075 升 CONFORMED。
-- 完成固定 50 Hz recurring VBL、STOP 快轉與 ST 視訊 IACK：由 Hatari 固定 source
+- 完成 recurring VBL、STOP 快轉與 ST 視訊 IACK的首版；當時未讀 `$FF820A`，誤把
+  reset 後 frame 寫成 50 Hz。由 Hatari 固定 source
   查實 `12-clock IACK start → 10-clock E-clock 對齊 → 10-clock video IACK`，沒有以固定
-  16 clocks 猜補。第二 deadline 為 293,924，Talos 在 293,984 clocks 進入第二次
+  16 clocks 猜補。該輪曾記錄第二 deadline 293,924／handler 293,984；後續第三 VBL
+  trace 證明此數值錯誤，現行收據已依規格 076 訂正為 267,272／267,332。
   `$FC0446`，完整 D/A、SSP、SR、saved PC 與 prefetch 對上 Hatari，guest handler 真正令
   `$466 frclock` 由 1 變 2。同步訂正规格 075 首次 handler 的 machine clock 為 178,012；
   register／frame 結論不變。有界續跑可跨第三次 VBL，於 7,654 instructions、3 interrupts、
-  454,504 clocks 在 `$FF8260` Shifter resolution byte write 失敗即關閉，成為下一 gate。
+  當時記錄的 454,504-clock `$FF8260` gate 也隨同失效，訂正值見下一項。
   規格 076 升 CONFORMED。
+- 完成 Shifter resolution `$FF8260` 的 reset／低解析度同值初始化首切片：Atari hardware
+  map 與固定 Hatari source 確認 byte R/W、bits 1–0 模式及 STF read unused bits 為 1；
+  固定 Hatari／EmuTOS 在 VBL=3、FrameCycles 384 由 `$FC69E6: 11 C0 82 60` 寫 D0=0，
+  12 clocks 後抵 `$FC69EA`。Talos 對上完整 D/A、SSP、SR、prefetch 與 register read `$FC`；
+  medium／high／非法模式仍 typed fail-closed，未冒稱 framebuffer 已完成。有界續跑至
+  第三 VBL trace 同時證實 `$FF820A` 此時仍為 0，故修正 reset recurring frame 為 60 Hz；
+  7,662 instructions／3 interrupts／401,270 clocks，在 `$FF820A` video sync byte write
+  成為下一 gate。規格 077 升 CONFORMED。
+- 完成 GLUE video sync `$FF820A` 固定第 0 線 60→50 Hz transition：Hatari
+  CycleCounter 直接量得 `$FC6A02` 前 401,272／register 0、12 clocks 後 401,284／register 2；
+  VBL4 第一 instruction boundary 535,532、FrameCycles=68，故 event deadline=535,528。
+  這證明切換當幀是原 133,604 clocks 加剩餘 262 lines×4=1,048，而非立刻套完整
+  160,256-clock frame。Talos 在固定 guest path 以 401,270→401,282 完成同狀態寫入，
+  排程改為 next=535,528、後續 period=160,256。下一 gate 為 7,671 instructions／
+  401,366 clocks 的 `$FF8240` palette word write。規格 078 升 CONFORMED。
