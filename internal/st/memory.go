@@ -114,6 +114,7 @@ type Memory struct {
 	fdcStatusTypeI          bool
 	fdcIRQ                  bool
 	fdcInitStage            uint8
+	fdcProbeDrive           int8
 	fdcRestorePending       bool
 	fdcRestoreStartClock    uint64
 	fdcRestoreInactivePolls uint8
@@ -224,9 +225,10 @@ func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
 		return nil, fmt.Errorf("st: TOS ROM size %d, want %d", len(tosROM), TOSROMSize)
 	}
 	return &Memory{
-		ram:       make([]byte, ramSize),
-		rom:       append([]byte(nil), tosROM...),
-		mfpGPIPIn: 0xa1,
+		ram:           make([]byte, ramSize),
+		rom:           append([]byte(nil), tosROM...),
+		mfpGPIPIn:     0xa1,
+		fdcProbeDrive: -1,
 	}, nil
 }
 
@@ -981,6 +983,25 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		}
 		if address == STDMAControl && m.fdcInitStage == 0 && m.psgDriveStage == 3 && value == 0x0080 {
 			m.dmaMode = value
+			m.fdcProbeDrive = 0
+			m.fdcInitStage = 1
+			return nil
+		}
+		if address == STDMAControl && m.fdcInitStage == 14 && m.psgDriveStage == 6 &&
+			m.psgRegisterSelect == 14 && m.psgRegisters[14] == 3 && value == 0x0080 {
+			m.dmaMode = value
+			m.fdcProbeDrive = 1
+			m.fdcRestorePending = false
+			m.fdcRestoreStartClock = 0
+			m.fdcRestoreInactivePolls = 0
+			m.fdcRestoreIRQObserved = false
+			m.fdcStatusReadClock = 0
+			m.fdcData = 0
+			m.fdcSeekPending = false
+			m.fdcSeekStartClock = 0
+			m.fdcSeekInactivePolls = 0
+			m.fdcSeekIRQObserved = false
+			m.fdcSeekStatusReadClock = 0
 			m.fdcInitStage = 1
 			return nil
 		}
@@ -1083,6 +1104,7 @@ func (m *Memory) ColdReset() {
 	m.fdcStatusTypeI = false
 	m.fdcIRQ = false
 	m.fdcInitStage = 0
+	m.fdcProbeDrive = -1
 	m.fdcRestorePending = false
 	m.fdcRestoreStartClock = 0
 	m.fdcRestoreInactivePolls = 0

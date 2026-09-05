@@ -474,3 +474,10 @@
   Talos於290,303 instructions／2,990,890 clocks完成，下一gate為290,312／
   2,990,998的第二顆drive `$FF8606=$0080`。完整240,000筆corpus、固定ROM、全測試、
   vet與build通過，規格108升CONFORMED。
+- 完成第二顆drive的WD1772探測鏈重用：新增明確probe drive身分，
+  由drive 0切到drive 1時只清除每顆drive的restore／seek收據，不重置
+  CPU、MFP、PSG或全局clock。固定ROM於290,970 instructions／2,997,708 clocks
+  完成stage14；restore與seek各九次inactive poll，兩次status `$E4`均清IRQ。
+  下一gate為291,291 instructions／3,001,516 clocks的DMA位址暫存器
+  `$FF860D` byte write。完整240,000筆corpus、固定ROM、全測試、vet與build
+  通過，規格109升CONFORMED。

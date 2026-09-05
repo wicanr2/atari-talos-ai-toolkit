@@ -1561,7 +1561,6 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.fdcSeekStartClock, machine.Memory.fdcSeekStatusReadClock,
 			machine.nextFDCSeekClock)
 	}
-	var nextGate error
 	for steps := 0; steps < 128 && machine.Memory.psgDriveStage < 6; steps++ {
 		if _, err := machine.Step(); err != nil {
 			t.Fatalf("drive-one PSG instructions=%d interrupts=%d clocks=%d state=%+v stage/R14=%d/%02x: %v",
@@ -1586,14 +1585,64 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		t.Fatalf("drive-one PSG exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, state)
 	}
-	for steps := 0; steps < 64 && nextGate == nil; steps++ {
+	for steps := 0; steps < 1024 && !(machine.Memory.fdcProbeDrive == 1 && machine.Memory.fdcInitStage == 14); steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("drive-one FDC instructions=%d interrupts=%d clocks=%d state=%+v drive/stage/restorePolls/seekPolls=%d/%d/%d/%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.fdcProbeDrive, machine.Memory.fdcInitStage,
+				machine.Memory.fdcRestoreInactivePolls, machine.Memory.fdcSeekInactivePolls, err)
+		}
+	}
+	if machine.Memory.fdcProbeDrive != 1 || machine.Memory.fdcInitStage != 14 ||
+		machine.Memory.fdcData != 0 || machine.Memory.fdcCommand != 0x13 ||
+		machine.Memory.fdcStatus != 0xe4 || machine.Memory.fdcRestoreInactivePolls != 9 ||
+		machine.Memory.fdcSeekInactivePolls != 9 || !machine.Memory.fdcRestoreIRQObserved ||
+		!machine.Memory.fdcSeekIRQObserved || machine.Memory.fdcRestorePending ||
+		machine.Memory.fdcSeekPending || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn&0x20 == 0 ||
+		machine.Memory.fdcRestoreStartClock == 0 || machine.Memory.fdcStatusReadClock == 0 ||
+		machine.Memory.fdcSeekStartClock == 0 || machine.Memory.fdcSeekStatusReadClock == 0 ||
+		machine.nextFDCRestoreClock != 0 || machine.nextFDCSeekClock != 0 {
+		t.Fatalf("drive-one FDC boundary instructions=%d interrupts=%d clocks=%d state=%+v drive/stage/data/command/status/restorePolls/seekPolls/restoreObserved/seekObserved/restorePending/seekPending/IRQ/GPIP/start/read/seekStart/seekRead/nextRestore/nextSeek=%d/%d/%02x/%02x/%02x/%d/%d/%v/%v/%v/%v/%v/%02x/%d/%d/%d/%d/%d/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.fdcProbeDrive, machine.Memory.fdcInitStage, machine.Memory.fdcData,
+			machine.Memory.fdcCommand, machine.Memory.fdcStatus,
+			machine.Memory.fdcRestoreInactivePolls, machine.Memory.fdcSeekInactivePolls,
+			machine.Memory.fdcRestoreIRQObserved, machine.Memory.fdcSeekIRQObserved,
+			machine.Memory.fdcRestorePending, machine.Memory.fdcSeekPending, machine.Memory.fdcIRQ,
+			machine.Memory.mfpGPIPIn, machine.Memory.fdcRestoreStartClock,
+			machine.Memory.fdcStatusReadClock, machine.Memory.fdcSeekStartClock,
+			machine.Memory.fdcSeekStatusReadClock, machine.nextFDCRestoreClock,
+			machine.nextFDCSeekClock)
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{0xffff00e4, 0x0091, 0x01b4, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA = [7]uint32{1, 2, 0x0000301e, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 290970 || machine.Interrupts != 234 || machine.Clocks != 2997708 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f46 ||
+		state.SR != 0x2310 || state.PC != 0x00fc38a0 ||
+		state.Prefetch != [2]uint16{0x4e75, 0x2f0a} ||
+		machine.Memory.fdcRestoreStartClock != 2992662 ||
+		machine.Memory.fdcStatusReadClock != 2994002 ||
+		machine.Memory.fdcSeekStartClock != 2996378 ||
+		machine.Memory.fdcSeekStatusReadClock != 2997694 {
+		t.Fatalf("drive-one FDC exact boundary instructions=%d interrupts=%d clocks=%d state=%+v restore=%d/%d seek=%d/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.fdcRestoreStartClock, machine.Memory.fdcStatusReadClock,
+			machine.Memory.fdcSeekStartClock, machine.Memory.fdcSeekStatusReadClock)
+	}
+	var nextGate error
+	for steps := 0; steps < 10_000 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	var busFault *BusFault
-	if !errors.As(nextGate, &busFault) || busFault.Address != STDMAControl || !busFault.Write ||
-		busFault.Size != 2 || machine.Instructions != 290312 || machine.Interrupts != 234 ||
-		machine.Clocks != 2990998 || machine.CPU.State.PC != 0x00fc3728 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
+	if !errors.As(nextGate, &busFault) || busFault.Address != 0x00ff860d || !busFault.Write ||
+		busFault.Size != 1 || busFault.FunctionCode != 5 || busFault.Reason != FaultReservedIO ||
+		machine.Instructions != 291291 || machine.Interrupts != 234 || machine.Clocks != 3001516 ||
+		machine.CPU.State.D != [8]uint32{9, 0, 0, 0, 0x1004, 0x00100000, 0, 1} ||
+		machine.CPU.State.A != [7]uint32{0x0eb6, 2, 0x0e9c, 0x00fcd074, 0x00fc1116, 0x0e9c, 0x0eba} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e30 ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc3600 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x860d, 0x11ef} {
 		t.Fatalf("next gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}

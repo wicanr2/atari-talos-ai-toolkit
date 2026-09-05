@@ -1174,9 +1174,9 @@ func TestSTFDCForceInterruptInit(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(0xffff8606, 0x0080,
 		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
-		memory.dmaMode != 0x0080 || memory.fdcInitStage != 1 {
-		t.Fatalf("DMA mode wait/err/mode/stage=%d/%v/%04x/%d", wait, err,
-			memory.dmaMode, memory.fdcInitStage)
+		memory.dmaMode != 0x0080 || memory.fdcInitStage != 1 || memory.fdcProbeDrive != 0 {
+		t.Fatalf("DMA mode wait/err/mode/stage/drive=%d/%v/%04x/%d/%d", wait, err,
+			memory.dmaMode, memory.fdcInitStage, memory.fdcProbeDrive)
 	}
 	if err := memory.WriteWord(STDiskController, 0x000b, 5); err == nil ||
 		memory.fdcInitStage != 1 || memory.fdcCommand != 0 {
@@ -1209,6 +1209,47 @@ func TestSTFDCForceInterruptInit(t *testing.T) {
 		t.Fatalf("FDC reset mode/command/status/typeI/IRQ/stage/GPIP=%04x/%02x/%02x/%v/%v/%d/%02x",
 			memory.dmaMode, memory.fdcCommand, memory.fdcStatus, memory.fdcStatusTypeI,
 			memory.fdcIRQ, memory.fdcInitStage, memory.mfpGPIPIn)
+	}
+	if memory.fdcProbeDrive != -1 {
+		t.Fatalf("FDC reset probe drive=%d want -1", memory.fdcProbeDrive)
+	}
+}
+
+func TestFDCDriveOneRestartsProbeWithoutDriveZeroReceipts(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 6
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[14] = 3
+	memory.fdcInitStage = 14
+	memory.fdcProbeDrive = 0
+	memory.fdcRestoreStartClock = 11
+	memory.fdcRestoreInactivePolls = 9
+	memory.fdcRestoreIRQObserved = true
+	memory.fdcStatusReadClock = 22
+	memory.fdcData = 7
+	memory.fdcSeekStartClock = 33
+	memory.fdcSeekInactivePolls = 9
+	memory.fdcSeekIRQObserved = true
+	memory.fdcSeekStatusReadClock = 44
+
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 {
+		t.Fatalf("drive-one restart wait/err=%d/%v", wait, err)
+	}
+	if memory.fdcProbeDrive != 1 || memory.fdcInitStage != 1 || memory.dmaMode != 0x0080 ||
+		memory.fdcRestoreStartClock != 0 || memory.fdcRestoreInactivePolls != 0 ||
+		memory.fdcRestoreIRQObserved || memory.fdcStatusReadClock != 0 || memory.fdcData != 0 ||
+		memory.fdcSeekStartClock != 0 || memory.fdcSeekInactivePolls != 0 ||
+		memory.fdcSeekIRQObserved || memory.fdcSeekStatusReadClock != 0 {
+		t.Fatalf("drive-one restart state=%+v", memory)
+	}
+	if err := memory.WriteWord(STDiskController, 0x00d0, 5); err != nil ||
+		memory.fdcInitStage != 2 || memory.fdcCommand != 0xd0 || memory.fdcStatus != 0x80 {
+		t.Fatalf("drive-one force err/stage/command/status=%v/%d/%02x/%02x", err,
+			memory.fdcInitStage, memory.fdcCommand, memory.fdcStatus)
 	}
 }
 
