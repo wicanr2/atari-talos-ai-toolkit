@@ -516,8 +516,64 @@ func TestMFPVectorRegister(t *testing.T) {
 		t.Fatalf("VR/ISR after M68K reset=%02x/%02x/%02x err=%v",
 			got, memory.mfpISRA, memory.mfpISRB, err)
 	}
-	if _, err := memory.ReadByte(MFPVR+2, 5); err == nil {
-		t.Fatal("neighboring TACR unexpectedly mapped")
+}
+
+func TestMFPTimerControlResetStopWrites(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		address uint32
+		set     func(*Memory, byte)
+	}{
+		{name: "TACR", address: MFPTACR, set: func(m *Memory, value byte) { m.mfpTACR = value }},
+		{name: "TBCR", address: MFPTBCR, set: func(m *Memory, value byte) { m.mfpTBCR = value }},
+		{name: "TCDCR", address: MFPTCDCR, set: func(m *Memory, value byte) { m.mfpTCDCR = value }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			memory, err := NewMemory(RAM1M, testROM())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+				t.Fatalf("reset %s=%02x/%v want 00", test.name, got, err)
+			}
+			if wait, err := memory.WriteByteAt(test.address|0xff000000, 0,
+				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
+			}
+			if err := memory.WriteByte(test.address, 1, 5); err == nil {
+				t.Fatalf("nonzero %s write unexpectedly succeeded", test.name)
+			}
+			if got, _ := memory.ReadByte(test.address, 5); got != 0 {
+				t.Fatalf("failed %s write changed value to %02x", test.name, got)
+			}
+			test.set(memory, 1)
+			if err := memory.WriteByte(test.address, 0, 5); err == nil {
+				t.Fatalf("active %s stop unexpectedly succeeded", test.name)
+			}
+			if got, _ := memory.ReadByte(test.address, 5); got != 1 {
+				t.Fatalf("failed active %s stop changed value to %02x", test.name, got)
+			}
+			if _, err := memory.ReadByte(test.address, 1); err == nil {
+				t.Fatalf("user %s read unexpectedly succeeded", test.name)
+			}
+			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+				t.Fatalf("user %s write unexpectedly succeeded", test.name)
+			}
+			if _, err := memory.ReadWord(test.address, 5); err == nil {
+				t.Fatalf("odd %s word read unexpectedly succeeded", test.name)
+			}
+			if err := memory.M68KReset(); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+				t.Fatalf("%s after M68K reset=%02x/%v want 00", test.name, got, err)
+			}
+		})
+	}
+	if memory, err := NewMemory(RAM1M, testROM()); err != nil {
+		t.Fatal(err)
+	} else if _, err := memory.ReadByte(MFPTCDCR+2, 5); err == nil {
+		t.Fatal("neighboring TADR unexpectedly mapped")
 	}
 }
 

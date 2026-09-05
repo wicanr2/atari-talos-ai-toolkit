@@ -348,3 +348,9 @@
 - 固定 Hatari VR trace為 FrameCycles `44606→44622`，共 16 clocks；VR、ISRA、
   ISRB 前後皆 `$00`。固定 EmuTOS 第 7,519 條／177,122 clocks 對拍後，下一輪
   停在 `$FFFA19` Timer A Control Register write。
+- NXP MC68901 manual §6.2.2 確認 TACR／TBCR／TCDCR reset=`$00`，control 0
+  表示停止，main counter 保留而 prescaler residual 丟失；非零 control 會進入
+  delay／event-count／pulse-width mode，TACR／TBCR bit 4 另會拉低 output。
+- 固定 Hatari TACR trace為 FrameCycles `44650→44666`、TBCR `44694→44710`、
+  TCDCR `44738→44754`，各 16 clocks；三 register 前後皆 `$00`。固定 EmuTOS
+  第 7,531 條／177,254 clocks 對拍後，下一輪停在 `$FFFA1F` Timer A Data Register。

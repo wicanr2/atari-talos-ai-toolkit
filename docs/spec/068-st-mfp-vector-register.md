@@ -42,8 +42,8 @@ priority、IACK 與實際 vector delivery 仍未接線。
 4. 若寫入 automatic EOI 時 IPRA 或 IPRB 非零，回 `unsupported_device_state`；
    VR、ISR、IPR 都不得改變。這是 IRQ 重新評估尚未接線前的失敗即關閉邊界。
 5. byte access 增加 4 wait clocks；EmuTOS 同形 MOVE為 16 clocks。
-6. 完成 VR 後，下一次迴圈在 `$FFFA19` Timer A Control Register write 維持
-   reserved-I/O fault。
+6. 本規格驗收時以 `$FFFA19` Timer A Control Register write 的 reserved-I/O
+   fault 作為停止線；後續規格 069 只取代這條停止線，不改變 VR 契約。
 
 ## 驗收與停止線
 
@@ -52,7 +52,8 @@ priority、IACK 與實際 vector delivery 仍未接線。
   protection、word access及 TACR 未映射。
 - 固定 EmuTOS 應完成第 7,519 條、累計 177,122 clocks，state、prefetch、VR、
   ISRA／ISRB 對上 Hatari；再三條控制指令後，第 7,523 次嘗試在 `$FFFA19`
-  明確停止，成功完成數維持 7,522。
+  明確停止，成功完成數維持 7,522。該停止線其後由規格 069 取代，其他未規格化
+  register 仍未泛化。
 - 完整 230,000 筆 CPU corpus、固定 ROM、Go 測試、靜態檢查與建置均已通過。
 
 ## 玩家路徑、存檔與權利邊界

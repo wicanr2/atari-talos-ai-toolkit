@@ -221,6 +221,11 @@
   清 ISRA／ISRB 已接。pending 非零且切 automatic 時因 IRQ 尚未建模而原子失敗。
   固定 EmuTOS 現可完成 7,519 條／177,122 clocks；再完成三條控制指令後，
   第 7,523 次嘗試在 `$FFFA19` Timer A Control Register 失敗即關閉。
+- MFP TACR／TBCR／TCDCR `$FFFA19/$FFFA1B/$FFFA1D` reset-stop 已 CONFORMED：
+  只接 reset/read 與 `$00→$00` 停止寫入；所有會啟動 prescaler、counter、output
+  或 interrupt 的非零 control 都明確失敗。固定 EmuTOS 現可完成 7,531 條／
+  177,254 clocks；再完成三條控制指令後，第 7,535 次嘗試在 `$FFFA1F` Timer A
+  Data Register 失敗即關閉。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -234,5 +239,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 `$FFFA19/$FFFA1B/$FFFA1D` MFP Timer A／B／C-D
-   Control Register 的 reset、stop mode、timer state 與 clocks，再繼續固定 ROM 開機對拍。
+4. 下一個整機切片先查證並規格化 `$FFFA1F/$FFFA21/$FFFA23/$FFFA25` MFP Timer
+   Data Registers 的 reset、main-counter load/read 與 clocks，再繼續固定 ROM 開機對拍。

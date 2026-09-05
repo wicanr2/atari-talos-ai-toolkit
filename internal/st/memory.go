@@ -30,6 +30,9 @@ const (
 	MFPIMRA       = 0x00ff_fa13
 	MFPIMRB       = 0x00ff_fa15
 	MFPVR         = 0x00ff_fa17
+	MFPTACR       = 0x00ff_fa19
+	MFPTBCR       = 0x00ff_fa1b
+	MFPTCDCR      = 0x00ff_fa1d
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -84,6 +87,9 @@ type Memory struct {
 	mfpIMRA   byte
 	mfpIMRB   byte
 	mfpVR     byte
+	mfpTACR   byte
+	mfpTBCR   byte
+	mfpTCDCR  byte
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -95,7 +101,7 @@ func (m *Memory) isModeledMFPByte(address uint32) bool {
 	return address == MFPGPIP || address == MFPAER || address == MFPDDR ||
 		address == MFPIERA || address == MFPIERB || address == MFPIPRA || address == MFPIPRB ||
 		address == MFPISRA || address == MFPISRB || address == MFPIMRA || address == MFPIMRB ||
-		address == MFPVR
+		address == MFPVR || address == MFPTACR || address == MFPTBCR || address == MFPTCDCR
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -140,6 +146,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.mfpIMRB, nil
 	case address == MFPVR:
 		return m.mfpVR & 0xf8, nil
+	case address == MFPTACR:
+		return m.mfpTACR, nil
+	case address == MFPTBCR:
+		return m.mfpTBCR, nil
+	case address == MFPTCDCR:
+		return m.mfpTCDCR, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -280,6 +292,24 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		}
 		return nil
 	}
+	if address == MFPTACR {
+		if m.mfpTACR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if address == MFPTBCR {
+		if m.mfpTBCR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if address == MFPTCDCR {
+		if m.mfpTCDCR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -373,6 +403,9 @@ func (m *Memory) ColdReset() {
 	m.mfpIMRA = 0
 	m.mfpIMRB = 0
 	m.mfpVR = 0
+	m.mfpTACR = 0
+	m.mfpTBCR = 0
+	m.mfpTCDCR = 0
 }
 
 func (m *Memory) M68KReset() error {

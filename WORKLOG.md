@@ -254,3 +254,9 @@
   固定 Hatari trace 為 16 clocks；EmuTOS 第 7,519 條／177,122 clocks 全狀態對拍，
   下一停點 `$FFFA19` Timer A Control Register。完整 230,000 筆 corpus、固定 ROM、
   全測試、vet 與 build 通過，規格 068 升 CONFORMED。
+- 合併完成 MFP TACR／TBCR／TCDCR `$FFFA19/$FFFA1B/$FFFA1D` reset-stop：
+  依 NXP manual 只接 reset/read 與 `$00→$00`，非零 control 因 prescaler、counter、
+  output 與 interrupt 尚未建模而 typed fail-closed。固定 Hatari 三次 trace 各
+  16 clocks；EmuTOS 第 7,531 條／177,254 clocks 全狀態對拍，下一停點 `$FFFA1F`
+  Timer A Data Register。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build
+  通過，規格 069 升 CONFORMED。
