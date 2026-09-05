@@ -236,3 +236,9 @@
   alias、wait、保護與寬度錯誤。Hatari 兩次 trace 各 16 clocks；固定 EmuTOS
   第 7,499 條／176,902 clocks 全狀態對拍，下一停點 `$FFFA0F` ISRA。完整 corpus、
   固定 ROM、全測試、vet 與 build 通過，規格 065 升 CONFORMED。
+- 完成 MFP ISRA／ISRB `$FFFA0F/$FFFA11` write-zero-to-clear：依 NXP manual
+  的 automatic／software EOI 與 in-service 契約，實作 reset/read latch 及
+  `in_service &= value`；IACK、priority、IRQ 與 Vector Register 明確留在範圍外。
+  Hatari 兩次 trace 各 16 clocks；固定 EmuTOS 第 7,507 條／176,990 clocks 全狀態
+  對拍，下一停點 `$FFFA13` IMRA。完整 230,000 筆 corpus、固定 ROM、全測試、
+  vet 與 build 通過，規格 066 升 CONFORMED。

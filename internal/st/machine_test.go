@@ -791,14 +791,59 @@ func TestMachineEmuTOSClearsMFPResetIPRs(t *testing.T) {
 			t.Fatalf("MFP IPR %06x=%02x/%v want 00", address, got, err)
 		}
 	}
-	for machine.Instructions < 7502 {
-		if _, err := machine.Step(); err != nil {
-			t.Fatalf("post-IPRB step %d: %v", machine.Instructions+1, err)
+}
+
+func TestMachineEmuTOSClearsMFPResetISRs(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 7507; i++ {
+		result, stepErr := machine.Step()
+		if stepErr != nil {
+			t.Fatalf("step %d: %v", i+1, stepErr)
+		}
+		if (i == 7502 || i == 7506) && result.Clocks != 16 {
+			t.Fatalf("MFP ISR write step %d clocks=%d want 16", i+1, result.Clocks)
 		}
 	}
-	if _, err := machine.Step(); err == nil || machine.Instructions != 7502 ||
-		machine.CPU.State.A[0] != 0xfffffa0f {
-		t.Fatalf("next ISRA stop instructions=%d A0=%08x err=%v",
+	state := machine.CPU.State
+	wantD := [8]uint32{0x1e, 2, 0, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA := [7]uint32{0xfffffa11, 0x3156, 0, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 7507 || machine.Clocks != 176990 || state.D != wantD || state.A != wantA ||
+		state.USP != 0 || state.SSP != 0x0f8c || state.SR != 0x2714 || state.PC != 0x00fc6152 ||
+		state.Prefetch != [2]uint16{0x5488, 0xb0fc} {
+		t.Fatalf("MFP ISR boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	for _, address := range []uint32{MFPISRA, MFPISRB} {
+		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+			t.Fatalf("MFP ISR %06x=%02x/%v want 00", address, got, err)
+		}
+	}
+	for machine.Instructions < 7510 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("post-ISRB step %d: %v", machine.Instructions+1, err)
+		}
+	}
+	if _, err := machine.Step(); err == nil || machine.Instructions != 7510 ||
+		machine.CPU.State.A[0] != 0xfffffa13 {
+		t.Fatalf("next IMRA stop instructions=%d A0=%08x err=%v",
 			machine.Instructions, machine.CPU.State.A[0], err)
 	}
 }

@@ -327,3 +327,10 @@
 - 固定 Hatari IPRA trace為 FrameCycles `44342→44358`，IPRB 為
   `44386→44402`，各 16 clocks；兩 register 前後皆 `$00`。固定 EmuTOS 第 7,499 條／
   176,902 clocks 對拍後，下一輪停在 `$FFFA0F` ISRA write。
+- NXP MC68901 manual §4.3.4、§4.4.1–§4.4.3 確認 ISRA／ISRB reset=`$00`；
+  automatic EOI 強制 bits 為 0，software EOI 在 IACK 時設 bit，processor 只能
+  寫 0 清除、寫 1 保留。固定 Hatari handlers 亦採 `in_service &= written`，
+  並在 access 加 4 wait clocks後重新評估 IRQ。
+- 固定 Hatari ISRA trace為 FrameCycles `44430→44446`，ISRB 為
+  `44474→44490`，各 16 clocks；兩 register 前後皆 `$00`。固定 EmuTOS 第 7,507 條／
+  176,990 clocks 對拍後，下一輪停在 `$FFFA13` IMRA write。

@@ -347,10 +347,59 @@ func TestMFPIPRWriteZeroToClear(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMFPISRWriteZeroToClear(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		address uint32
+		set     func(*Memory, byte)
+	}{
+		{name: "ISRA", address: MFPISRA, set: func(m *Memory, value byte) { m.mfpISRA = value }},
+		{name: "ISRB", address: MFPISRB, set: func(m *Memory, value byte) { m.mfpISRB = value }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			memory, err := NewMemory(RAM1M, testROM())
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.set(memory, 0xa5)
+			if wait, err := memory.WriteByteAt(test.address|0xff000000, 0x3c,
+				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+				t.Fatalf("timed %s clear wait=%d err=%v", test.name, wait, err)
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0x24 {
+				t.Fatalf("masked %s=%02x/%v want 24", test.name, got, err)
+			}
+			test.set(memory, 0)
+			if err := memory.WriteByte(test.address, 0xff, 5); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := memory.ReadByte(test.address, 5); got != 0 {
+				t.Fatalf("software set %s to %02x", test.name, got)
+			}
+			if _, err := memory.ReadByte(test.address, 1); err == nil {
+				t.Fatalf("user %s read unexpectedly succeeded", test.name)
+			}
+			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+				t.Fatalf("user %s write unexpectedly succeeded", test.name)
+			}
+			if _, err := memory.ReadWord(test.address, 5); err == nil {
+				t.Fatalf("odd %s word read unexpectedly succeeded", test.name)
+			}
+			test.set(memory, 0xff)
+			if err := memory.M68KReset(); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+				t.Fatalf("%s after M68K reset=%02x/%v want 00", test.name, got, err)
+			}
+		})
+	}
 	if memory, err := NewMemory(RAM1M, testROM()); err != nil {
 		t.Fatal(err)
-	} else if _, err := memory.ReadByte(MFPIPRB+2, 5); err == nil {
-		t.Fatal("neighboring ISRA unexpectedly mapped")
+	} else if _, err := memory.ReadByte(MFPISRB+2, 5); err == nil {
+		t.Fatal("neighboring IMRA unexpectedly mapped")
 	}
 }
 

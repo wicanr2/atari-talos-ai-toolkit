@@ -25,6 +25,8 @@ const (
 	MFPIERB       = 0x00ff_fa09
 	MFPIPRA       = 0x00ff_fa0b
 	MFPIPRB       = 0x00ff_fa0d
+	MFPISRA       = 0x00ff_fa0f
+	MFPISRB       = 0x00ff_fa11
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -74,6 +76,8 @@ type Memory struct {
 	mfpIERB   byte
 	mfpIPRA   byte
 	mfpIPRB   byte
+	mfpISRA   byte
+	mfpISRB   byte
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -83,7 +87,8 @@ func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
 func (m *Memory) isModeledMFPByte(address uint32) bool {
 	address &= AddressMask
 	return address == MFPGPIP || address == MFPAER || address == MFPDDR ||
-		address == MFPIERA || address == MFPIERB || address == MFPIPRA || address == MFPIPRB
+		address == MFPIERA || address == MFPIERB || address == MFPIPRA || address == MFPIPRB ||
+		address == MFPISRA || address == MFPISRB
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -118,6 +123,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.mfpIPRA, nil
 	case address == MFPIPRB:
 		return m.mfpIPRB, nil
+	case address == MFPISRA:
+		return m.mfpISRA, nil
+	case address == MFPISRB:
+		return m.mfpISRB, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -224,6 +233,14 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mfpIPRB &= value
 		return nil
 	}
+	if address == MFPISRA {
+		m.mfpISRA &= value
+		return nil
+	}
+	if address == MFPISRB {
+		m.mfpISRB &= value
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -312,6 +329,8 @@ func (m *Memory) ColdReset() {
 	m.mfpIERB = 0
 	m.mfpIPRA = 0
 	m.mfpIPRB = 0
+	m.mfpISRA = 0
+	m.mfpISRB = 0
 }
 
 func (m *Memory) M68KReset() error {

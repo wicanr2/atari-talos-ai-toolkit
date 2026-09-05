@@ -40,7 +40,8 @@
    write bit 1 保留既有值，不能把 0 設成 1。此切片可測試注入 latch，但尚無公開
    interrupt source 可將其設為 1，且不宣稱 IRQ output 已完成。
 4. 兩位址 byte access各增加 4 wait clocks；EmuTOS 同形 MOVE各 16 clocks。
-5. 完成 IPRB 後，下一次迴圈在 `$FFFA0F` ISRA write 維持 reserved-I/O fault。
+5. 本規格驗收時以 `$FFFA0F` ISRA write 的 reserved-I/O fault 作為停止線；
+   後續規格 066 只取代這條停止線，不改變 IPR 契約。
 
 ## 驗收與停止線
 
@@ -48,5 +49,6 @@
   wait、user protection、word access及 ISRA 未映射。
 - 固定 EmuTOS 完成第 7,499 條、累計 **176,902 clocks**；state、prefetch、
   IPRA／IPRB 對上 Hatari。再完成三條控制指令後，第 7,503 次嘗試在
-  `$FFFA0F` ISRA 明確停止，成功完成數維持 7,502。
+  `$FFFA0F` ISRA 明確停止，成功完成數維持 7,502。該停止線其後由規格 066
+  取代，其他未規格化 register 仍未泛化。
 - 完整 230,000 筆 CPU corpus、固定 ROM、Go 測試、靜態檢查與建置均已通過。
