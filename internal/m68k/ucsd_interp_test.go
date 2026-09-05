@@ -32,6 +32,9 @@ const (
 	interpLDL      = 0x0534 // 載入區域變數 1–16（opcode 0x20–0x2f）
 	interpIXA      = 0x0952 // 陣列索引（p-code 的 ixa）
 	interpLoop     = 0x00de // 分派迴圈：取 opcode、查表、跳進常式
+	interpSLLA     = 0x0554 // 取區域變數位址 1–8（opcode $60–$67）
+	interpSSTL     = 0x057c // 存入區域變數 1–8（opcode $68–$6f）
+	interpInvalid  = 0x0304 // 無效 opcode 的錯誤路徑（錯誤碼 11）
 
 	// 測試選的記憶體佈局。直譯器實際載入位址由 p-system 決定，這裡挑一個非零基底，
 	// 若某個切片其實依賴絕對位址或 PC-relative，測試會失敗而不是碰巧通過。
@@ -381,5 +384,113 @@ func TestUCSDInterpDispatchLoopMixesOpcodeFamilies(t *testing.T) {
 	}
 	if got := h.cpu.State.A[4]; got != operandStream+4 {
 		t.Fatalf("a4 停在 0x%06x，want 0x%06x（ixa 的運算元佔一個位元組）", got, operandStream+4)
+	}
+}
+
+// TestUCSDInterpDispatchTableShape 驗證整張分派表的形狀。
+//
+// 254 個 opcode 分派到哪裡，是這份直譯器能力範圍的完整地圖。這一條把它釘住：
+// 常式支數、無效 opcode 的集合、以及「opcode $9C 指回迴圈本身」——那是一條 NOP。
+// 表是資料，這一條不執行任何指令。
+func TestUCSDInterpDispatchTableShape(t *testing.T) {
+	image := loadInterp(t)
+	entry := func(opcode int) uint16 {
+		at := interpDispatch + opcode*2
+		return uint16(image[at])<<8 | uint16(image[at+1])
+	}
+	targets := map[uint16]int{}
+	for opcode := 0; opcode < 256; opcode++ {
+		targets[entry(opcode)]++
+	}
+	const wantRoutines, wantInvalid = 107, 45
+	if len(targets) != wantRoutines {
+		t.Fatalf("分派表指向 %d 支常式，want %d", len(targets), wantRoutines)
+	}
+	// 無效 opcode 全部收斂到同一支錯誤常式。
+	if got := targets[interpInvalid]; got != wantInvalid {
+		t.Fatalf("%d 個 opcode 指向錯誤常式，want %d", got, wantInvalid)
+	}
+	for _, opcode := range []int{0x40, 0x5f, 0xaa, 0xaf, 0xf5, 0xff} {
+		if got := entry(opcode); got != interpInvalid {
+			t.Fatalf("opcode 0x%02x 指向 0x%04x，want 0x%04x（無效）", opcode, got, interpInvalid)
+		}
+	}
+	// opcode $9C 的表項就是迴圈起點：進去以後直接取下一個 opcode，等於 NOP。
+	if got := entry(0x9c); got != interpLoop {
+		t.Fatalf("opcode 0x9c 指向 0x%04x，want 0x%04x（迴圈本身）", got, interpLoop)
+	}
+	// 錯誤常式的第一條是 moveq #11,d0——錯誤碼 11。
+	if got := uint16(image[interpInvalid])<<8 | uint16(image[interpInvalid+1]); got != 0x700b {
+		t.Fatalf("錯誤常式首指令是 0x%04x，want 0x700b（moveq #11,d0）", got)
+	}
+}
+
+// TestUCSDInterpStoreLoadRoundTrip 用 p-code 序列做存取往返。
+//
+// `sldc21` / `sstl1` / `ldl1`：推一個值、存進活動記錄第 1 格、再讀回來。這條同時驗兩件
+// 事——sstl 與 ldl 對同一格的位址算法一致，而且值真的落在記憶體 `frame+8+1×2` 上，
+// 不是兩支常式互相自洽卻都算錯。
+func TestUCSDInterpStoreLoadRoundTrip(t *testing.T) {
+	image := loadInterp(t)
+	h := newHarness(t, image)
+	const frame = 0x028000
+	h.cpu.State.A[0] = frame
+	h.poke(frame+8+1*2, 0xffff) // 先放不同的值，確保結果來自 sstl 而不是殘留
+
+	h.startDispatch([]byte{0x15, 0x68, 0x20}, operandStream) // sldc21 / sstl1 / ldl1
+	h.runPCode(3, 64)
+
+	const want = 21
+	if got := h.peek(frame + 8 + 1*2); got != want {
+		t.Fatalf("記憶體 frame+8+2 是 %d，want %d（sstl 沒寫對地方）", got, want)
+	}
+	if got := h.cpu.State.SSP; got != stackTop-2 {
+		t.Fatalf("SSP 是 0x%06x，want 0x%06x", got, stackTop-2)
+	}
+	if got := h.peek(h.cpu.State.SSP); got != want {
+		t.Fatalf("ldl1 讀回 %d，want %d", got, want)
+	}
+}
+
+// TestUCSDInterpLoadLocalAddressIsPSystemRelative 驗證取區域變數位址的常式。
+//
+// 常式是 `subi.w #$BE,d0` / `add.l a0,d0` / `sub.l a6,d0` / `addq.w #8,d0`：先算出
+// 活動記錄裡那一格的主機位址，再減掉 a6。**a6 是 p-system 記憶體基底**，所以推上堆疊的
+// 是 p-system 位址而不是主機位址——這條決定了 p-code 看到的位址空間長什麼樣。
+func TestUCSDInterpLoadLocalAddressIsPSystemRelative(t *testing.T) {
+	image := loadInterp(t)
+	const memoryBase = 0x040000
+	const framePSys = 0x8000 // 活動記錄在 p-system 位址空間的位置
+	for local := 1; local <= 8; local++ {
+		h := newHarness(t, image)
+		h.cpu.State.A[6] = memoryBase
+		h.cpu.State.A[0] = memoryBase + framePSys
+		h.startDispatch([]byte{byte(0x60 + local - 1)}, operandStream)
+		h.runPCode(1, 32)
+
+		want := uint16(framePSys + 8 + local*2)
+		if got := h.peek(h.cpu.State.SSP); got != want {
+			t.Fatalf("slla%d 推了 0x%04x，want 0x%04x", local, got, want)
+		}
+	}
+}
+
+// TestUCSDInterpNoOpOpcodeAdvancesOnly 驗證 opcode $9C 是 NOP。
+//
+// 它的表項指回迴圈起點，所以進去以後直接取下一個 opcode：IP 前進，其他什麼都不做。
+func TestUCSDInterpNoOpOpcodeAdvancesOnly(t *testing.T) {
+	image := loadInterp(t)
+	h := newHarness(t, image)
+	h.startDispatch([]byte{0x9c, 0x9c, 0x05}, operandStream) // nop / nop / sldc5
+	h.runPCode(3, 64)
+
+	if got := h.cpu.State.A[4]; got != operandStream+3 {
+		t.Fatalf("a4 停在 0x%06x，want 0x%06x", got, operandStream+3)
+	}
+	if got := h.cpu.State.SSP; got != stackTop-2 {
+		t.Fatalf("SSP 是 0x%06x，want 0x%06x（只有 sldc5 推了東西）", got, stackTop-2)
+	}
+	if got := h.peek(h.cpu.State.SSP); got != 5 {
+		t.Fatalf("堆疊頂是 %d，want 5", got)
 	}
 }

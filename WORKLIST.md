@@ -55,5 +55,5 @@
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
 | UCSD p-System 直譯器真實碼驗收 | **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |
-| UCSD p-System 分派迴圈與序列執行 | **CONFORMED** | `$00DE` 的 fetch-execute 循環；四條短常數與三條混合族序列、`a4` 位移、堆疊內容與指令數全部通過，三組負對照確認會失敗。可執行任意由已驗收常式組成的 p-code 序列 |
+| UCSD p-System 分派迴圈與序列執行 | **CONFORMED** | `$00DE` 的 fetch-execute 循環與分派表全形狀（107 支常式、45 個無效 opcode）；短常數、混合族、存取往返、區域變數位址與 NOP 序列全部通過，六組負對照確認會失敗 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |
