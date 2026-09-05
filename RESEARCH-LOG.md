@@ -308,3 +308,9 @@
   `44166→44182`，仍為 16 clocks；GPIP／AER／DDR 前後均 `$00`，registers、flags、
   prefetch 變化與第一輪 GPIP clear 相同。固定 EmuTOS 第 7,479 條對拍後，下一輪
   停在 `$FFFA05` DDR write。
+- NXP MC68901 manual §5.1.3 確認 DDR reset 八 bits 全為 0；0 是 high-impedance
+  input，1 是 push-pull output。固定 Hatari DDR write 會以 old/new DDR 重新評估 GPIP
+  interrupt，因此在尚未建模 pin transition 時不能泛化任意非零值。
+- 固定 Hatari A0=`$FFFFFA05` tracepoint 實測 `$FC614A→$FC614E` 的 FrameCycles
+  `44210→44226`，共 16 clocks；GPIP／AER／DDR 前後皆 `$00`。固定 EmuTOS
+  第 7,483 條對拍後，下一輪停在 `$FFFA07` IERA write。

@@ -212,8 +212,45 @@ func TestMFPGPIPResetStateByteAccess(t *testing.T) {
 	if _, err := memory.ReadWord(MFPGPIP, 5); err == nil {
 		t.Fatal("odd GPIP word read unexpectedly succeeded")
 	}
-	if _, err := memory.ReadByte(MFPAER+2, 5); err == nil {
-		t.Fatal("neighboring DDR unexpectedly mapped")
+	if _, err := memory.ReadByte(MFPDDR+2, 5); err == nil {
+		t.Fatal("neighboring IERA unexpectedly mapped")
+	}
+}
+
+func TestMFPDDRResetStateZeroWrite(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MFPDDR, 5); err != nil || got != 0 {
+		t.Fatalf("cold DDR=%02x/%v", got, err)
+	}
+	if wait, err := memory.WriteByteAt(0xfffffa05, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("timed DDR zero write wait=%d err=%v", wait, err)
+	}
+	if err := memory.WriteByte(MFPDDR, 1, 5); err == nil {
+		t.Fatal("nonzero DDR write unexpectedly accepted")
+	} else {
+		var fault *BusFault
+		if !errors.As(err, &fault) || fault.Reason != FaultUnsupportedDeviceState {
+			t.Fatalf("nonzero DDR fault=%#v/%v", fault, err)
+		}
+	}
+	if _, err := memory.ReadByte(MFPDDR, 1); err == nil {
+		t.Fatal("user DDR read unexpectedly succeeded")
+	}
+	if err := memory.WriteByte(MFPDDR, 0, 1); err == nil {
+		t.Fatal("user DDR write unexpectedly succeeded")
+	}
+	if _, err := memory.ReadWord(MFPDDR, 5); err == nil {
+		t.Fatal("odd DDR word read unexpectedly succeeded")
+	}
+	memory.mfpDDR = 0xff
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MFPDDR, 5); err != nil || got != 0 {
+		t.Fatalf("DDR after M68K reset=%02x/%v", got, err)
 	}
 }
 

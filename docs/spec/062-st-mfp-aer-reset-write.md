@@ -44,8 +44,8 @@ interrupt、timer B event mode 與其餘 MFP registers 不在本切片，維持�
    pending interrupt 或 timer B 副作用。
 4. `$FFFA03` byte access 固定增加 4 wait clocks；已驗證的
    `MOVE.B #$00,(An)` 總計 16 clocks。
-5. 完成 AER zero write 後，下一次迴圈在 `$FFFA05` DDR write 必須維持
-   reserved-I/O fault，作為停止線。
+5. 本規格驗收時以 `$FFFA05` DDR write 的 reserved-I/O fault 作為停止線；
+   後續規格 063 只取代這條停止線，不改變 AER 契約。
 
 ## 驗收與停止線
 
@@ -63,7 +63,8 @@ interrupt、timer B event mode 與其餘 MFP registers 不在本切片，維持�
 - 固定 EmuTOS 完成第 7,479 條後為 176,682 累計 clocks；AER=`$00`，D/A、USP、
   SSP=`$0F8C`、SR=`$2714`、內部 prefetch 游標 PC=`$FC6152`、prefetch
   `$5488,$B0FC` 均符合 Hatari 對應邊界。
-- 再完成三條迴圈控制指令後，第 7,483 條嘗試停在 `$FFFA05` DDR reserved-I/O
-  write；沒有把相鄰 register bank 泛化成可寫 memory。
+- 本規格驗收時，再完成三條迴圈控制指令後，第 7,483 條嘗試停在 `$FFFA05`
+  DDR reserved-I/O write；該停止線其後由規格 063 取代，其他未規格化 register
+  仍未泛化成可寫 memory。
 - 完整 230,000 筆 CPU corpus、固定 ROM 全測試、`go vet -stdmethods=false ./...`
   與 `go build ./...` 全部通過。

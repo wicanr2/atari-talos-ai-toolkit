@@ -220,3 +220,8 @@
   `unsupported_device_state` 失敗。固定 Hatari trace 為 16 clocks；EmuTOS 第 7,479
   條／176,682 clocks 的 state、prefetch、AER 對拍通過，下一停點 `$FFFA05` DDR。
   完整 corpus、固定 ROM、全測試、vet 與 build 通過，規格 062 升 CONFORMED。
+- 完成 MFP DDR `$FFFA05` reset-state zero write：依 NXP manual 的 input／output
+  direction 契約與 Hatari interrupt reevaluation，只放行 `$00→$00`；非零方向改寫
+  typed fail-closed。Hatari trace 為 16 clocks，固定 EmuTOS 第 7,483 條／176,726
+  clocks 全狀態對拍；下一停點 `$FFFA07` IERA。完整 corpus、固定 ROM、全測試、
+  vet 與 build 通過，規格 063 升 CONFORMED。

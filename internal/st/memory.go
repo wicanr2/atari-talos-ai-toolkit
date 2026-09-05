@@ -20,6 +20,7 @@ const (
 	MMUConfig     = 0x00ff_8001
 	MFPGPIP       = 0x00ff_fa01
 	MFPAER        = 0x00ff_fa03
+	MFPDDR        = 0x00ff_fa05
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -69,7 +70,7 @@ type Memory struct {
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
 	address &= AddressMask
-	return address == MFPGPIP || address == MFPAER
+	return address == MFPGPIP || address == MFPAER || address == MFPDDR
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -94,6 +95,8 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.mfpGPIP, nil
 	case address == MFPAER:
 		return m.mfpAER, nil
+	case address == MFPDDR:
+		return m.mfpDDR, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -115,7 +118,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 }
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
-	if address&AddressMask == MFPGPIP || address&AddressMask == MFPAER {
+	if address&AddressMask == MFPGPIP || address&AddressMask == MFPAER || address&AddressMask == MFPDDR {
 		value, err := m.ReadByte(address, access.FunctionCode)
 		return value, 4, err
 	}
@@ -174,6 +177,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		}
 		return nil
 	}
+	if address == MFPDDR {
+		if m.mfpDDR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -190,7 +199,7 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 }
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
-	if address&AddressMask == MFPGPIP || address&AddressMask == MFPAER {
+	if address&AddressMask == MFPGPIP || address&AddressMask == MFPAER || address&AddressMask == MFPDDR {
 		return 4, m.WriteByte(address, value, access.FunctionCode)
 	}
 	wait, err := busSlotWait(access.Clock)

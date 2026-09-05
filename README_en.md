@@ -7,9 +7,9 @@ reliably, producing deterministic input, frame stepping, state capture, and mach
 evidence for more accurate retro-game remakes.
 
 The project is at M2. The versioned JSON Lines control protocol and CLI exist; the MC68000 core
-passes 230,000 external corpus cases, and the incremental ST/STF machine core executes 7,479
+passes 230,000 external corpus cases, and the incremental ST/STF machine core executes 7,483
 instructions of a fixed EmuTOS 1.3 ROM in parity with Hatari. The next explicit stop is the
-unsupported MFP DDR byte write at `$FFFA05`. Video, input, disk, and a complete TOS boot are not
+unsupported MFP IERA byte write at `$FFFA07`. Video, input, disk, and a complete TOS boot are not
 implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.
 
