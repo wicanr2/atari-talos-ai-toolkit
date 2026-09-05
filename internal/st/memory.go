@@ -28,6 +28,8 @@ const (
 	PSGRegisterData    = 0x00ff_8802
 	IKBDACIAControl    = 0x00ff_fc00
 	IKBDACIAData       = 0x00ff_fc02
+	MIDIACIAControl    = 0x00ff_fc04
+	MIDIACIAData       = 0x00ff_fc06
 	MFPGPIP            = 0x00ff_fa01
 	MFPAER             = 0x00ff_fa03
 	MFPDDR             = 0x00ff_fa05
@@ -113,6 +115,11 @@ type Memory struct {
 	ikbdResetCommandHandled bool
 	ikbdACIARDR             byte
 	ikbdResetResponseRead   bool
+	ikbdStaleRDRReads       uint8
+	midiACIAControl         byte
+	midiACIAStatus          byte
+	midiACIAConfigured      bool
+	mfpACIAEnableStage      uint8
 	mfpGPIP                 byte
 	mfpGPIPIn               byte
 	mfpAER                  byte
@@ -147,7 +154,7 @@ type Memory struct {
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
-	return m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledIKBDACIAByte(address)
+	return m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address)
 }
 
 func (m *Memory) isModeledPSGByte(address uint32) bool {
@@ -158,6 +165,11 @@ func (m *Memory) isModeledPSGByte(address uint32) bool {
 func (m *Memory) isModeledIKBDACIAByte(address uint32) bool {
 	address &= AddressMask
 	return address == IKBDACIAControl || address == IKBDACIAData
+}
+
+func (m *Memory) isModeledACIAByte(address uint32) bool {
+	address &= AddressMask
+	return m.isModeledIKBDACIAByte(address) || address == MIDIACIAControl || address == MIDIACIAData
 }
 
 func (m *Memory) isModeledMFPByte(address uint32) bool {
@@ -212,8 +224,15 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 			value := m.ikbdACIARDR
 			m.ikbdACIAStatus &^= 0x81
 			m.ikbdResetResponseRead = true
+			m.ikbdStaleRDRReads = 1
 			return value, nil
 		}
+		if m.ikbdACIAConfigured && m.ikbdStaleRDRReads != 0 {
+			m.ikbdStaleRDRReads--
+			return m.ikbdACIARDR, nil
+		}
+		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
+	case address == MIDIACIAControl, address == MIDIACIAData:
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == MFPGPIP:
 		m.mfpGPIP = m.mfpGPIP&m.mfpDDR | m.mfpGPIPIn&^m.mfpDDR
@@ -298,7 +317,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 }
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
-	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledIKBDACIAByte(address) {
+	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
 		value, err := m.ReadByte(address, access.FunctionCode)
 		return value, 4, err
 	}
@@ -418,6 +437,22 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		}
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
+	if address == MIDIACIAControl {
+		if m.midiACIAControl == 0 && !m.midiACIAConfigured && value == 3 {
+			m.midiACIAControl = value
+			m.midiACIAStatus = 2
+			return nil
+		}
+		if m.midiACIAControl == 3 && !m.midiACIAConfigured && value == 0x95 {
+			m.midiACIAControl = value
+			m.midiACIAConfigured = true
+			return nil
+		}
+		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+	}
+	if address == MIDIACIAData {
+		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+	}
 	if address == MFPGPIP {
 		m.mfpGPIP = m.mfpGPIP&^m.mfpDDR | value&m.mfpDDR
 		return nil
@@ -451,6 +486,17 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.mfpIERB = value
 			return nil
 		}
+		if m.midiACIAConfigured && m.mfpIERB == 0x20 && m.mfpIMRB == 0x20 &&
+			m.mfpACIAEnableStage == 0 && value == 0x20 {
+			m.mfpACIAEnableStage = 1
+			return nil
+		}
+		if m.mfpACIAEnableStage == 3 && m.mfpIERB == 0x20 && value == 0x60 &&
+			m.mfpIPRB&0x40 == 0 && m.mfpISRB&0x40 == 0 {
+			m.mfpIERB = value
+			m.mfpACIAEnableStage = 4
+			return nil
+		}
 		if m.mfpIERB != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -462,6 +508,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	}
 	if address == MFPIPRB {
 		m.mfpIPRB &= value
+		if m.mfpACIAEnableStage == 1 && value == 0xbf {
+			m.mfpACIAEnableStage = 2
+		}
 		return nil
 	}
 	if address == MFPISRA {
@@ -470,6 +519,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	}
 	if address == MFPISRB {
 		m.mfpISRB &= value
+		if m.mfpACIAEnableStage == 2 && value == 0xbf {
+			m.mfpACIAEnableStage = 3
+		}
 		return nil
 	}
 	if address == MFPIMRA {
@@ -484,6 +536,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		m.mfpIMRB = value
+		if m.mfpACIAEnableStage == 4 && value == 0x60 {
+			m.mfpACIAEnableStage = 5
+		}
 		return nil
 	}
 	if address == MFPVR {
@@ -612,7 +667,7 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 }
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
-	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledIKBDACIAByte(address) {
+	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
 		return 4, m.WriteByte(address, value, access.FunctionCode)
 	}
 	wait, err := busSlotWait(access.Clock)
@@ -703,6 +758,11 @@ func (m *Memory) ColdReset() {
 	m.ikbdResetCommandHandled = false
 	m.ikbdACIARDR = 0
 	m.ikbdResetResponseRead = false
+	m.ikbdStaleRDRReads = 0
+	m.midiACIAControl = 0
+	m.midiACIAStatus = 0
+	m.midiACIAConfigured = false
+	m.mfpACIAEnableStage = 0
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0

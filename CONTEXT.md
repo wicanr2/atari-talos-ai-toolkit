@@ -263,6 +263,11 @@
   color-ST profile的513,024-clock reset delay送回RDR=`$F1`。guest在128,313 instructions／
   1,507,268 clocks讀取status `$83`與RDR，read後status回 `$02`；正常路徑再前進至
   136,048 instructions／1,577,208 clocks，下一gate是MIDI ACIA `$FFFC04`。
+- MIDI ACIA control、IKBD stale RDR與MFP ACIA channel 6已CONFORMED：Hatari確認
+  `$FFFC04`固定序列為`$03→$95`；IKBD RDRF清除後，`$FC06CE`仍讀到一次保留值`$F1`
+  而不產生新RX。MFP依序保留IERB/IMRB=`$20`、以`$BF`清IPRB/ISRB bit6，再升為
+  `$60/$60`。正常路徑抵達136,182 instructions、8 interrupts、1,578,882 clocks，
+  下一gate是channel 4／Timer D序列的IERB同值`$60`。
 - MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset write 已
   CONFORMED：依 NXP 手冊保留 TSR 硬體 reset 未定的事實，只接受固定 EmuTOS 的
   軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
@@ -318,7 +323,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理 1,577,208 clocks 的 MIDI ACIA
-   `$FFFC04` gate，再依正常路徑補 Timer C countdown／timeout／IRQ；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理 1,578,882 clocks 的MFP channel 4／
+   Timer D重新設定，再依正常路徑補Timer C countdown／timeout／IRQ；RGB／PNG
    色階契約與正常 50 Hz HBL310 提前重載仍須各自 READY，不得由 palette index或
    VBL 保底提交外推。

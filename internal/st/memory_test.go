@@ -1061,6 +1061,95 @@ func TestIKBDACIAControlInit(t *testing.T) {
 	}
 }
 
+func TestMIDIACIAControlInit(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(MIDIACIAControl, 0x95, 5); err == nil {
+		t.Fatal("MIDI ACIA config before reset unexpectedly accepted")
+	}
+	for _, value := range []byte{3, 0x95} {
+		if wait, err := memory.WriteByteAt(MIDIACIAControl|0xff00_0000, value,
+			m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+			t.Fatalf("MIDI ACIA control %02x wait=%d err=%v", value, wait, err)
+		}
+	}
+	if memory.midiACIAControl != 0x95 || memory.midiACIAStatus != 2 || !memory.midiACIAConfigured {
+		t.Fatalf("MIDI ACIA control/status/configured=%02x/%02x/%v", memory.midiACIAControl,
+			memory.midiACIAStatus, memory.midiACIAConfigured)
+	}
+	for _, value := range []byte{0, 3, 0x95, 0xff} {
+		if err := memory.WriteByte(MIDIACIAControl, value, 5); err == nil {
+			t.Fatalf("configured MIDI ACIA control %02x unexpectedly accepted", value)
+		}
+	}
+	if _, err := memory.ReadByte(MIDIACIAControl, 5); err == nil {
+		t.Fatal("out-of-scope MIDI ACIA status read unexpectedly accepted")
+	}
+	if err := memory.WriteByte(MIDIACIAData, 0, 5); err == nil {
+		t.Fatal("MIDI ACIA data write unexpectedly accepted")
+	}
+	if err := memory.WriteByte(MIDIACIAControl, 0, 1); err == nil {
+		t.Fatal("user MIDI ACIA write unexpectedly accepted")
+	}
+	if err := memory.WriteWord(MIDIACIAControl, 0, 5); err == nil {
+		t.Fatal("MIDI ACIA word write unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.midiACIAControl != 0 || memory.midiACIAStatus != 0 || memory.midiACIAConfigured {
+		t.Fatalf("MIDI ACIA reset control/status/configured=%02x/%02x/%v", memory.midiACIAControl,
+			memory.midiACIAStatus, memory.midiACIAConfigured)
+	}
+}
+
+func TestMFPACIAInterruptChannelEnable(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.midiACIAConfigured = true
+	memory.mfpIERB = 0x20
+	memory.mfpIMRB = 0x20
+	for _, step := range []struct {
+		address uint32
+		value   byte
+		stage   uint8
+	}{
+		{MFPIERB, 0x20, 1},
+		{MFPIPRB, 0xbf, 2},
+		{MFPISRB, 0xbf, 3},
+		{MFPIERB, 0x60, 4},
+		{MFPIMRB, 0x60, 5},
+	} {
+		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+			t.Fatalf("write %06x=%02x: %v", step.address, step.value, err)
+		}
+		if memory.mfpACIAEnableStage != step.stage {
+			t.Fatalf("write %06x=%02x stage=%d want %d", step.address, step.value,
+				memory.mfpACIAEnableStage, step.stage)
+		}
+	}
+	if memory.mfpIERB != 0x60 || memory.mfpIMRB != 0x60 || memory.mfpIPRB != 0 || memory.mfpISRB != 0 {
+		t.Fatalf("IERB/IMRB/IPRB/ISRB=%02x/%02x/%02x/%02x", memory.mfpIERB, memory.mfpIMRB,
+			memory.mfpIPRB, memory.mfpISRB)
+	}
+
+	invalid, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid.midiACIAConfigured = true
+	invalid.mfpIERB = 0x20
+	invalid.mfpIMRB = 0x20
+	if err := invalid.WriteByte(MFPIERB, 0x60, 5); err == nil || invalid.mfpIERB != 0x20 ||
+		invalid.mfpACIAEnableStage != 0 {
+		t.Fatalf("skipped clear err/state=%v %02x/%d", err, invalid.mfpIERB, invalid.mfpACIAEnableStage)
+	}
+}
+
 func TestIKBDACIAFirstTransmitData(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {
@@ -1119,11 +1208,16 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 		t.Fatalf("RDR/status=%02x/%02x", memory.ikbdACIARDR, memory.ikbdACIAStatus)
 	}
 	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||
-		memory.ikbdACIAStatus != 2 {
+		memory.ikbdACIAStatus != 2 || memory.ikbdStaleRDRReads != 1 {
 		t.Fatalf("RDR read=%02x status=%02x err=%v", got, memory.ikbdACIAStatus, err)
 	}
+	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||
+		memory.ikbdACIAStatus != 2 || memory.ikbdStaleRDRReads != 0 {
+		t.Fatalf("stale RDR read=%02x status/allowance=%02x/%d err=%v", got,
+			memory.ikbdACIAStatus, memory.ikbdStaleRDRReads, err)
+	}
 	if _, err := memory.ReadByte(IKBDACIAData, 5); err == nil {
-		t.Fatal("empty RDR read unexpectedly accepted")
+		t.Fatal("exhausted stale RDR read unexpectedly accepted")
 	}
 }
 

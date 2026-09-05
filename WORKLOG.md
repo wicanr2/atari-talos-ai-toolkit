@@ -389,3 +389,9 @@
   讀取 `$F1`，再前進到136,048 instructions／1,577,208 clocks的MIDI ACIA `$FFFC04`
   gate。完整240,000筆corpus、全測試、`go vet -stdmethods=false ./...`與CLI build通過，
   規格092–093升CONFORMED。
+- 完成MIDI ACIA control、IKBD stale RDR與MFP ACIA channel 6：固定Hatari trace確認
+  MIDI `$03→$95`，以及IKBD RDRF清除後`$FC06CE`仍讀一次保留的`$F1`。MFP channel 6
+  依序以`$BF`清IPRB/ISRB，再將IERB/IMRB從`$20`升為`$60`；stage latch禁止跳步。
+  正常路徑抵達136,182 instructions／1,578,882 clocks，下一gate是channel 4／Timer D
+  重設的IERB同值`$60`。完整目前corpus、全測試、vet與CLI build通過後，
+  規格094–096升CONFORMED。

@@ -1077,13 +1077,16 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 		if _, err := machine.Step(); err != nil {
 			if sawResetResponse {
 				state = machine.CPU.State
-				wantD = [8]uint32{0x3160, 2, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
-				wantA = [7]uint32{0xffff_fc04, 0x317e, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
-				if err.Error() != "st: write 1-byte bus fault at 0xfffc04 fc=5: reserved_io" ||
-					machine.Instructions != 136048 || machine.Interrupts != 8 || machine.Clocks != 1577208 ||
-					state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f8c ||
-					state.SR != 0x2310 || state.PC != 0x00fc641c ||
-					state.Prefetch != [2]uint16{3, 0x10bc} {
+				wantD = [8]uint32{0xffff_ffef, 0x60, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
+				wantA = [7]uint32{0x8c, 0x257c, 0, 0x00fc_615e, 0, 0x00fc_01f4, 0x0000_0ffc}
+				if err.Error() != "st: write 1-byte bus fault at 0xfffa09 fc=5: unsupported_device_state" ||
+					machine.Instructions != 136182 || machine.Interrupts != 8 || machine.Clocks != 1578882 ||
+					state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f7a ||
+					state.SR != 0x2300 || state.PC != 0x00fc61aa ||
+					state.Prefetch != [2]uint16{0xfa09, 0x11c0} ||
+					machine.Memory.midiACIAControl != 0x95 || !machine.Memory.midiACIAConfigured ||
+					machine.Memory.mfpIERB != 0x60 || machine.Memory.mfpIMRB != 0x60 ||
+					machine.Memory.mfpACIAEnableStage != 5 || machine.Memory.ikbdStaleRDRReads != 0 {
 					t.Fatalf("post-IKBD gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 						machine.Instructions, machine.Interrupts, machine.Clocks, state, err)
 				}
