@@ -227,7 +227,7 @@
 - 加入 MMU 後，EmuTOS 從 reset 連續 7 條指令到 `$FC0070`；Atari Talos
   與 Hatari 均為 92 clocks、`SSP=00001000`、`SR=2704`、prefetch=`4e7b,0801`。
   `$4E7B` 是 68010+ `MOVEC D0,VBR` CPU 型號探測；MC68000 應走 vector 4，
-  目前因 illegal-instruction exception 尚未建立而成為新的第一停點。
+  該次因 illegal-instruction exception 尚未建立而成為第一停點。
 - Hatari 對 `$FC0070` `$4E7B` 的 vector 4 收據：vector long=`$00FC0074`；
   進入 handler 後 FrameCycles `92→128`，`SSP=$0FFA`、`SR=$2704`、
   prefetch=`$21FC,$00FC`。MMU cold `$00` 下的 physical `$1FFA` frame 為
@@ -235,5 +235,13 @@
 - 繼續探測時，兩引擎均以 10 條完成指令、220 clocks 到 `$FC0088`
   `RESET`，但對 `$FC0080` `TST.W $8006` 產生的 vector 2 frame 不同：
   Hatari 保存 fault address `$FFFF8006`，Atari Talos 保存 `$00FF8006`。
-  下一切片必須保留 effective address 的 32-bit 符號延伸表示，不可只由
-  24-bit bus backend 回報值反推。
+  修正後 CPU frame 保留 effective address 的 32-bit 符號延伸表示，只有
+  bus call／transaction 使用低 24-bit；完整 frame 已一致。
+- Hatari 在 `$FC008A` breakpoint 的 FrameCycles=352；相對 `RESET` handler
+  `$FC0088` 的 220 clocks 邊界，確認 supervisor `$4E70` 為 132 clocks。
+  RESET 後 D0–D7／A0–A6 全零、`SSP=$0FEC`、`USP=0`、`SR=$2700`，
+  prefetch=`$0CB9,$FA52`；Atari Talos 第 11 條已全狀態一致。
+- 繼續執行的新第一失敗點是 `$FC008A` `CMPI.L #$FA52235F,$00FA0000`：
+  Hatari debugger 顯示 operand `$FFFFFFFF`，Atari Talos 對 `$FA0000`
+  回 `unmapped` typed bus fault。下一切片需確認 Atari ST cartridge
+  `$FA0000–$FBFFFF` 空槽與載入映像的正式契約。

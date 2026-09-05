@@ -50,6 +50,12 @@ type BusFault interface {
 	M68KBusFault() (address uint32, functionCode uint8, write bool, size uint8)
 }
 
+// ResetBus receives the external reset signal asserted by the RESET instruction.
+// A bus without modeled external device state does not need to implement it.
+type ResetBus interface {
+	M68KReset() error
+}
+
 type CPU struct {
 	State State
 	Bus   Bus
@@ -252,6 +258,16 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepRTS(opcode)
 	case opcode == 0x4e73:
 		return c.stepRTE(opcode)
+	case opcode == 0x4e70:
+		if c.State.SR&supervisor == 0 {
+			return c.enterStandardException(8, c.State.PC-4, nil, 34)
+		}
+		if bus, ok := c.Bus.(ResetBus); ok {
+			if err := bus.M68KReset(); err != nil {
+				return StepResult{}, err
+			}
+		}
+		return c.refillSequential(controlEA{returnPC: c.State.PC}, 132)
 	case opcode == 0x4e7a || opcode == 0x4e7b:
 		return c.enterStandardException(4, c.State.PC-4, nil, 36)
 	case opcode&0xfff8 == 0x4e60:
@@ -3320,8 +3336,8 @@ func (s *moveWordStep) readWordSource(mode, reg uint8) (uint16, uint32, bool, *S
 		var fault BusFault
 		if errors.As(err, &fault) {
 			faultAddress, faultFC, write, size := fault.M68KBusFault()
-			if !write && size == 2 {
-				result, faultErr := c.enterBusError(s.opcode, faultAddress, s.sourceFaultPC(mode, reg), s.transactions, 60+cost, faultFC, "re", true)
+			if !write && size == 2 && faultAddress == address&addressMask {
+				result, faultErr := c.enterBusError(s.opcode, address, s.sourceFaultPC(mode, reg), s.transactions, 60+cost, faultFC, "re", true)
 				return 0, cost, true, &result, faultErr
 			}
 		}

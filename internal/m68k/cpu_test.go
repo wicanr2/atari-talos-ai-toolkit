@@ -13,8 +13,35 @@ type resetRead struct {
 
 type resetRecordingBus struct {
 	SparseMemory
-	reads       []resetRead
-	failAddress uint32
+	reads          []resetRead
+	failAddress    uint32
+	externalResets int
+	resetErr       error
+}
+
+type typedWordReadFault struct {
+	address uint32
+	fc      uint8
+}
+
+func (f typedWordReadFault) Error() string {
+	return fmt.Sprintf("forced word read fault at 0x%x", f.address)
+}
+
+func (f typedWordReadFault) M68KBusFault() (uint32, uint8, bool, uint8) {
+	return f.address, f.fc, false, 2
+}
+
+type wordReadFaultBus struct {
+	SparseMemory
+	faultAddress uint32
+}
+
+func (b *wordReadFaultBus) ReadWord(address uint32, fc uint8) (uint16, error) {
+	if address == b.faultAddress {
+		return 0, typedWordReadFault{address: address, fc: fc}
+	}
+	return b.SparseMemory.ReadWord(address, fc)
 }
 
 func (b *resetRecordingBus) ReadWord(address uint32, fc uint8) (uint16, error) {
@@ -23,6 +50,11 @@ func (b *resetRecordingBus) ReadWord(address uint32, fc uint8) (uint16, error) {
 		return 0, fmt.Errorf("forced reset read failure at 0x%x", address)
 	}
 	return b.SparseMemory.ReadWord(address, fc)
+}
+
+func (b *resetRecordingBus) M68KReset() error {
+	b.externalResets++
+	return b.resetErr
 }
 
 func TestResetReadsVectorsAndPrefetchWithSupervisorProgramFC(t *testing.T) {
@@ -155,10 +187,121 @@ func TestMC68000MOVECEntersIllegalInstructionVector4(t *testing.T) {
 	}
 }
 
+func TestMC68000RESETInstruction(t *testing.T) {
+	memory := SparseMemory{0x1004: 0x12, 0x1005: 0x34}
+	bus := &resetRecordingBus{SparseMemory: memory}
+	initial := State{
+		D: [8]uint32{0x12345678}, A: [7]uint32{0x87654321},
+		USP: 0x4000, SSP: 0x3000, SR: 0x2704, PC: 0x1004,
+		Prefetch: [2]uint16{0x4e70, 0xabcd},
+	}
+	cpu := CPU{Bus: bus, State: initial}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bus.externalResets != 1 || result.Clocks != 132 ||
+		cpu.State.D != initial.D || cpu.State.A != initial.A || cpu.State.USP != initial.USP ||
+		cpu.State.SSP != initial.SSP || cpu.State.SR != initial.SR || cpu.State.PC != 0x1006 ||
+		cpu.State.Prefetch != [2]uint16{0xabcd, 0x1234} {
+		t.Fatalf("resets=%d result=%+v state=%+v", bus.externalResets, result, cpu.State)
+	}
+	wantTransactions := []Transaction{readTransaction(0x1004, 6, 0x1234)}
+	if !reflect.DeepEqual(result.Transactions, wantTransactions) {
+		t.Fatalf("transactions=%+v want %+v", result.Transactions, wantTransactions)
+	}
+}
+
+func TestMC68000RESETSignalFailureDoesNotAdvanceCPU(t *testing.T) {
+	wantErr := fmt.Errorf("forced external reset failure")
+	initial := State{D: [8]uint32{1}, A: [7]uint32{2}, USP: 3, SSP: 4,
+		SR: 0x2700, PC: 0x1004, Prefetch: [2]uint16{0x4e70, 0xabcd}}
+	bus := &resetRecordingBus{SparseMemory: SparseMemory{}, resetErr: wantErr}
+	cpu := CPU{Bus: bus, State: initial}
+	result, err := cpu.Step()
+	if err != wantErr || bus.externalResets != 1 || result.Clocks != 0 || result.Transactions != nil || cpu.State != initial {
+		t.Fatalf("err=%v resets=%d result=%+v state=%+v", err, bus.externalResets, result, cpu.State)
+	}
+}
+
+func TestMC68000RESETUserModeEntersPrivilegeViolationWithoutResetSignal(t *testing.T) {
+	memory := SparseMemory{
+		0x0020: 0x00, 0x0021: 0x00, 0x0022: 0x20, 0x0023: 0x00,
+		0x2000: 0x4e, 0x2001: 0x71, 0x2002: 0x4e, 0x2003: 0x71,
+	}
+	bus := &resetRecordingBus{SparseMemory: memory}
+	cpu := CPU{Bus: bus, State: State{
+		USP: 0x4000, SSP: 0x3000, SR: 0x0004, PC: 0x1004,
+		Prefetch: [2]uint16{0x4e70, 0xabcd},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bus.externalResets != 0 || result.Clocks != 34 || cpu.State.SSP != 0x2ffa ||
+		cpu.State.USP != 0x4000 || cpu.State.SR != 0x2004 || cpu.State.PC != 0x2004 ||
+		cpu.State.Prefetch != [2]uint16{0x4e71, 0x4e71} {
+		t.Fatalf("resets=%d result=%+v state=%+v", bus.externalResets, result, cpu.State)
+	}
+	wantFrame := []uint16{0x0004, 0x0000, 0x1000}
+	for index, want := range wantFrame {
+		got, readErr := memory.ReadWord(0x2ffa+uint32(index*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+		}
+	}
+}
+
+func TestAbsoluteShortWordBusErrorPreservesSignExtendedFaultAddress(t *testing.T) {
+	memory := SparseMemory{
+		0x0008: 0x00, 0x0009: 0x00, 0x000a: 0x20, 0x000b: 0x00,
+		0x1004: 0x4e, 0x1005: 0x71,
+		0x2000: 0x4e, 0x2001: 0x70, 0x2002: 0x0c, 0x2003: 0xb9,
+	}
+	bus := &wordReadFaultBus{SparseMemory: memory, faultAddress: 0x00ff8006}
+	cpu := CPU{Bus: bus, State: State{
+		SSP: 0x3000, SR: 0x2700, PC: 0x1004,
+		Prefetch: [2]uint16{0x4a78, 0x8006},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 68 || cpu.State.SSP != 0x2ff2 || cpu.State.SR != 0x2700 ||
+		cpu.State.PC != 0x2004 || cpu.State.Prefetch != [2]uint16{0x4e70, 0x0cb9} {
+		t.Fatalf("result=%+v state=%+v", result, cpu.State)
+	}
+	wantFrame := []uint16{0x4a75, 0xffff, 0x8006, 0x4a78, 0x2700, 0x0000, 0x1004}
+	for index, want := range wantFrame {
+		got, readErr := memory.ReadWord(0x2ff2+uint32(index*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+		}
+	}
+	wantTransactions := []Transaction{
+		readTransaction(0x1004, 6, 0x4e71),
+		{Kind: "re", Cycle: 4, FC: 5, Address: 0x00ff8006, Size: 2, UDS: true, LDS: true},
+		writeTransaction(0x2ffe, 5, 0x1004),
+		writeTransaction(0x2ffa, 5, 0x2700),
+		writeTransaction(0x2ffc, 5, 0x0000),
+		writeTransaction(0x2ff8, 5, 0x4a78),
+		writeTransaction(0x2ff6, 5, 0x8006),
+		writeTransaction(0x2ff2, 5, 0x4a75),
+		writeTransaction(0x2ff4, 5, 0xffff),
+		readTransaction(0x0008, 5, 0x0000),
+		readTransaction(0x000a, 5, 0x2000),
+		readTransaction(0x2000, 6, 0x4e70),
+		readTransaction(0x2002, 6, 0x0cb9),
+	}
+	if !reflect.DeepEqual(result.Transactions, wantTransactions) {
+		t.Fatalf("transactions=%+v want %+v", result.Transactions, wantTransactions)
+	}
+}
+
 func TestStepFailsClosed(t *testing.T) {
 	for _, test := range []CPU{
 		{State: State{Prefetch: [2]uint16{0x4e71}}},
-		{Bus: SparseMemory{}, State: State{Prefetch: [2]uint16{0x4e70}}},
+		{Bus: SparseMemory{}, State: State{Prefetch: [2]uint16{0x4e72}}},
 		{Bus: SparseMemory{}, State: State{Prefetch: [2]uint16{0x4ec0}}},
 	} {
 		if _, err := test.Step(); err == nil {

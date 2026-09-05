@@ -131,6 +131,28 @@ func TestMMUConfigurationRegisterAnd512KBankTranslation(t *testing.T) {
 	}
 }
 
+func TestM68KResetClearsMMUConfigurationWithoutClearingRAM(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteWord(0x0100, 0x1234, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+		t.Fatalf("MMU config after M68K reset=%02x err=%v", got, err)
+	}
+	if got, err := memory.ReadWord(0x0100, 5); err != nil || got != 0x1234 {
+		t.Fatalf("RAM after M68K reset=%04x err=%v", got, err)
+	}
+}
+
 func TestMMUAbsentSecondPhysicalBankFaults(t *testing.T) {
 	memory, err := NewMemory(RAM512K, testROM())
 	if err != nil {

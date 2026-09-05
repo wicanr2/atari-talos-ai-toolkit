@@ -156,3 +156,10 @@
   36 clocks。EmuTOS 同 ROM 以 8 條指令／128 clocks 到 `$FC0074`，
   SSP／SR／prefetch／frame 與 Hatari 全同。後續 `$FC0080` bus-error frame 探針
   發現 `$FFFF8006`／`$00FF8006` 差異，已收斂成下一個明確 gate。
+- 修正 word-source bus error 的 CPU／bus 位址邊界：absolute-short EA 的
+  32-bit `$FFFF8006` 保留於 vector 2 frame，ST backend 與 transaction 仍用
+  24-bit `$FF8006`。synthetic bus 與 EmuTOS 第 10 條／220 clocks 完整對拍通過。
+- 實作 privileged MC68000 `RESET`：optional external reset hook、user vector 8、
+  register preservation、FC=6 prefetch 與 132 clocks；ST memory reset MMU latch
+  但不清 RAM。EmuTOS 第 11 條／352 clocks 與 Hatari 全狀態一致，新停點收斂到
+  `$FA0000` 空 cartridge window。

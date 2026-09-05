@@ -156,6 +156,11 @@ func (m *Memory) ColdReset() {
 	m.mmuConfig = 0
 }
 
+func (m *Memory) M68KReset() error {
+	m.ColdReset()
+	return nil
+}
+
 func (m *Memory) ramAddress(address uint32) (uint32, bool) {
 	logicalBank0 := mmuBankSize(m.mmuConfig >> 2 & 3)
 	logicalBank1 := mmuBankSize(m.mmuConfig & 3)

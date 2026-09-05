@@ -151,6 +151,12 @@
   format-0 frame、SSP／SR 與 handler prefetch 全同。繼續至 `$FC0088`
   時發現中間 vector 2 frame 的 fault address 高 byte 仍有
   `$FFFF8006`（Hatari）／`$00FF8006`（Atari Talos）差異。
+- 上述 vector 2 fault address 已修正為保留 CPU 的 `$FFFF8006`，同時 bus
+  transaction 維持 24-bit `$FF8006`；第 10 條／220 clocks 的完整 frame 已對拍。
+- supervisor `RESET` 已實作 external reset hook、132 clocks 與 sequential
+  prefetch；EmuTOS 第 11 條／352 clocks 與 Hatari 同狀態。新的第一失敗點是
+  `$FC008A` `CMPI.L` 讀取 `$FA0000` cartridge window；Hatari 回 `$FFFFFFFF`，
+  Atari Talos 目前回 unmapped bus fault。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -164,6 +170,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 擴充 MC68000 vector 2 其餘 fault 路徑，再加入啟動所需 I/O，由已對拍的
-   EmuTOS `$FC0080` 的 `TST.W $8006` bus fault 先保留 absolute-short 符號延伸
-   fault address `$FFFF8006`，再處理 `$FC0088` `RESET` 及後續開機。
+4. 擴充 MC68000 vector 2 其餘 fault 路徑，再加入啟動所需 I/O；下一個開機
+   gate 是依 Atari ST cartridge 位址契約建立 `$FA0000–$FBFFFF` 空槽讀值，
+   讓 EmuTOS 越過第 12 條的 cartridge probe。
