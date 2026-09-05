@@ -301,3 +301,10 @@
   `$FC614A→$FC614E` 為 FrameCycles `44122→44138`，加上 MFP wait 後共 16 clocks；
   GPIP／DDR 皆維持 `$00`，SR condition codes 由 N=1/Z=0/V=0/C=1 變為
   N=0/Z=1/V=0/C=0。
+- NXP MC68901 manual §5.1.2 確認 AER reset 八 bits 全為 0；0 選 falling edge、
+  1 選 rising edge。edge bit 與 input buffer 經 XOR transition detector，因此改寫
+  AER 可能產生 interrupt transition，不能在未建模 pending interrupt 時開放任意 latch。
+- 固定 Hatari A0=`$FFFFFA03` tracepoint 實測 `$FC614A→$FC614E` 的 FrameCycles
+  `44166→44182`，仍為 16 clocks；GPIP／AER／DDR 前後均 `$00`，registers、flags、
+  prefetch 變化與第一輪 GPIP clear 相同。固定 EmuTOS 第 7,479 條對拍後，下一輪
+  停在 `$FFFA05` DDR write。

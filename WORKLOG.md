@@ -215,3 +215,8 @@
   第 7,475 條為 176,638 clocks，state／prefetch／GPIP 對拍；下一停止點為
   `$FFFA03` AER。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build 通過，
   規格 061 升 CONFORMED。
+- 完成 MFP AER `$FFFA03` reset-state zero write：依 NXP manual 的 edge polarity 與
+  AER-write transition 警告，只放行不產生 transition 的 `$00→$00`，非零值以 typed
+  `unsupported_device_state` 失敗。固定 Hatari trace 為 16 clocks；EmuTOS 第 7,479
+  條／176,682 clocks 的 state、prefetch、AER 對拍通過，下一停點 `$FFFA05` DDR。
+  完整 corpus、固定 ROM、全測試、vet 與 build 通過，規格 062 升 CONFORMED。

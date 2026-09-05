@@ -212,8 +212,45 @@ func TestMFPGPIPResetStateByteAccess(t *testing.T) {
 	if _, err := memory.ReadWord(MFPGPIP, 5); err == nil {
 		t.Fatal("odd GPIP word read unexpectedly succeeded")
 	}
-	if _, err := memory.ReadByte(MFPGPIP+2, 5); err == nil {
-		t.Fatal("neighboring AER unexpectedly mapped")
+	if _, err := memory.ReadByte(MFPAER+2, 5); err == nil {
+		t.Fatal("neighboring DDR unexpectedly mapped")
+	}
+}
+
+func TestMFPAERResetStateZeroWrite(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MFPAER, 5); err != nil || got != 0 {
+		t.Fatalf("cold AER=%02x/%v", got, err)
+	}
+	if wait, err := memory.WriteByteAt(0xfffffa03, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("timed AER zero write wait=%d err=%v", wait, err)
+	}
+	if err := memory.WriteByte(MFPAER, 1, 5); err == nil {
+		t.Fatal("nonzero AER write unexpectedly accepted")
+	} else {
+		var fault *BusFault
+		if !errors.As(err, &fault) || fault.Reason != FaultUnsupportedDeviceState {
+			t.Fatalf("nonzero AER fault=%#v/%v", fault, err)
+		}
+	}
+	if _, err := memory.ReadByte(MFPAER, 1); err == nil {
+		t.Fatal("user AER read unexpectedly succeeded")
+	}
+	if err := memory.WriteByte(MFPAER, 0, 1); err == nil {
+		t.Fatal("user AER write unexpectedly succeeded")
+	}
+	if _, err := memory.ReadWord(MFPAER, 5); err == nil {
+		t.Fatal("odd AER word read unexpectedly succeeded")
+	}
+	memory.mfpAER = 0xff
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MFPAER, 5); err != nil || got != 0 {
+		t.Fatalf("AER after M68K reset=%02x/%v", got, err)
 	}
 }
 

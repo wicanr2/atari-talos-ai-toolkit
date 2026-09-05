@@ -49,8 +49,8 @@ supervisor byte read／write，以及同形 `MOVE.B #imm,(An)` 的 timed write p
 4. `MOVE.B #imm,(An)` 的 CPU core 基礎時序仍為 12 clocks；MFP data write phase
    額外等待 4 clocks，總計 16。本切片不把 MFP wait 泛化到 RAM／ROM bus-slot
    alignment，也不宣稱 pin-level E-clock parity。
-5. 完成 `$FFFA01` 後下一個 `$FFFA03` AER write 必須維持 reserved-I/O fault，作為
-   切片停止線。
+5. 本規格驗收時以 `$FFFA03` AER write 的 reserved-I/O fault 作為切片停止線；
+   後續規格 062 只取代這條停止線，不改變 GPIP 契約。
 
 ## 驗收與停止線
 
@@ -72,7 +72,8 @@ supervisor byte read／write，以及同形 `MOVE.B #imm,(An)` 的 timed write p
   SSP=`$0F8C`、SR=`$2714`、prefetch=`$5488,$B0FC` 對上 Hatari。Talos 的內部 PC
   `$FC6152` 是預取游標；Hatari debugger 顯示的架構下一指令位址為 `$FC614E`，
   不把兩種 PC 表示混稱相同欄位。
-- 再完成 `ADDQ.L`、`CMPA.W`、`BLS` 三條後，第 7,479 條嘗試明確停在
-  `$FFFA03` AER reserved-I/O write；沒有把其餘 MFP bank 當 RAM 或 void register。
+- 本規格驗收時，再完成 `ADDQ.L`、`CMPA.W`、`BLS` 三條後，第 7,479 條嘗試
+  明確停在 `$FFFA03` AER reserved-I/O write；該停止線其後由規格 062 取代，
+  其餘未規格化 MFP bank 仍未當成 RAM 或 void register。
 - 完整 230,000 筆 CPU corpus、固定 ROM 全測試、`go vet -stdmethods=false ./...`
   與 `go build ./...` 全部通過。
