@@ -322,6 +322,18 @@ func TestSingleStepLSLLong(t *testing.T) {
 	testSingleStepCorpus(t, "LSL.l.json.bin")
 }
 
+func TestSingleStepRORByte(t *testing.T) {
+	testSingleStepCorpus(t, "ROR.b.json.bin")
+}
+
+func TestSingleStepRORWord(t *testing.T) {
+	testSingleStepCorpus(t, "ROR.w.json.bin")
+}
+
+func TestSingleStepRORLong(t *testing.T) {
+	testSingleStepCorpus(t, "ROR.l.json.bin")
+}
+
 func TestSingleStepMULS(t *testing.T) {
 	testSingleStepCorpus(t, "MULS.json.bin")
 }

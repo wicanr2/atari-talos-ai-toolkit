@@ -180,6 +180,9 @@
 - DM12EN 重建組語有 LSL 16 個靜態使用點，包含 immediate／Dn count 與 word／long。
   三份固定語料共 7,500 筆確認低六位 count、零 count、X／NZVC、動態 clocks、
   word memory RMW、EA side effect、完整 bus 次序與 vector 3。
+- DM12EN 重建組語有 ROR 10 個靜態使用點，包含 immediate／Dn count 與 word／long。
+  三份固定語料共 7,500 筆確認低六位 count、零 count 時 C 清除且 X 保留、NZVC、
+  動態 clocks、word memory RMW、EA side effect、完整 bus 次序與 vector 3。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁

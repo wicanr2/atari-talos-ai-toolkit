@@ -116,6 +116,9 @@
 - 完成 `LSL.B/W/L`；固定語料 7,500 筆涵蓋 immediate／Dn count、三種寬度、
   零 count、X／NZVC、動態 clocks、word memory RMW、EA、bus 與 vector 3，
   全數通過後累計外部單步驗收 192,500 筆。
+- 完成 `ROR.B/W/L`；固定語料 7,500 筆涵蓋 immediate／Dn count、三種寬度、
+  零 count、X 保留、NZVC、動態 clocks、word memory RMW、EA、bus 與 vector 3，
+  全數通過後累計外部單步驗收 200,000 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

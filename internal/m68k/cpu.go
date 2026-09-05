@@ -81,6 +81,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepLSRMemory(opcode)
 	case opcode&0xf118 == 0xe008 && opcode>>6&3 <= 2:
 		return c.stepLSRRegister(opcode)
+	case opcode&0xffc0 == 0xe6c0:
+		return c.stepRORMemory(opcode)
+	case opcode&0xf118 == 0xe018 && opcode>>6&3 <= 2:
+		return c.stepRORRegister(opcode)
 	case opcode&0xffc0 == 0xe1c0:
 		return c.stepASLMemory(opcode)
 	case opcode&0xf118 == 0xe100 && opcode>>6&3 <= 2:
@@ -926,14 +930,18 @@ func divideSignedClocks(dividend uint32, divisor uint16) uint32 {
 }
 
 func (c *CPU) stepASRRegister(opcode uint16) (StepResult, error) {
-	return c.stepShiftRightRegister(opcode, true)
+	return c.stepRightRegister(opcode, true, false)
 }
 
 func (c *CPU) stepLSRRegister(opcode uint16) (StepResult, error) {
-	return c.stepShiftRightRegister(opcode, false)
+	return c.stepRightRegister(opcode, false, false)
 }
 
-func (c *CPU) stepShiftRightRegister(opcode uint16, arithmetic bool) (StepResult, error) {
+func (c *CPU) stepRORRegister(opcode uint16) (StepResult, error) {
+	return c.stepRightRegister(opcode, false, true)
+}
+
+func (c *CPU) stepRightRegister(opcode uint16, arithmetic, rotate bool) (StepResult, error) {
 	size := uint8(opcode >> 6 & 3)
 	reg := uint8(opcode & 7)
 	count := uint32(opcode >> 9 & 7)
@@ -945,7 +953,7 @@ func (c *CPU) stepShiftRightRegister(opcode uint16, arithmetic bool) (StepResult
 
 	bits := uint8(8 << size)
 	value := c.State.D[reg]
-	result := c.shiftRight(value, bits, count, arithmetic)
+	result := c.rightOperation(value, bits, count, arithmetic, rotate)
 	switch size {
 	case 0:
 		c.State.D[reg] = value&0xffff_ff00 | result
@@ -964,14 +972,18 @@ func (c *CPU) stepShiftRightRegister(opcode uint16, arithmetic bool) (StepResult
 }
 
 func (c *CPU) stepASRMemory(opcode uint16) (StepResult, error) {
-	return c.stepShiftRightMemory(opcode, true)
+	return c.stepRightMemory(opcode, true, false)
 }
 
 func (c *CPU) stepLSRMemory(opcode uint16) (StepResult, error) {
-	return c.stepShiftRightMemory(opcode, false)
+	return c.stepRightMemory(opcode, false, false)
 }
 
-func (c *CPU) stepShiftRightMemory(opcode uint16, arithmetic bool) (StepResult, error) {
+func (c *CPU) stepRORMemory(opcode uint16) (StepResult, error) {
+	return c.stepRightMemory(opcode, false, true)
+}
+
+func (c *CPU) stepRightMemory(opcode uint16, arithmetic, rotate bool) (StepResult, error) {
 	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
 	if mode < 2 || mode == 7 && reg > 1 {
 		return StepResult{}, fmt.Errorf("m68k: invalid right-shift memory mode %d:%d", mode, reg)
@@ -994,7 +1006,7 @@ func (c *CPU) stepShiftRightMemory(opcode uint16, arithmetic bool) (StepResult, 
 		return StepResult{}, err
 	}
 	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
-	result := uint16(c.shiftRight(uint32(value), 16, 1, arithmetic))
+	result := uint16(c.rightOperation(uint32(value), 16, 1, arithmetic, rotate))
 	if err := stream.refill(); err != nil {
 		return StepResult{}, err
 	}
@@ -1005,7 +1017,7 @@ func (c *CPU) stepShiftRightMemory(opcode uint16, arithmetic bool) (StepResult, 
 	return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
 }
 
-func (c *CPU) shiftRight(value uint32, bits uint8, count uint32, arithmetic bool) uint32 {
+func (c *CPU) rightOperation(value uint32, bits uint8, count uint32, arithmetic, rotate bool) uint32 {
 	var mask, sign uint32
 	switch bits {
 	case 8:
@@ -1023,7 +1035,7 @@ func (c *CPU) shiftRight(value uint32, bits uint8, count uint32, arithmetic bool
 	for shifted := uint32(0); shifted < count; shifted++ {
 		carry = result&1 != 0
 		fill := uint32(0)
-		if arithmetic && result&sign != 0 {
+		if rotate && carry || arithmetic && result&sign != 0 {
 			fill = sign
 		}
 		result = result>>1 | fill
@@ -1034,10 +1046,13 @@ func (c *CPU) shiftRight(value uint32, bits uint8, count uint32, arithmetic bool
 	if result&sign != 0 {
 		c.State.SR |= 0x0008
 	}
-	if count != 0 {
+	if count != 0 && !rotate {
 		c.State.SR &^= 0x0010
-		if carry {
-			c.State.SR |= 0x0011
+	}
+	if carry {
+		c.State.SR |= 0x0001
+		if !rotate {
+			c.State.SR |= 0x0010
 		}
 	}
 	return result
