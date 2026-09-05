@@ -798,7 +798,7 @@ func TestMFPTimerCDelayStartTransition(t *testing.T) {
 	if got, err := memory.ReadByte(MFPTCDCR, 5); err != nil || got != 0x50 || !memory.mfpTimerCStart {
 		t.Fatalf("Timer C start control=%02x transition=%v err=%v", got, memory.mfpTimerCStart, err)
 	}
-	for _, value := range []byte{0, 0x10, 0x50, 0x51, 0x60, 0xff} {
+	for _, value := range []byte{0, 0x10, 0x51, 0x60, 0xff} {
 		before := memory.mfpTCDCR
 		if err := memory.WriteByte(MFPTCDCR, value, 5); err == nil {
 			t.Fatalf("active Timer C value %02x unexpectedly accepted", value)
@@ -840,6 +840,9 @@ func TestMFPTimerCInterruptEnable(t *testing.T) {
 		memory.mfpTCDCR, memory.mfpIPRB = 0, 0
 	}
 	memory.mfpTCDCR = 0x50
+	if err := memory.WriteByte(MFPTCDCR, 0x50, 5); err != nil || memory.mfpTimerDStart {
+		t.Fatalf("Timer D stopped same-value write err=%v transition=%v", err, memory.mfpTimerDStart)
+	}
 	if wait, err := memory.WriteByteAt(0xfffffa09, 0x20,
 		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("Timer C IERB enable wait=%d err=%v", wait, err)
@@ -854,6 +857,159 @@ func TestMFPTimerCInterruptEnable(t *testing.T) {
 		if memory.mfpIERB != 0x20 || memory.mfpIPRB != 0 {
 			t.Fatalf("failed value %02x changed IERB/IPRB", value)
 		}
+	}
+}
+
+func TestMFPTimerDDelayStartTransition(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpTCDCR = 0x50
+	for _, data := range []byte{0, 1, 3, 0xff} {
+		memory.mfpTDDR, memory.mfpTDMain = data, data
+		if err := memory.WriteByte(MFPTCDCR, 0x51, 5); err == nil {
+			t.Fatalf("Timer D start with data %02x unexpectedly accepted", data)
+		}
+		if memory.mfpTCDCR != 0x50 || memory.mfpTimerDStart {
+			t.Fatalf("failed data %02x changed control/transition", data)
+		}
+	}
+	memory.mfpTDDR, memory.mfpTDMain = 2, 2
+	if wait, err := memory.WriteByteAt(0xfffffa1d, 0x51,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("Timer D start wait=%d err=%v", wait, err)
+	}
+	if memory.mfpTCDCR != 0x51 || !memory.mfpTimerDStart || memory.mfpTCDR != 0 || memory.mfpTCMain != 0 {
+		t.Fatalf("Timer D start control/transition/C=%02x/%v/%02x/%02x",
+			memory.mfpTCDCR, memory.mfpTimerDStart, memory.mfpTCDR, memory.mfpTCMain)
+	}
+	for _, value := range []byte{0, 0x50, 0x51, 0x52, 0x61, 0xff} {
+		if err := memory.WriteByte(MFPTCDCR, value, 5); err == nil {
+			t.Fatalf("active Timer D value %02x unexpectedly accepted", value)
+		}
+		if memory.mfpTCDCR != 0x51 || !memory.mfpTimerDStart {
+			t.Fatalf("failed value %02x changed control/transition", value)
+		}
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.mfpTCDCR != 0 || memory.mfpTimerCStart || memory.mfpTimerDStart {
+		t.Fatalf("reset control/transitions=%02x/%v/%v", memory.mfpTCDCR, memory.mfpTimerCStart, memory.mfpTimerDStart)
+	}
+}
+
+func TestMFPUSARTFixedSerialEnable(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(MFPUCR, 0x88, 5); err == nil {
+		t.Fatal("UCR enable before Timer D unexpectedly accepted")
+	}
+	memory.mfpTCDCR, memory.mfpTDDR, memory.mfpTDMain = 0x51, 2, 2
+	if wait, err := memory.WriteByteAt(0xfffffa29, 0x88,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("UCR enable wait=%d err=%v", wait, err)
+	}
+	if err := memory.WriteByte(MFPTSR, 1, 5); err == nil {
+		t.Fatal("TSR enable before RSR unexpectedly accepted")
+	}
+	if err := memory.WriteByte(MFPRSR, 1, 5); err != nil {
+		t.Fatalf("RSR enable: %v", err)
+	}
+	if err := memory.WriteByte(MFPTSR, 1, 5); err == nil {
+		t.Fatal("TSR enable before software-known reset unexpectedly accepted")
+	}
+	if err := memory.WriteByte(MFPTSR, 0, 5); err != nil {
+		t.Fatalf("TSR software reset: %v", err)
+	}
+	if wait, err := memory.WriteByteAt(MFPTSR, 1,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("TSR enable wait=%d err=%v", wait, err)
+	}
+	if memory.mfpUCR != 0x88 || memory.mfpRSR != 1 || memory.mfpTSR != 1 || !memory.mfpTSRSet {
+		t.Fatalf("USART state UCR/RSR/TSR/set=%02x/%02x/%02x/%v",
+			memory.mfpUCR, memory.mfpRSR, memory.mfpTSR, memory.mfpTSRSet)
+	}
+	for address, value := range map[uint32]byte{MFPUCR: 0x88, MFPRSR: 1, MFPTSR: 1} {
+		if err := memory.WriteByte(address, value, 5); err == nil {
+			t.Fatalf("repeat USART write %06x unexpectedly accepted", address)
+		}
+	}
+}
+
+func TestMFPUSARTInterruptEnableSequence(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(MFPIERA, 0x10, 5); err == nil {
+		t.Fatal("USART IERA before serial init unexpectedly accepted")
+	}
+	memory.mfpUCR, memory.mfpRSR, memory.mfpTSR, memory.mfpTSRSet = 0x88, 1, 1, true
+	for _, value := range []byte{0x10, 0x10, 0x14} {
+		if wait, err := memory.WriteByteAt(0xfffffa07, value,
+			m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+			t.Fatalf("IERA transition to %02x wait=%d err=%v", value, wait, err)
+		}
+	}
+	if memory.mfpIERA != 0x14 || memory.mfpIPRA != 0 {
+		t.Fatalf("USART IERA/IPRA=%02x/%02x", memory.mfpIERA, memory.mfpIPRA)
+	}
+	for _, value := range []byte{0, 0x10, 0x14, 0x15, 0xff} {
+		if err := memory.WriteByte(MFPIERA, value, 5); err == nil {
+			t.Fatalf("final IERA value %02x unexpectedly accepted", value)
+		}
+		if memory.mfpIERA != 0x14 || memory.mfpIPRA != 0 {
+			t.Fatalf("failed value %02x changed IERA/IPRA", value)
+		}
+	}
+}
+
+func TestPSGFixedBootPortWrites(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, write := range []struct {
+		address uint32
+		value   byte
+	}{
+		{PSGRegisterSelect, 7},
+		{PSGRegisterData, 0xc0},
+		{PSGRegisterSelect, 14},
+		{PSGRegisterData, 7},
+	} {
+		if wait, err := memory.WriteByteAt(write.address|0xff00_0000, write.value,
+			m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+			t.Fatalf("PSG write %06x=%02x wait=%d err=%v", write.address, write.value, wait, err)
+		}
+	}
+	if memory.psgRegisterSelect != 14 || memory.psgRegisters[7] != 0xc0 || memory.psgRegisters[14] != 7 {
+		t.Fatalf("PSG selected/R7/R14=%02x/%02x/%02x",
+			memory.psgRegisterSelect, memory.psgRegisters[7], memory.psgRegisters[14])
+	}
+	for _, address := range []uint32{PSGRegisterSelect, PSGRegisterData} {
+		if _, err := memory.ReadByte(address, 5); err == nil {
+			t.Fatalf("unmodeled PSG read %06x unexpectedly accepted", address)
+		}
+		if err := memory.WriteByte(address, 0, 5); err == nil {
+			t.Fatalf("invalid PSG write %06x unexpectedly accepted", address)
+		}
+		if err := memory.WriteByte(address, 0, 1); err == nil {
+			t.Fatalf("user PSG write %06x unexpectedly accepted", address)
+		}
+		if err := memory.WriteWord(address, 0, 5); err == nil {
+			t.Fatalf("PSG word write %06x unexpectedly accepted", address)
+		}
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.psgRegisterSelect != 0 || memory.psgRegisters != [16]byte{} {
+		t.Fatalf("PSG reset selected/registers=%02x/%v", memory.psgRegisterSelect, memory.psgRegisters)
 	}
 }
 

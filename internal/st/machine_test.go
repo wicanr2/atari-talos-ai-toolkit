@@ -1074,13 +1074,19 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 	for machine.Instructions < 100000 {
 		if _, err := machine.Step(); err != nil {
 			state = machine.CPU.State
-			wantD = [8]uint32{0x50, 1, 2, 0, 0x0008_0001, 0x0010_0001, 0x88, 0}
-			wantA = [7]uint32{0xffff_fa00, 0x3216, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
-			if err.Error() != "st: write 1-byte bus fault at 0xfffa1d fc=5: unsupported_device_state" ||
-				machine.Instructions != 68378 || machine.Interrupts != 4 || machine.Clocks != 966808 ||
-				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f3e ||
-				state.SR != 0x2300 || state.PC != 0x00fc629e || state.Prefetch != [2]uint16{0x001d, 0x1142} ||
-				machine.Memory.mfpIERB != 0x20 || machine.Memory.mfpIMRB != 0x20 {
+			wantD = [8]uint32{7, 0x10, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
+			wantA = [7]uint32{0x94, 0x3216, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
+			if err.Error() != "st: write 1-byte bus fault at 0xfffc00 fc=5: reserved_io" ||
+				machine.Instructions != 68528 || machine.Interrupts != 4 || machine.Clocks != 968510 ||
+				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f88 ||
+				state.SR != 0x2304 || state.PC != 0x00fc51bc || state.Prefetch != [2]uint16{0xfc00, 0x11fc} ||
+				machine.Memory.mfpIERB != 0x20 || machine.Memory.mfpIMRB != 0x20 ||
+				machine.Memory.mfpIERA != 0x14 || machine.Memory.mfpIMRA != 0x14 ||
+				machine.Memory.mfpTCDCR != 0x51 || machine.Memory.mfpTDDR != 2 ||
+				machine.Memory.mfpTDMain != 2 || !machine.Memory.mfpTimerDStart ||
+				machine.Memory.mfpUCR != 0x88 || machine.Memory.mfpRSR != 1 || machine.Memory.mfpTSR != 1 ||
+				machine.Memory.psgRegisterSelect != 14 || machine.Memory.psgRegisters[7] != 0xc0 ||
+				machine.Memory.psgRegisters[14] != 7 {
 				t.Fatalf("post-ROL gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 					machine.Instructions, machine.Interrupts, machine.Clocks, state, err)
 			}

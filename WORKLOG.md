@@ -366,3 +366,11 @@
   IERB／IMRB=`$20`，期間沒有 timeout。Talos 只在 TCDCR=`$50`、IPRB=0 接受該 bit，
   正常路徑前進到 68,378 instructions、4 interrupts、966,808 clocks，下一 gate
   是 Timer D 的 TCDCR `$50→$51`。規格 085 升 CONFORMED。
+- 完成 MFP Timer D delay-mode boot切片：依 NXP／EmuTOS／Hatari 修正第一筆其實是
+  TCDCR `$50→$50` stop-D，再寫 TDDR=`$02` 與 TCDCR=`$51`；沒有把同值 write
+  誤當重複啟動。完成 fixed USART UCR／RSR／TSR=`$88/$01/$01`，並依 RBF=12、
+  TBE=10 將 IERA／IMRA 接到 `$14/$14`，全程無 pending。規格 086–088 升 CONFORMED。
+- 完成 YM2149 boot mixer／port A 固定序列：Hatari `psg_write` trace確認 select 7、
+  data `$C0`、select 14、data `$07`；Talos以 typed state與錯序 fail-closed 接線，
+  正常路徑前進到 68,528 instructions、4 interrupts、968,510 clocks，下一 gate
+  是 ACIA `$FFFC00`。一般 MOVE.B timed-I/O 的 cycle差異明列，規格 089 升 CONFORMED。

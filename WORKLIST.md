@@ -72,6 +72,10 @@
 | ST MFP timer data stopped-load | **CONFORMED** | TADR／TBDR／TCDR／TDDR 停止時同步 data/main counter、active fail-closed；第 7,547 條／177,430 clocks 對拍 |
 | ST MFP Timer C delay-mode 啟動 | **CONFORMED** | 固定 `$00→$50`、TCDR/main=`$C0`、÷64 start transition；68,103 條／963,104 clocks 抵達 `$E378` memory `ROL.W` gate |
 | ST MFP Timer C interrupt enable | **CONFORMED** | IERB bit 5=`$20`、IPRB 尚無 pending、IMRB=`$20`；68,378 條／966,808 clocks 抵達 Timer D `$50→$51` gate |
+| ST MFP Timer D delay-mode 啟動 | **CONFORMED** | TCDCR `$50→$50` stop-D、TDDR/main=`$02`、TCDCR `$50→$51`；68,392 條／966,948 clocks |
+| ST MFP USART fixed enable | **CONFORMED** | UCR／RSR／TSR=`$88/$01/$01`；68,451 條／967,594 clocks 抵達 IERA gate |
+| ST MFP USART interrupt channels | **CONFORMED** | RBF／TBE 令 IERA／IMRA=`$14/$14`，無 pending；68,518 條／968,318 clocks |
+| ST YM2149 boot mixer／port A | **CONFORMED** | `$FF8800/$FF8802` 四筆固定 write，selected/R7/R14=`$0E/$C0/$07`；68,528 條／968,510 clocks 抵達 ACIA |
 | ST MFP USART reset writes | **CONFORMED** | SCR／UCR／RSR／TSR 軟體清零、TSR 硬體 reset 未定、非零與 UDR fail-closed；第 7,563 條／177,606 clocks 對拍 |
 | MC68000 `STOP` | **CONFORMED** | privilege、immediate SR、stopped latch、Reset 清除；2,500 筆語料通過，接入第一 VBL 後 EmuTOS 第 7,604 條／178,228 clocks 進入停機 |
 | MC68000 level 4 autovector 接受 | **CONFORMED** | mask 仲裁、44 clocks、6-byte frame、running／STOP saved PC 與 `$70→$FC0446` 對上固定 Hatari |
@@ -85,5 +89,5 @@
 | ST low-res 320×200 4-plane 索引畫面 | **CONFORMED** | 32,000-byte DMA snapshot→64,000 indices；Hatari VBL7 raw／decoded SHA-256 與 histogram 通過 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video mode、palette、programmed／active base、low-res planar consumer 已接；下一 gate 是 VBL7 前 `$FFFA1D` 非零 timer control或 RGB 輸出契約 |
+| ST／STF I/O memory map | 進行中 | recurring VBL、video mode、palette、programmed／active base、low-res planar、MFP boot init與 PSG fixed ports已接；下一 gate 是 ACIA `$FFFC00`，之後接 Timer C timeout／IRQ |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

@@ -34,13 +34,15 @@ counter capture、reload、timeout、IPRB、IRQ、IACK 與 Timer D 都不在本�
 2. TCDCR 由 `$00` 寫 `$50` 時，保留低三位 Timer D control、將 Timer C control
    設為 `5`，並 latch 一次 Timer C start transition。既有 TCDR／main counter
    必須是 `$C0`；其他資料值在 countdown 尚未接線前失敗即關閉。
-3. `$00→$00` 沿用規格 069；重複 `$50`、停止 active Timer C、其他非零
-   Timer C control、任何非零 Timer D control 都回 `unsupported_device_state`，
-   且 register 與 transition 原子不變。
+3. `$00→$00` 沿用規格 069。規格 086 後續證實 `$50→$50` 是共用 helper 在
+   保留 active Timer C 時停止 Timer D 的必要同值 write，因此不再列為錯誤；停止
+   active Timer C、其他非零 Timer C control與未由規格 086涵蓋的 Timer D control
+   仍回 `unsupported_device_state`，且 register 與 transition 原子不變。
 4. byte read 回 TCDCR；supervisor data byte access 固定增加 4 wait clocks；user、
    word 與相鄰未映射位址契約不變。
 5. start transition 是交給下一層 scheduler 的 typed 邊界，不等同 timeout 已排程。
-   在規格 084 接上 countdown／reload 前，正常路徑若需要觀察第一個 timeout 必須停止。
+   在後續 Timer C countdown／reload 規格接線前，正常路徑若需要觀察第一個 timeout
+   必須停止；規格 084 已分配給中途遇到的 MC68000 ROL，不能當作 timer backlink。
 
 ## 驗收與停止線
 

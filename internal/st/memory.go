@@ -24,6 +24,8 @@ const (
 	ShifterPaletteBase = 0x00ff_8240
 	ShifterPaletteEnd  = 0x00ff_825e
 	ShifterResolution  = 0x00ff_8260
+	PSGRegisterSelect  = 0x00ff_8800
+	PSGRegisterData    = 0x00ff_8802
 	MFPGPIP            = 0x00ff_fa01
 	MFPAER             = 0x00ff_fa03
 	MFPDDR             = 0x00ff_fa05
@@ -97,6 +99,8 @@ type Memory struct {
 	videoSync50Transition bool
 	shifterPalette        [16]uint16
 	shifterResolution     byte
+	psgRegisterSelect     byte
+	psgRegisters          [16]byte
 	mfpGPIP               byte
 	mfpGPIPIn             byte
 	mfpAER                byte
@@ -114,6 +118,7 @@ type Memory struct {
 	mfpTBCR               byte
 	mfpTCDCR              byte
 	mfpTimerCStart        bool
+	mfpTimerDStart        bool
 	mfpTADR               byte
 	mfpTBDR               byte
 	mfpTCDR               byte
@@ -130,7 +135,12 @@ type Memory struct {
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
-	return m.isModeledMFPByte(address)
+	return m.isModeledMFPByte(address) || m.isModeledPSGByte(address)
+}
+
+func (m *Memory) isModeledPSGByte(address uint32) bool {
+	address &= AddressMask
+	return address == PSGRegisterSelect || address == PSGRegisterData
 }
 
 func (m *Memory) isModeledMFPByte(address uint32) bool {
@@ -173,6 +183,8 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.videoSyncMode | 0xfc, nil
 	case address == ShifterResolution:
 		return m.shifterResolution | 0xfc, nil
+	case m.isModeledPSGByte(address):
+		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == MFPGPIP:
 		m.mfpGPIP = m.mfpGPIP&m.mfpDDR | m.mfpGPIPIn&^m.mfpDDR
 		return m.mfpGPIP, nil
@@ -256,7 +268,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 }
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
-	if m.isModeledMFPByte(address) {
+	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) {
 		value, err := m.ReadByte(address, access.FunctionCode)
 		return value, 4, err
 	}
@@ -335,6 +347,22 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		}
 		return nil
 	}
+	if address == PSGRegisterSelect {
+		if m.psgRegisterSelect == 0 && m.psgRegisters[7] == 0 && m.psgRegisters[14] == 0 && value == 7 ||
+			m.psgRegisterSelect == 7 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0 && value == 14 {
+			m.psgRegisterSelect = value
+			return nil
+		}
+		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+	}
+	if address == PSGRegisterData {
+		if m.psgRegisterSelect == 7 && m.psgRegisters[7] == 0 && value == 0xc0 ||
+			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0 && value == 7 {
+			m.psgRegisters[m.psgRegisterSelect] = value
+			return nil
+		}
+		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+	}
 	if address == MFPGPIP {
 		m.mfpGPIP = m.mfpGPIP&^m.mfpDDR | value&m.mfpDDR
 		return nil
@@ -352,6 +380,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPIERA {
+		serialReady := m.mfpUCR == 0x88 && m.mfpRSR == 1 && m.mfpTSR == 1 && m.mfpIPRA == 0
+		if serialReady && (m.mfpIERA == 0 && value == 0x10 ||
+			m.mfpIERA == 0x10 && (value == 0x10 || value == 0x14)) {
+			m.mfpIERA = value
+			return nil
+		}
 		if m.mfpIERA != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -427,6 +461,14 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.mfpTimerCStart = true
 			return nil
 		}
+		if m.mfpTCDCR == 0x50 && value == 0x50 {
+			return nil
+		}
+		if m.mfpTCDCR == 0x50 && value == 0x51 && m.mfpTDDR == 2 && m.mfpTDMain == 2 {
+			m.mfpTCDCR = value
+			m.mfpTimerDStart = true
+			return nil
+		}
 		if m.mfpTCDCR != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -467,18 +509,31 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPUCR {
+		if m.mfpUCR == 0 && value == 0x88 && m.mfpTCDCR == 0x51 &&
+			m.mfpTDDR == 2 && m.mfpTDMain == 2 {
+			m.mfpUCR = value
+			return nil
+		}
 		if m.mfpUCR != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		return nil
 	}
 	if address == MFPRSR {
+		if m.mfpRSR == 0 && value == 1 && m.mfpUCR == 0x88 {
+			m.mfpRSR = value
+			return nil
+		}
 		if m.mfpRSR != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		return nil
 	}
 	if address == MFPTSR {
+		if m.mfpTSRSet && m.mfpTSR == 0 && value == 1 && m.mfpUCR == 0x88 && m.mfpRSR == 1 {
+			m.mfpTSR = value
+			return nil
+		}
 		if (m.mfpTSRSet && m.mfpTSR != 0) || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -502,7 +557,7 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 }
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
-	if m.isModeledMFPByte(address) {
+	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) {
 		return 4, m.WriteByte(address, value, access.FunctionCode)
 	}
 	wait, err := busSlotWait(access.Clock)
@@ -581,6 +636,8 @@ func (m *Memory) ColdReset() {
 	m.videoSync50Transition = false
 	m.shifterPalette = [16]uint16{}
 	m.shifterResolution = 0
+	m.psgRegisterSelect = 0
+	m.psgRegisters = [16]byte{}
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0
@@ -597,6 +654,7 @@ func (m *Memory) ColdReset() {
 	m.mfpTBCR = 0
 	m.mfpTCDCR = 0
 	m.mfpTimerCStart = false
+	m.mfpTimerDStart = false
 	m.mfpTADR = 0
 	m.mfpTBDR = 0
 	m.mfpTCDR = 0
