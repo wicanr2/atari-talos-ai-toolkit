@@ -201,6 +201,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepRTS(opcode)
 	case opcode == 0x4e73:
 		return c.stepRTE(opcode)
+	case opcode&0xfff8 == 0x4e60:
+		return c.stepMOVEToUSP(opcode)
+	case opcode&0xfff8 == 0x4e68:
+		return c.stepMOVEFromUSP(opcode)
 	case opcode&0xfff0 == 0x4e40:
 		return c.enterStandardException(uint8(32+opcode&15), c.State.PC-2, nil, 34)
 	case opcode&0xff00 == 0x6100:
@@ -258,6 +262,22 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+func (c *CPU) stepMOVEToUSP(opcode uint16) (StepResult, error) {
+	if c.State.SR&supervisor == 0 {
+		return c.enterStandardException(8, c.State.PC-4, nil, 34)
+	}
+	c.State.USP = c.addressRegister(uint8(opcode & 7))
+	return c.refillSequential(controlEA{returnPC: c.State.PC}, 4)
+}
+
+func (c *CPU) stepMOVEFromUSP(opcode uint16) (StepResult, error) {
+	if c.State.SR&supervisor == 0 {
+		return c.enterStandardException(8, c.State.PC-4, nil, 34)
+	}
+	c.setAddressRegister(uint8(opcode&7), c.State.USP)
+	return c.refillSequential(controlEA{returnPC: c.State.PC}, 4)
 }
 
 func (c *CPU) stepBit(opcode uint16, immediate bool) (StepResult, error) {

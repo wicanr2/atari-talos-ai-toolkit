@@ -189,6 +189,9 @@
 - DM12EN 重建組語有 EXG 6 個靜態使用點，全部是 Dn↔Dn。固定語料 2,500 筆另完整
   覆蓋 Dn↔Dn 834、An↔An 828、Dn↔An 838，確認 A7 stack bank、SR 不變、固定
   6 clocks 與 prefetch bus。
+- `MOVEtoUSP`／`MOVEfromUSP` 固定語料共 5,000 筆，其中 supervisor 正常 2,567、
+  user privilege 2,433；確認 A7 使用目前 SSP bank、正常 4 clocks，以及 user mode
+  以指令起始 PC 建立 34-clock vector-8 format-0 frame。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁

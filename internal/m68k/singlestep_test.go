@@ -350,6 +350,12 @@ func TestSingleStepEXG(t *testing.T) {
 	testSingleStepCorpus(t, "EXG.json.bin")
 }
 
+func TestSingleStepMOVEUSP(t *testing.T) {
+	for _, name := range []string{"MOVEtoUSP.json.bin", "MOVEfromUSP.json.bin"} {
+		t.Run(name, func(t *testing.T) { testSingleStepCorpus(t, name) })
+	}
+}
+
 func TestSingleStepMULS(t *testing.T) {
 	testSingleStepCorpus(t, "MULS.json.bin")
 }

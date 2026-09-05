@@ -125,6 +125,9 @@
 - 完成 `EXG` 三種合法形式；固定語料 2,500 筆涵蓋 Dn↔Dn、An↔An、Dn↔An、
   A7 stack bank、SR 不變、固定 clocks 與 prefetch bus，全數通過後累計外部單步
   驗收 212,500 筆。
+- 完成 `MOVE An,USP` 與 `MOVE USP,An`；固定語料 5,000 筆涵蓋正常 supervisor、
+  user privilege vector 8、A7／SSP bank、指令起始 saved PC、frame 與 bus，
+  全數通過後累計外部單步驗收 217,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。
