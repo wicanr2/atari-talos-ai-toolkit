@@ -469,3 +469,8 @@
   instructions／2,989,944 clocks完成。下一gate離開FDC，為290,296／2,990,830的
   YM2149 `$FF8800` byte write。完整240,000筆corpus、固定ROM、全測試、vet與build
   通過，規格107升CONFORMED。
+- 完成YM2149 port A切至第二顆drive：固定CPU／PSG trace證實`$FC36CA`同值選R14、
+  `$FC36CE`讀回`$05`、`$FC36DC`寫`$03`，Hatari記錄drive `0→1`且side維持0。
+  Talos於290,303 instructions／2,990,890 clocks完成，下一gate為290,312／
+  2,990,998的第二顆drive `$FF8606=$0080`。完整240,000筆corpus、固定ROM、全測試、
+  vet與build通過，規格108升CONFORMED。

@@ -29,7 +29,8 @@ stopped state，並經 E-clock 對齊的 level-4 autovector 進入真正的 EmuT
 ST DMA／WD1772開機路徑已完成force-interrupt與restore首切片；restore依固定clock比例
 排程，在九次GPIP5 inactive輪詢後由EmuTOS讀到active-low IRQ；後續Type-I status
 讀回`$E4`並清除IRQ也已與固定Hatari trace一致。第一顆drive的data-register track 0
-設定與same-track seek亦已走完相同IRQ／status垂直鏈。
+設定與same-track seek亦已走完相同IRQ／status垂直鏈；YM2149 port A也已從drive 0
+切至drive 1，準備執行第二顆drive探測。
 輸入、磁碟與完整 TOS
 開機仍未完成，因此目前**還不是可啟動遊戲的模擬器**；
 未具備的控制命令持續明確失敗，不會假裝成功。
@@ -83,7 +84,7 @@ TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／ROL／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE／STOP／line-F，共 240,000 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）** |
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP reset bank、固定 GPIP input、首個 external bus slot、level-4 autovector、reset 60 Hz recurring GLUE VBL、stopped-clock 快轉、video mode、16 色 palette、programmed／active framebuffer 基址已 CONFORMED；第四 VBL deadline 為 535,528** |
-| M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | **低解析度索引畫面及FDC force-interrupt／restore／track-0 seek／status read-clear首切片已 CONFORMED；RGB／PNG、鍵鼠、跨track seek與磁碟映像尚未完成** |
+| M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | **低解析度索引畫面、drive-0 FDC探測鏈及YM2149切至drive 1已 CONFORMED；RGB／PNG、鍵鼠、drive-1探測、跨track seek與磁碟映像尚未完成** |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
 | M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |
 

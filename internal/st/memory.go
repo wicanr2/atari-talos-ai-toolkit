@@ -250,6 +250,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7:
 		m.psgDriveStage = 2
 		return m.psgRegisters[14], nil
+	case address == PSGRegisterSelect && m.psgDriveStage == 4 && m.fdcInitStage == 14 &&
+		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5:
+		m.psgDriveStage = 5
+		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == IKBDACIAControl:
@@ -481,6 +485,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == PSGRegisterSelect {
+		if m.psgDriveStage == 3 && m.fdcInitStage == 14 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5 && value == 14 {
+			m.psgDriveStage = 4
+			return nil
+		}
 		if m.psgDriveStage == 0 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7 && value == 14 {
 			m.psgDriveStage = 1
@@ -494,6 +503,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
 	if address == PSGRegisterData {
+		if m.psgDriveStage == 5 && m.fdcInitStage == 14 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5 && value == 3 {
+			m.psgRegisters[14] = value
+			m.psgDriveStage = 6
+			return nil
+		}
 		if m.psgDriveStage == 2 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7 && value == 5 {
 			m.psgRegisters[14] = value

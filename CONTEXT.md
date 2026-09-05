@@ -360,6 +360,9 @@
   729 CPU-clock Type-I期限完成。Talos自2,988,614起算，九次inactive poll後由
   2,989,930的status read回`$E4`並清IRQ；完成點290,223 instructions／2,989,944
   clocks。下一gate為290,296／2,990,830的YM2149 `$FF8800` byte write，開始切至drive 1。
+- YM2149 port A切至drive 1已CONFORMED：固定EmuTOS再次同值選R14、讀`$05`、寫
+  `$03`；Talos於290,303 instructions／2,990,890 clocks完成，R14=`$03`。下一gate
+  為290,312／2,990,998的第二顆drive `$FF8606=$0080`，將重新執行FDC探測鏈。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -369,7 +372,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理YM2149 port A切至drive 1，並
-   重用已證實的force-interrupt／restore／seek探測鏈；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步以明確drive身分重用已證實的
+   force-interrupt／restore／seek探測鏈完成drive 1；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

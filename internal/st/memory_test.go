@@ -1115,6 +1115,52 @@ func TestPSGFirstDriveSelectUpdate(t *testing.T) {
 	}
 }
 
+func TestPSGSelectsDriveOne(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 3
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 5
+	memory.fdcInitStage = 14
+	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil || memory.psgDriveStage != 3 {
+		t.Fatal("drive-one read before reselect unexpectedly accepted")
+	}
+	if err := memory.WriteByte(PSGRegisterData, 3, 5); err == nil ||
+		memory.psgDriveStage != 3 || memory.psgRegisters[14] != 5 {
+		t.Fatal("drive-one data before reselect unexpectedly accepted")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterSelect, 14,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.psgDriveStage != 4 {
+		t.Fatalf("drive-one reselect wait/err/stage=%d/%v/%d", wait, err, memory.psgDriveStage)
+	}
+	if got, wait, err := memory.ReadByteAt(PSGRegisterSelect,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 || got != 5 ||
+		memory.psgDriveStage != 5 {
+		t.Fatalf("drive-one read value/wait/err/stage=%02x/%d/%v/%d", got, wait, err,
+			memory.psgDriveStage)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 1, 5); err == nil ||
+		memory.psgDriveStage != 5 || memory.psgRegisters[14] != 5 {
+		t.Fatal("wrong drive-one port value unexpectedly accepted")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterData, 3,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.psgDriveStage != 6 || memory.psgRegisters[14] != 3 {
+		t.Fatalf("drive-one update wait/err/stage/R14=%d/%v/%d/%02x", wait, err,
+			memory.psgDriveStage, memory.psgRegisters[14])
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.psgDriveStage != 0 || memory.psgRegisterSelect != 0 || memory.psgRegisters != [16]byte{} {
+		t.Fatalf("drive-one reset stage/select/registers=%d/%02x/%v", memory.psgDriveStage,
+			memory.psgRegisterSelect, memory.psgRegisters)
+	}
+}
+
 func TestSTFDCForceInterruptInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {
