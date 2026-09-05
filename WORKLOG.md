@@ -510,3 +510,15 @@
   與固定Hatari 65-VBL trace順序一致，全程不設IRQ且FDC保持stage14。下一gate為
   867,255 instructions／11,598,096 clocks的YM2149 `$FF8800` byte write。
   完整240,000筆corpus、固定ROM、全測試、vet與build通過，規格113升CONFORMED。
+- 完成YM2149 parallel-port strobe初始化：固定EmuTOS `parport_init()`經
+  `ongibit(GI_STROBE)`執行`$FF8800=$0E→read $03→$FF8802=$23`，只設port A
+  bit 5並保留drive／side low三位。Talos於867,260 instructions／462 interrupts／
+  11,598,144 clocks完成；下一gate為867,320／11,599,192的IKBD ACIA data
+  `$FFFC02` byte write。完整240,000筆corpus、固定ROM、全測試、vet與build通過，
+  規格114升CONFORMED。
+- 完成IKBD clock request `$1C`傳送：固定EmuTOS `igetregs()`與Hatari
+  ACIA／IKBD trace證實單byte request及10-tick 8N1 frame。Talos於867,321
+  instructions／11,599,204 clocks接受TDR write，在typed device clock
+  11,609,950完成frame，觀察邊界為868,214／11,609,966。response `$FC + 6-byte`
+  明確留給下一規格，未以guest timeout冒充原版路徑。完整240,000筆corpus、
+  固定ROM、全測試、vet與build通過，規格115升CONFORMED。

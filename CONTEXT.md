@@ -387,6 +387,14 @@
   IRQ保持inactive且FDC維持stage14。target 7於866,723 instructions／461 interrupts／
   11,591,284 clocks完成；下一gate是867,255 instructions／11,598,096 clocks的
   YM2149 `$FF8800` byte write。
+- YM2149 parallel-port strobe初始化已CONFORMED：固定EmuTOS依
+  `$0E→read $03→write $23`將port A bit 5設為1，既有drive／side low三位保持不變。
+  Talos於867,260 instructions／462 interrupts／11,598,144 clocks完成；下一gate是
+  867,320 instructions／11,599,192 clocks的IKBD ACIA data `$FFFC02` byte write。
+- IKBD clock request傳送已CONFORMED：Talos於867,321 instructions／11,599,204
+  clocks接受`$1C`，並於typed device clock 11,609,950完成10-tick frame；固定Hatari
+  已證實firmware接著回傳`$FC + 6-byte` clock packet。response尚未接線，不能以
+  Talos目前的guest timeout當作原版相同路徑。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -396,7 +404,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步先為空ACSI掃描後的
-   YM2149 `$FF8800` byte write建立固定Hatari／EmuTOS證據與READY規格；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步為IKBD clock request的
+   `$FC + 6-byte` response、MFP channel 6 IRQ與guest `clockvec()`建立固定
+   Hatari／EmuTOS證據與READY規格；host wall-clock需改成可重現profile。RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

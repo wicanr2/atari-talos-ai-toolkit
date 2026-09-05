@@ -2,7 +2,6 @@ package st
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -1736,21 +1735,64 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.fdcInitStage, machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn)
 	}
 	var nextGate error
-	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
-		_, nextGate = machine.Step()
+	for steps := 0; steps < 100_000 && machine.Memory.psgDriveStage != 9; steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("parallel strobe init instructions=%d interrupts=%d clocks=%d state=%+v stage/select/R14=%d/%02x/%02x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.psgDriveStage, machine.Memory.psgRegisterSelect,
+				machine.Memory.psgRegisters[14], err)
+		}
 	}
-	var busFault *BusFault
-	if !errors.As(nextGate, &busFault) || busFault.Address != PSGRegisterSelect || !busFault.Write ||
-		busFault.Size != 1 || busFault.FunctionCode != 5 ||
-		busFault.Reason != FaultUnsupportedDeviceState || machine.Instructions != 867255 ||
-		machine.Interrupts != 462 || machine.Clocks != 11598096 ||
-		machine.CPU.State.D != [8]uint32{0x04000020, 0x2310, 0, 0, 0x00080000, 0x00100000, 5, 1} ||
+	if machine.Memory.psgDriveStage != 9 || machine.Memory.psgRegisterSelect != 14 ||
+		machine.Memory.psgRegisters[14] != 0x23 || machine.Instructions != 867260 ||
+		machine.Interrupts != 462 || machine.Clocks != 11598144 ||
+		machine.CPU.State.D != [8]uint32{0x04000023, 0x2310, 3, 0, 0x00080000, 0x00100000, 5, 1} ||
 		machine.CPU.State.A != [7]uint32{0xffff8800, 0x2b26, 0, 0, 0, 0x00fc01f4, 0x00000ffc} ||
 		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f82 ||
-		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc6e5e ||
-		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1410} {
-		t.Fatalf("post-ACSI gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc6e6c ||
+		machine.CPU.State.Prefetch != [2]uint16{0x40c0, 0x46c1} {
+		t.Fatalf("parallel strobe completion instructions=%d interrupts=%d clocks=%d state=%+v stage/select/R14=%d/%02x/%02x",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.psgDriveStage, machine.Memory.psgRegisterSelect,
+			machine.Memory.psgRegisters[14])
+	}
+	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+		if machine.Memory.ikbdACIATDR == 0x1c {
+			break
+		}
+	}
+	if nextGate != nil || machine.Memory.ikbdACIATDR != 0x1c ||
+		!machine.Memory.ikbdACIATXPending || machine.Memory.ikbdACIAStatus&2 != 0 ||
+		machine.Instructions != 867321 || machine.Interrupts != 462 ||
+		machine.Clocks != 11599204 || machine.nextACIABitClock != 11599710 ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0x03e8, 0x1c, 0, 0x00080000, 0x00100000, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 0x2b26, 0x00fc5132, 0x00fc5142, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f50 ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc515c ||
+		machine.CPU.State.Prefetch != [2]uint16{0x241f, 0x245f} {
+		t.Fatalf("clock request write instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
+	}
+	for steps := 0; steps < 100_000 && !machine.Memory.ikbdClockRequestDone; steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("clock request frame instructions=%d interrupts=%d clocks=%d state=%+v pending/ticks/next=%v/%d/%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.ikbdACIATXPending, machine.Memory.ikbdACIATXShiftTicks,
+				machine.nextACIABitClock, err)
+		}
+	}
+	if !machine.Memory.ikbdClockRequestDone || !machine.Memory.ikbdClockRequestHandled ||
+		machine.ikbdClockRequestTXClock != 11609950 || machine.nextACIABitClock != 11610974 ||
+		machine.Instructions != 868214 || machine.Interrupts != 462 ||
+		machine.Clocks != 11609966 ||
+		machine.CPU.State.D != [8]uint32{0x0270, 0xe0, 0, 0, 0x00080000, 0x00100000, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 0x2b26, 0, 0, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f74 ||
+		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc21ae ||
+		machine.CPU.State.Prefetch != [2]uint16{0xb280, 0x6dee} {
+		t.Fatalf("clock request did not complete instructions=%d interrupts=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State)
 	}
 }
 

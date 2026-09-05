@@ -149,6 +149,8 @@ type Memory struct {
 	ikbdACIATXShiftTicks    uint8
 	ikbdResetCommandDone    bool
 	ikbdResetCommandHandled bool
+	ikbdClockRequestDone    bool
+	ikbdClockRequestHandled bool
 	ikbdACIARDR             byte
 	ikbdResetResponseRead   bool
 	ikbdStaleRDRReads       uint8
@@ -282,6 +284,11 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	case address == PSGRegisterSelect && m.psgDriveStage == 4 && m.fdcInitStage == 14 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5:
 		m.psgDriveStage = 5
+		return m.psgRegisters[14], nil
+	case address == PSGRegisterSelect && m.psgDriveStage == 7 && m.acsiStage == 5 &&
+		m.fdcInitStage == 14 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+		m.psgRegisters[14] == 3:
+		m.psgDriveStage = 8
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
@@ -542,6 +549,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == PSGRegisterSelect {
+		if m.psgDriveStage == 6 && m.acsiStage == 5 && m.fdcInitStage == 14 &&
+			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgRegisters[14] == 3 && value == 14 {
+			m.psgDriveStage = 7
+			return nil
+		}
 		if m.psgDriveStage == 3 && m.fdcInitStage == 14 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5 && value == 14 {
 			m.psgDriveStage = 4
@@ -560,6 +573,13 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
 	if address == PSGRegisterData {
+		if m.psgDriveStage == 8 && m.acsiStage == 5 && m.fdcInitStage == 14 &&
+			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgRegisters[14] == 3 && value == 0x23 {
+			m.psgRegisters[14] = value
+			m.psgDriveStage = 9
+			return nil
+		}
 		if m.psgDriveStage == 5 && m.fdcInitStage == 14 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5 && value == 3 {
 			m.psgRegisters[14] = value
@@ -595,8 +615,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	if address == IKBDACIAData {
 		validFirst := value == 0x80 && m.ikbdACIATDR == 0 && m.ikbdACIATXShiftTicks == 0
 		validSecond := value == 1 && m.ikbdACIATDR == 0x80 && m.ikbdACIATXShiftTicks != 0
+		validClockRequest := value == 0x1c && m.ikbdACIATDR == 1 &&
+			m.ikbdACIATXShiftTicks == 0 && m.psgDriveStage == 9 && m.acsiStage == 5 &&
+			m.ikbdResetResponseRead && m.ikbdStaleRDRReads == 0 && !m.ikbdClockRequestHandled
 		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
-			(validFirst || validSecond) {
+			(validFirst || validSecond || validClockRequest) {
 			m.ikbdACIATDR = value
 			m.ikbdACIATXPending = true
 			m.ikbdACIAStatus &^= 2
@@ -1256,6 +1279,8 @@ func (m *Memory) ColdReset() {
 	m.ikbdACIATXShiftTicks = 0
 	m.ikbdResetCommandDone = false
 	m.ikbdResetCommandHandled = false
+	m.ikbdClockRequestDone = false
+	m.ikbdClockRequestHandled = false
 	m.ikbdACIARDR = 0
 	m.ikbdResetResponseRead = false
 	m.ikbdStaleRDRReads = 0
@@ -1345,6 +1370,9 @@ func (m *Memory) advanceIKBDACIAClock() {
 	} else if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATDR == 1 && !m.ikbdResetCommandHandled {
 		m.ikbdResetCommandDone = true
 		m.ikbdResetCommandHandled = true
+	} else if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATDR == 0x1c && !m.ikbdClockRequestHandled {
+		m.ikbdClockRequestDone = true
+		m.ikbdClockRequestHandled = true
 	}
 }
 

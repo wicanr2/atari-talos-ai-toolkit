@@ -8,29 +8,30 @@ const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 type Machine struct {
-	CPU                    m68k.CPU
-	Memory                 *Memory
-	Instructions           uint64
-	Interrupts             uint64
-	Clocks                 uint64
-	nextVBLClock           uint64
-	vblFrameClocks         uint64
-	vblPending             bool
-	aciaClockStarted       bool
-	nextACIABitClock       uint64
-	ikbdResetRXDeadline    uint64
-	ikbdResetRXClock       uint64
-	ikbdSecondTXClock      uint64
-	timerCClockStarted     bool
-	timerCPeriods          uint64
-	nextTimerCClock        uint64
-	timerDClockStarted     bool
-	timerDPeriods          uint64
-	nextTimerDClock        uint64
-	fdcRestoreClockStarted bool
-	nextFDCRestoreClock    uint64
-	fdcSeekClockStarted    bool
-	nextFDCSeekClock       uint64
+	CPU                     m68k.CPU
+	Memory                  *Memory
+	Instructions            uint64
+	Interrupts              uint64
+	Clocks                  uint64
+	nextVBLClock            uint64
+	vblFrameClocks          uint64
+	vblPending              bool
+	aciaClockStarted        bool
+	nextACIABitClock        uint64
+	ikbdResetRXDeadline     uint64
+	ikbdResetRXClock        uint64
+	ikbdSecondTXClock       uint64
+	ikbdClockRequestTXClock uint64
+	timerCClockStarted      bool
+	timerCPeriods           uint64
+	nextTimerCClock         uint64
+	timerDClockStarted      bool
+	timerDPeriods           uint64
+	nextTimerDClock         uint64
+	fdcRestoreClockStarted  bool
+	nextFDCRestoreClock     uint64
+	fdcSeekClockStarted     bool
+	nextFDCSeekClock        uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -59,6 +60,7 @@ func (m *Machine) Reset() error {
 	m.ikbdResetRXDeadline = 0
 	m.ikbdResetRXClock = 0
 	m.ikbdSecondTXClock = 0
+	m.ikbdClockRequestTXClock = 0
 	m.timerCClockStarted = false
 	m.timerCPeriods = 0
 	m.nextTimerCClock = 0
@@ -247,6 +249,7 @@ func timerDDeadline(start, periods uint64) uint64 {
 func (m *Machine) advanceDueACIAClocks() {
 	for m.aciaClockStarted && m.nextACIABitClock != 0 && m.Clocks >= m.nextACIABitClock {
 		secondPending := m.Memory.ikbdACIATDR == 1 && m.Memory.ikbdACIATXPending
+		clockRequestDone := m.Memory.ikbdClockRequestDone
 		m.Memory.advanceIKBDACIAClock()
 		if secondPending && !m.Memory.ikbdACIATXPending {
 			m.ikbdSecondTXClock = m.nextACIABitClock
@@ -254,6 +257,9 @@ func (m *Machine) advanceDueACIAClocks() {
 		if m.Memory.ikbdResetCommandDone {
 			m.ikbdResetRXDeadline = m.nextACIABitClock + 513024
 			m.Memory.ikbdResetCommandDone = false
+		}
+		if !clockRequestDone && m.Memory.ikbdClockRequestDone {
+			m.ikbdClockRequestTXClock = m.nextACIABitClock
 		}
 		m.nextACIABitClock += 1024
 	}

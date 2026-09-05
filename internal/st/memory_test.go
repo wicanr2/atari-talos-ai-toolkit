@@ -1215,6 +1215,69 @@ func TestSTFDCForceInterruptInit(t *testing.T) {
 	}
 }
 
+func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 6
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7] = 0xc0
+	memory.psgRegisters[14] = 3
+	memory.fdcInitStage = 14
+	memory.acsiStage = 5
+
+	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil ||
+		memory.psgDriveStage != 6 || memory.psgRegisters[14] != 3 {
+		t.Fatal("strobe read before select unexpectedly accepted or mutated state")
+	}
+	if err := memory.WriteByte(PSGRegisterSelect, 13, 5); err == nil ||
+		memory.psgDriveStage != 6 || memory.psgRegisterSelect != 14 {
+		t.Fatal("wrong strobe register unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterSelect, 14,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.psgDriveStage != 7 || memory.psgRegisters[14] != 3 {
+		t.Fatalf("strobe select wait/err/stage/R14=%d/%v/%d/%02x", wait, err,
+			memory.psgDriveStage, memory.psgRegisters[14])
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
+		memory.psgDriveStage != 7 || memory.psgRegisters[14] != 3 {
+		t.Fatal("strobe write before read unexpectedly accepted or mutated state")
+	}
+	if got, wait, err := memory.ReadByteAt(PSGRegisterSelect,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || got != 3 || wait != 4 ||
+		memory.psgDriveStage != 8 || memory.psgRegisters[14] != 3 {
+		t.Fatalf("strobe read value/wait/err/stage/R14=%02x/%d/%v/%d/%02x", got, wait,
+			err, memory.psgDriveStage, memory.psgRegisters[14])
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x22, 5); err == nil ||
+		memory.psgDriveStage != 8 || memory.psgRegisters[14] != 3 {
+		t.Fatal("wrong strobe data unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterData, 0x23,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.psgDriveStage != 9 || memory.psgRegisters[14] != 0x23 ||
+		memory.psgRegisters[14]&7 != 3 {
+		t.Fatalf("strobe write wait/err/stage/R14=%d/%v/%d/%02x", wait, err,
+			memory.psgDriveStage, memory.psgRegisters[14])
+	}
+	if err := memory.WriteByte(PSGRegisterSelect, 14, 1); err == nil {
+		t.Fatal("user strobe register write unexpectedly accepted")
+	}
+	if err := memory.WriteWord(PSGRegisterSelect, 14, 5); err == nil {
+		t.Fatal("word strobe register write unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.psgDriveStage != 0 || memory.psgRegisterSelect != 0 ||
+		memory.psgRegisters != [16]byte{} {
+		t.Fatalf("strobe reset stage/select/registers=%d/%02x/%v", memory.psgDriveStage,
+			memory.psgRegisterSelect, memory.psgRegisters)
+	}
+}
+
 func TestFDCDriveOneRestartsProbeWithoutDriveZeroReceipts(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {
@@ -1874,6 +1937,71 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 	}
 	if _, err := memory.ReadByte(IKBDACIAData, 5); err == nil {
 		t.Fatal("exhausted stale RDR read unexpectedly accepted")
+	}
+}
+
+func TestIKBDACIAClockRequestTransmit(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAControl = 0x96
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdACIATDR = 1
+	memory.ikbdResetCommandDone = true
+	memory.ikbdResetCommandHandled = true
+	memory.ikbdResetResponseRead = true
+	memory.psgDriveStage = 9
+	memory.acsiStage = 5
+
+	if err := memory.WriteByte(IKBDACIAData, 0x1b, 5); err == nil ||
+		memory.ikbdACIATDR != 1 || memory.ikbdACIAStatus != 2 || memory.ikbdACIATXPending {
+		t.Fatal("wrong clock request unexpectedly accepted or mutated ACIA")
+	}
+	if wait, err := memory.WriteByteAt(IKBDACIAData, 0x1c,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.ikbdACIATDR != 0x1c || memory.ikbdACIAStatus != 0 ||
+		!memory.ikbdACIATXPending || memory.ikbdClockRequestDone ||
+		memory.ikbdClockRequestHandled {
+		t.Fatalf("clock request wait/err/TDR/status/pending/done/handled=%d/%v/%02x/%02x/%v/%v/%v",
+			wait, err, memory.ikbdACIATDR, memory.ikbdACIAStatus,
+			memory.ikbdACIATXPending, memory.ikbdClockRequestDone,
+			memory.ikbdClockRequestHandled)
+	}
+	memory.advanceIKBDACIAClock()
+	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 ||
+		memory.ikbdACIATXShiftTicks != 10 {
+		t.Fatalf("clock request shift pending/status/ticks=%v/%02x/%d",
+			memory.ikbdACIATXPending, memory.ikbdACIAStatus, memory.ikbdACIATXShiftTicks)
+	}
+	for tick := 9; tick > 0; tick-- {
+		memory.advanceIKBDACIAClock()
+		if memory.ikbdClockRequestDone || memory.ikbdACIATXShiftTicks != uint8(tick) {
+			t.Fatalf("clock request tick %d done/remaining=%v/%d", tick,
+				memory.ikbdClockRequestDone, memory.ikbdACIATXShiftTicks)
+		}
+	}
+	memory.advanceIKBDACIAClock()
+	if !memory.ikbdClockRequestDone || !memory.ikbdClockRequestHandled ||
+		memory.ikbdACIATXShiftTicks != 0 || memory.ikbdACIAStatus != 2 {
+		t.Fatalf("clock request completion done/handled/ticks/status=%v/%v/%d/%02x",
+			memory.ikbdClockRequestDone, memory.ikbdClockRequestHandled,
+			memory.ikbdACIATXShiftTicks, memory.ikbdACIAStatus)
+	}
+	memory.advanceIKBDACIAClock()
+	if !memory.ikbdClockRequestDone || !memory.ikbdClockRequestHandled {
+		t.Fatal("clock request receipt changed after completion")
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err == nil {
+		t.Fatal("duplicate clock request unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.ikbdClockRequestDone || memory.ikbdClockRequestHandled {
+		t.Fatalf("clock request reset done/handled=%v/%v", memory.ikbdClockRequestDone,
+			memory.ikbdClockRequestHandled)
 	}
 }
 
