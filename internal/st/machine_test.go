@@ -1071,8 +1071,24 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 		t.Fatalf("ROL.W result=%+v instructions=%d clocks=%d state=%+v err=%v",
 			result, machine.Instructions, machine.Clocks, machine.CPU.State, err)
 	}
-	for machine.Instructions < 100000 {
+	sawSecondTransfer := false
+	sawResetResponse := false
+	for machine.Instructions < 200000 {
 		if _, err := machine.Step(); err != nil {
+			if sawResetResponse {
+				state = machine.CPU.State
+				wantD = [8]uint32{0x3160, 2, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
+				wantA = [7]uint32{0xffff_fc04, 0x317e, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
+				if err.Error() != "st: write 1-byte bus fault at 0xfffc04 fc=5: reserved_io" ||
+					machine.Instructions != 136048 || machine.Interrupts != 8 || machine.Clocks != 1577208 ||
+					state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f8c ||
+					state.SR != 0x2310 || state.PC != 0x00fc641c ||
+					state.Prefetch != [2]uint16{3, 0x10bc} {
+					t.Fatalf("post-IKBD gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+						machine.Instructions, machine.Interrupts, machine.Clocks, state, err)
+				}
+				return
+			}
 			state = machine.CPU.State
 			wantD = [8]uint32{0xffff_ffff, 0x10, 1, 0, 0x0008_0000, 0x0010_0000, 5, 1}
 			wantA = [7]uint32{0x94, 0x3216, 0x00fc_5132, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
@@ -1092,8 +1108,37 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 			}
 			return
 		}
+		if machine.ikbdSecondTXClock != 0 && !sawSecondTransfer {
+			if machine.Memory.ikbdACIATDR != 1 || machine.Memory.ikbdACIATXPending ||
+				machine.Memory.ikbdACIAStatus != 2 {
+				t.Fatalf("second transfer device state clock=%d TDR/pending/status=%02x/%v/%02x",
+					machine.ikbdSecondTXClock, machine.Memory.ikbdACIATDR,
+					machine.Memory.ikbdACIATXPending, machine.Memory.ikbdACIAStatus)
+			}
+			sawSecondTransfer = true
+		}
+		if machine.Memory.ikbdResetResponseRead && !sawResetResponse {
+			state = machine.CPU.State
+			wantD = [8]uint32{0xffff_00f1, 0xffff_ff83, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
+			wantA = [7]uint32{0x12c, 0x3216, 0x00fc_48a2, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
+			if !sawSecondTransfer || machine.ikbdSecondTXClock != 979806 ||
+				machine.Instructions != 128313 || machine.Interrupts != 8 || machine.Clocks != 1507268 ||
+				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f82 ||
+				state.SR != 0x2308 || state.PC != 0x00fc48bc ||
+				state.Prefetch != [2]uint16{0x4e75, 0x2239} || machine.Memory.ikbdACIAStatus != 2 ||
+				machine.Memory.ikbdACIARDR != 0xf1 || machine.ikbdResetRXDeadline != 0 ||
+				machine.ikbdResetRXClock != 1503070 {
+				t.Fatalf("IKBD response read boundary sawSecond=%v secondClock=%d instructions=%d interrupts=%d clocks=%d state=%+v status/RDR/deadline/rxClock=%02x/%02x/%d/%d",
+					sawSecondTransfer, machine.ikbdSecondTXClock, machine.Instructions, machine.Interrupts,
+					machine.Clocks, state, machine.Memory.ikbdACIAStatus, machine.Memory.ikbdACIARDR,
+					machine.ikbdResetRXDeadline, machine.ikbdResetRXClock)
+			}
+			sawResetResponse = true
+		}
 	}
-	t.Fatal("no typed successor gate before 100000 instructions")
+	t.Fatalf("no typed successor gate before 200000 instructions: interrupts=%d clocks=%d state=%+v ACIA=%02x/%02x/%v/%d",
+		machine.Interrupts, machine.Clocks, machine.CPU.State, machine.Memory.ikbdACIATDR,
+		machine.Memory.ikbdACIAStatus, machine.Memory.ikbdACIATXPending, machine.Memory.ikbdACIATXShiftTicks)
 }
 
 func TestMachineAdvancesIKBDACIAAtFirstDeadline(t *testing.T) {
@@ -1116,9 +1161,40 @@ func TestMachineAdvancesIKBDACIAAtFirstDeadline(t *testing.T) {
 	}
 	machine.Clocks = 2024
 	machine.advanceDueACIAClocks()
-	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 || machine.nextACIABitClock != 3048 {
-		t.Fatalf("at deadline pending/status/next=%v/%02x/%d", memory.ikbdACIATXPending,
-			memory.ikbdACIAStatus, machine.nextACIABitClock)
+	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 || memory.ikbdACIATXShiftTicks != 10 ||
+		machine.nextACIABitClock != 3048 {
+		t.Fatalf("at deadline pending/status/shift/next=%v/%02x/%d/%d", memory.ikbdACIATXPending,
+			memory.ikbdACIAStatus, memory.ikbdACIATXShiftTicks, machine.nextACIABitClock)
+	}
+}
+
+func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdACIATDR = 1
+	memory.ikbdACIATXShiftTicks = 1
+	machine := &Machine{Memory: memory, Clocks: 1000, aciaClockStarted: true, nextACIABitClock: 1000}
+	machine.advanceClockedDevices()
+	if machine.ikbdResetRXDeadline != 514024 || memory.ikbdResetCommandDone ||
+		!memory.ikbdResetCommandHandled || memory.ikbdACIAStatus != 2 {
+		t.Fatalf("scheduled deadline/done/status=%d/%v/%02x", machine.ikbdResetRXDeadline,
+			memory.ikbdResetCommandDone, memory.ikbdACIAStatus)
+	}
+	machine.Clocks = 514023
+	machine.advanceClockedDevices()
+	if memory.ikbdACIAStatus != 2 {
+		t.Fatalf("early status=%02x", memory.ikbdACIAStatus)
+	}
+	machine.Clocks = 514024
+	machine.advanceClockedDevices()
+	if machine.ikbdResetRXDeadline != 0 || machine.ikbdResetRXClock != 514024 || memory.ikbdACIARDR != 0xf1 ||
+		memory.ikbdACIAStatus != 0x83 {
+		t.Fatalf("delivered deadline/RDR/status=%d/%02x/%02x", machine.ikbdResetRXDeadline,
+			memory.ikbdACIARDR, memory.ikbdACIAStatus)
 	}
 }
 

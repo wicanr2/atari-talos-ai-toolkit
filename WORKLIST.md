@@ -78,6 +78,7 @@
 | ST YM2149 boot mixer／port A | **CONFORMED** | `$FF8800/$FF8802` 四筆固定 write，selected/R7/R14=`$0E/$C0/$07`；68,528 條／968,510 clocks 抵達 ACIA |
 | ST IKBD ACIA control init | **CONFORMED** | `$03→$96`、status TDRE=`$02`；68,551 條／968,772 clocks 抵達首筆 data write |
 | ST IKBD ACIA first transmit deadline | **CONFORMED** | TDR=`$80`、TDRE clear／1024-clock restore；68,645 條／969,640 clocks 抵達第二 byte `$01` |
+| ST IKBD ACIA second TX／reset response | **CONFORMED** | `$01`雙buffer、10-tick frame、513,024-clock `$F1` response；136,048條／1,577,208 clocks抵達MIDI ACIA |
 | ST MFP USART reset writes | **CONFORMED** | SCR／UCR／RSR／TSR 軟體清零、TSR 硬體 reset 未定、非零與 UDR fail-closed；第 7,563 條／177,606 clocks 對拍 |
 | MC68000 `STOP` | **CONFORMED** | privilege、immediate SR、stopped latch、Reset 清除；2,500 筆語料通過，接入第一 VBL 後 EmuTOS 第 7,604 條／178,228 clocks 進入停機 |
 | MC68000 level 4 autovector 接受 | **CONFORMED** | mask 仲裁、44 clocks、6-byte frame、running／STOP saved PC 與 `$70→$FC0446` 對上固定 Hatari |
@@ -91,5 +92,5 @@
 | ST low-res 320×200 4-plane 索引畫面 | **CONFORMED** | 32,000-byte DMA snapshot→64,000 indices；Hatari VBL7 raw／decoded SHA-256 與 histogram 通過 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video mode、palette、programmed／active base、low-res planar、MFP boot init、PSG 與 ACIA 首筆 TX 已接；下一 gate 是 `$FFFC02` 第二 byte `$01`，之後接 Timer C timeout／IRQ |
+| ST／STF I/O memory map | 進行中 | recurring VBL、video mode、palette、programmed／active base、low-res planar、MFP boot init、PSG與IKBD reset handshake已接；下一gate是MIDI ACIA `$FFFC04`，之後接Timer C timeout／IRQ |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

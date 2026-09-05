@@ -91,54 +91,59 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 }
 
 type Memory struct {
-	ram                   []byte
-	rom                   []byte
-	mmuConfig             byte
-	videoBaseHigh         byte
-	videoBaseMiddle       byte
-	activeVideoBase       uint32
-	videoSyncMode         byte
-	videoSync50Transition bool
-	shifterPalette        [16]uint16
-	shifterResolution     byte
-	psgRegisterSelect     byte
-	psgRegisters          [16]byte
-	ikbdACIAControl       byte
-	ikbdACIAStatus        byte
-	ikbdACIAConfigured    bool
-	ikbdACIATDR           byte
-	ikbdACIATXPending     bool
-	mfpGPIP               byte
-	mfpGPIPIn             byte
-	mfpAER                byte
-	mfpDDR                byte
-	mfpIERA               byte
-	mfpIERB               byte
-	mfpIPRA               byte
-	mfpIPRB               byte
-	mfpISRA               byte
-	mfpISRB               byte
-	mfpIMRA               byte
-	mfpIMRB               byte
-	mfpVR                 byte
-	mfpTACR               byte
-	mfpTBCR               byte
-	mfpTCDCR              byte
-	mfpTimerCStart        bool
-	mfpTimerDStart        bool
-	mfpTADR               byte
-	mfpTBDR               byte
-	mfpTCDR               byte
-	mfpTDDR               byte
-	mfpTAMain             byte
-	mfpTBMain             byte
-	mfpTCMain             byte
-	mfpTDMain             byte
-	mfpSCR                byte
-	mfpUCR                byte
-	mfpRSR                byte
-	mfpTSR                byte
-	mfpTSRSet             bool
+	ram                     []byte
+	rom                     []byte
+	mmuConfig               byte
+	videoBaseHigh           byte
+	videoBaseMiddle         byte
+	activeVideoBase         uint32
+	videoSyncMode           byte
+	videoSync50Transition   bool
+	shifterPalette          [16]uint16
+	shifterResolution       byte
+	psgRegisterSelect       byte
+	psgRegisters            [16]byte
+	ikbdACIAControl         byte
+	ikbdACIAStatus          byte
+	ikbdACIAConfigured      bool
+	ikbdACIATDR             byte
+	ikbdACIATXPending       bool
+	ikbdACIATXShiftTicks    uint8
+	ikbdResetCommandDone    bool
+	ikbdResetCommandHandled bool
+	ikbdACIARDR             byte
+	ikbdResetResponseRead   bool
+	mfpGPIP                 byte
+	mfpGPIPIn               byte
+	mfpAER                  byte
+	mfpDDR                  byte
+	mfpIERA                 byte
+	mfpIERB                 byte
+	mfpIPRA                 byte
+	mfpIPRB                 byte
+	mfpISRA                 byte
+	mfpISRB                 byte
+	mfpIMRA                 byte
+	mfpIMRB                 byte
+	mfpVR                   byte
+	mfpTACR                 byte
+	mfpTBCR                 byte
+	mfpTCDCR                byte
+	mfpTimerCStart          bool
+	mfpTimerDStart          bool
+	mfpTADR                 byte
+	mfpTBDR                 byte
+	mfpTCDR                 byte
+	mfpTDDR                 byte
+	mfpTAMain               byte
+	mfpTBMain               byte
+	mfpTCMain               byte
+	mfpTDMain               byte
+	mfpSCR                  byte
+	mfpUCR                  byte
+	mfpRSR                  byte
+	mfpTSR                  byte
+	mfpTSRSet               bool
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -203,6 +208,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		}
 		return m.ikbdACIAStatus, nil
 	case address == IKBDACIAData:
+		if m.ikbdACIAConfigured && m.ikbdACIAStatus&1 != 0 {
+			value := m.ikbdACIARDR
+			m.ikbdACIAStatus &^= 0x81
+			m.ikbdResetResponseRead = true
+			return value, nil
+		}
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == MFPGPIP:
 		m.mfpGPIP = m.mfpGPIP&m.mfpDDR | m.mfpGPIPIn&^m.mfpDDR
@@ -396,7 +407,10 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
 	if address == IKBDACIAData {
-		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending && value == 0x80 {
+		validFirst := value == 0x80 && m.ikbdACIATDR == 0 && m.ikbdACIATXShiftTicks == 0
+		validSecond := value == 1 && m.ikbdACIATDR == 0x80 && m.ikbdACIATXShiftTicks != 0
+		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
+			(validFirst || validSecond) {
 			m.ikbdACIATDR = value
 			m.ikbdACIATXPending = true
 			m.ikbdACIAStatus &^= 2
@@ -684,6 +698,11 @@ func (m *Memory) ColdReset() {
 	m.ikbdACIAConfigured = false
 	m.ikbdACIATDR = 0
 	m.ikbdACIATXPending = false
+	m.ikbdACIATXShiftTicks = 0
+	m.ikbdResetCommandDone = false
+	m.ikbdResetCommandHandled = false
+	m.ikbdACIARDR = 0
+	m.ikbdResetResponseRead = false
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0
@@ -717,9 +736,23 @@ func (m *Memory) ColdReset() {
 }
 
 func (m *Memory) advanceIKBDACIAClock() {
-	if m.ikbdACIATXPending {
+	if m.ikbdACIATXShiftTicks != 0 {
+		m.ikbdACIATXShiftTicks--
+	}
+	if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATXPending {
 		m.ikbdACIATXPending = false
 		m.ikbdACIAStatus |= 2
+		m.ikbdACIATXShiftTicks = 10
+	} else if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATDR == 1 && !m.ikbdResetCommandHandled {
+		m.ikbdResetCommandDone = true
+		m.ikbdResetCommandHandled = true
+	}
+}
+
+func (m *Memory) deliverIKBDResetResponse() {
+	if m.ikbdACIAConfigured && m.ikbdACIAStatus&1 == 0 {
+		m.ikbdACIARDR = 0xf1
+		m.ikbdACIAStatus |= 0x81
 	}
 }
 

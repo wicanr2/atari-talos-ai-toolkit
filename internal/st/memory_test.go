@@ -1082,11 +1082,48 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 		t.Fatal("pending ACIA data write unexpectedly accepted")
 	}
 	memory.advanceIKBDACIAClock()
-	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 {
-		t.Fatalf("advanced pending/status=%v/%02x", memory.ikbdACIATXPending, memory.ikbdACIAStatus)
+	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 || memory.ikbdACIATXShiftTicks != 10 {
+		t.Fatalf("advanced pending/status/shift=%v/%02x/%d", memory.ikbdACIATXPending,
+			memory.ikbdACIAStatus, memory.ikbdACIATXShiftTicks)
 	}
-	if err := memory.WriteByte(IKBDACIAData, 1, 5); err == nil {
-		t.Fatal("out-of-scope second ACIA byte unexpectedly accepted")
+	if err := memory.WriteByte(IKBDACIAData, 1, 5); err != nil {
+		t.Fatal(err)
+	}
+	for tick := 9; tick > 0; tick-- {
+		memory.advanceIKBDACIAClock()
+		if !memory.ikbdACIATXPending || memory.ikbdACIAStatus != 0 ||
+			memory.ikbdACIATXShiftTicks != uint8(tick) {
+			t.Fatalf("tick %d pending/status/shift=%v/%02x/%d", tick, memory.ikbdACIATXPending,
+				memory.ikbdACIAStatus, memory.ikbdACIATXShiftTicks)
+		}
+	}
+	memory.advanceIKBDACIAClock()
+	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 || memory.ikbdACIATXShiftTicks != 10 ||
+		memory.ikbdACIATDR != 1 {
+		t.Fatalf("second transfer TDR/pending/status/shift=%02x/%v/%02x/%d", memory.ikbdACIATDR,
+			memory.ikbdACIATXPending, memory.ikbdACIAStatus, memory.ikbdACIATXShiftTicks)
+	}
+	for tick := 9; tick > 0; tick-- {
+		memory.advanceIKBDACIAClock()
+	}
+	if memory.ikbdResetCommandDone {
+		t.Fatal("IKBD reset command completed before stop tick")
+	}
+	memory.advanceIKBDACIAClock()
+	if !memory.ikbdResetCommandDone || !memory.ikbdResetCommandHandled || memory.ikbdACIATXShiftTicks != 0 {
+		t.Fatalf("reset command done/handled/shift=%v/%v/%d", memory.ikbdResetCommandDone,
+			memory.ikbdResetCommandHandled, memory.ikbdACIATXShiftTicks)
+	}
+	memory.deliverIKBDResetResponse()
+	if memory.ikbdACIARDR != 0xf1 || memory.ikbdACIAStatus != 0x83 {
+		t.Fatalf("RDR/status=%02x/%02x", memory.ikbdACIARDR, memory.ikbdACIAStatus)
+	}
+	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||
+		memory.ikbdACIAStatus != 2 {
+		t.Fatalf("RDR read=%02x status=%02x err=%v", got, memory.ikbdACIAStatus, err)
+	}
+	if _, err := memory.ReadByte(IKBDACIAData, 5); err == nil {
+		t.Fatal("empty RDR read unexpectedly accepted")
 	}
 }
 

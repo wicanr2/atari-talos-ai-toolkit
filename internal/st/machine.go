@@ -8,16 +8,19 @@ const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 type Machine struct {
-	CPU              m68k.CPU
-	Memory           *Memory
-	Instructions     uint64
-	Interrupts       uint64
-	Clocks           uint64
-	nextVBLClock     uint64
-	vblFrameClocks   uint64
-	vblPending       bool
-	aciaClockStarted bool
-	nextACIABitClock uint64
+	CPU                 m68k.CPU
+	Memory              *Memory
+	Instructions        uint64
+	Interrupts          uint64
+	Clocks              uint64
+	nextVBLClock        uint64
+	vblFrameClocks      uint64
+	vblPending          bool
+	aciaClockStarted    bool
+	nextACIABitClock    uint64
+	ikbdResetRXDeadline uint64
+	ikbdResetRXClock    uint64
+	ikbdSecondTXClock   uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -43,6 +46,9 @@ func (m *Machine) Reset() error {
 	m.vblPending = false
 	m.aciaClockStarted = false
 	m.nextACIABitClock = 0
+	m.ikbdResetRXDeadline = 0
+	m.ikbdResetRXClock = 0
+	m.ikbdSecondTXClock = 0
 	return nil
 }
 
@@ -93,11 +99,24 @@ func (m *Machine) advanceClockedDevices() {
 		m.nextACIABitClock = m.Clocks + 1024
 	}
 	m.advanceDueACIAClocks()
+	if m.ikbdResetRXDeadline != 0 && m.Clocks >= m.ikbdResetRXDeadline {
+		m.ikbdResetRXClock = m.ikbdResetRXDeadline
+		m.Memory.deliverIKBDResetResponse()
+		m.ikbdResetRXDeadline = 0
+	}
 }
 
 func (m *Machine) advanceDueACIAClocks() {
 	for m.aciaClockStarted && m.nextACIABitClock != 0 && m.Clocks >= m.nextACIABitClock {
+		secondPending := m.Memory.ikbdACIATDR == 1 && m.Memory.ikbdACIATXPending
 		m.Memory.advanceIKBDACIAClock()
+		if secondPending && !m.Memory.ikbdACIATXPending {
+			m.ikbdSecondTXClock = m.nextACIABitClock
+		}
+		if m.Memory.ikbdResetCommandDone {
+			m.ikbdResetRXDeadline = m.nextACIABitClock + 513024
+			m.Memory.ikbdResetCommandDone = false
+		}
 		m.nextACIABitClock += 1024
 	}
 }

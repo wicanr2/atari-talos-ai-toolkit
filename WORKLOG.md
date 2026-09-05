@@ -381,3 +381,11 @@
   240,000 筆 corpus、全測試、`go vet -stdmethods=false ./...` 與 CLI build通過。
   正常路徑抵達 68,645 instructions、4 interrupts、969,640 clocks 的第二 byte `$01`
   gate；指令邊界近似與 Hatari device-write phase差異明列。規格 090–091 升 CONFORMED。
+- 完成IKBD ACIA第二 TX buffer與warm-reset response：Hatari 16-VBL trace確認 `$01`
+  在 `$80` frame busy期間只進TDR，經10個serial ticks才移入shift stage；第二 frame收完後
+  以固定color-ST的1,002 scanlines／513,024 clocks延遲回傳 `$F1`。Talos新增一次性
+  command-consumed latch、RDRF／IRQ status與read-clear，並把device deadline和CPU
+  observation boundary分開記錄。正常EmuTOS在128,313 instructions／1,507,268 clocks
+  讀取 `$F1`，再前進到136,048 instructions／1,577,208 clocks的MIDI ACIA `$FFFC04`
+  gate。完整240,000筆corpus、全測試、`go vet -stdmethods=false ./...`與CLI build通過，
+  規格092–093升CONFORMED。

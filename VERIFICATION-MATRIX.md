@@ -53,9 +53,10 @@
 | ST MFP Timer D／USART boot init | TCDCR `$51`、UCR／RSR／TSR、RBF／TBE IERA／IMRA、fail-closed 邊界 | NXP MC68901 manual；EmuTOS `rsconf1/mfpint`；Hatari MFP trace | 部分通過；register init已接，Timer D recurrence與 USART data/IRQ 待補 |
 | ST YM2149 boot ports | select/data序列、reset、權限、寬度與 fail-closed | Atari hardware map；Hatari `psg_write` trace；固定 EmuTOS ROM | 通過；音訊合成與 port side effects待補 |
 | ST IKBD ACIA control／first TX | `$03→$96`、TDRE、TDR=`$80`、1024-clock deadline、fail-closed | MC6850 契約；Hatari `acia,ikbd_acia` trace；固定 EmuTOS ROM | 通過；68,645 instructions／969,640 clocks 抵達第二 byte `$01`，完整 serial／RX／IRQ 待補 |
+| ST IKBD ACIA second TX／reset RX | `$01` TDR buffer、10-tick frame、513,024-clock response、RDRF／IRQ status與read-clear | MC6850契約；Hatari 16-VBL trace；固定EmuTOS ROM | 通過；guest讀 `$F1` 後前進至136,048 instructions／1,577,208 clocks的MIDI ACIA gate |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、部分 MFP／PSG／ACIA 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；正常路徑至 68,645 instructions／969,640 clocks，下一 gate 是 ACIA data `$01` |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、部分 MFP／PSG／ACIA 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；正常路徑至136,048 instructions／1,577,208 clocks，下一gate是MIDI ACIA `$FFFC04` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |
