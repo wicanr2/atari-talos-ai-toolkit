@@ -134,6 +134,10 @@
 - 完成 `MOVE SR,<ea>`；固定語料 2,500 筆涵蓋 Dn／memory destination、user mode、
   SR 保留、RMW bus 次序、EA clocks 與 978 筆 vector 3，全數通過後累計外部單步
   驗收 225,000 筆。
+- 完成 `TAS.B`；先以 DM12EN `COMMAND.C:119` 確認遊戲命令佇列鎖用途，再用 Hatari
+  兩次最小探針修正上游已知的 memory timing 誤差。固定語料 2,500 筆在局部 `+2`
+  clocks 勘誤後涵蓋 Dn／memory、旗標、EA、RAM 與 transaction 全同，累計外部單步
+  驗收 227,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

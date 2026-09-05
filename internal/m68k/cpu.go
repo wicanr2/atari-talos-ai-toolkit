@@ -105,6 +105,8 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepLSLMemory(opcode)
 	case opcode&0xf118 == 0xe108 && opcode>>6&3 <= 2:
 		return c.stepLSLRegister(opcode)
+	case opcode&0xffc0 == 0x4ac0:
+		return c.stepTAS(opcode)
 	case opcode&0xff00 == 0x4a00 && opcode>>6&3 <= 2:
 		return c.stepTST(opcode)
 	case opcode&0xfff8 == 0x4e50:
@@ -619,6 +621,36 @@ func (c *CPU) stepScc(opcode uint16) (StepResult, error) {
 		c.setAddressRegister(reg, c.addressRegister(reg)+delta)
 	}
 	return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
+}
+
+func (c *CPU) stepTAS(opcode uint16) (StepResult, error) {
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid TAS destination mode %d:%d", mode, reg)
+	}
+	if mode == 0 {
+		value := byte(c.State.D[reg])
+		c.setLogicalFlags(uint32(value), 8)
+		c.State.D[reg] |= 0x80
+		return c.refillSequential(controlEA{returnPC: c.State.PC}, 4)
+	}
+
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	value, address, cost, _, err := stream.readBitOperand(mode, reg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	c.setLogicalFlags(uint32(value), 8)
+	if err := stream.writeByte(address, value|0x80); err != nil {
+		return StepResult{}, err
+	}
+	if err := stream.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 12 + cost, Transactions: stream.transactions}, nil
 }
 
 func (c *CPU) stepUnaryModify(opcode uint16, negate bool) (StepResult, error) {

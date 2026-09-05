@@ -50,7 +50,7 @@ if [ -n "${TALOS_M68000_TESTS:-}" ]; then
     [ -f "$CORPUS/NOT.l.json.bin" ] && [ -f "$CORPUS/NEG.b.json.bin" ] && \
     [ -f "$CORPUS/NEG.w.json.bin" ] && [ -f "$CORPUS/NEG.l.json.bin" ] && \
     [ -f "$CORPUS/Scc.json.bin" ] && [ -f "$CORPUS/DBcc.json.bin" ] && \
-    [ -f "$CORPUS/UNLINK.json.bin" ] || {
+    [ -f "$CORPUS/UNLINK.json.bin" ] && [ -f "$CORPUS/TAS.json.bin" ] || {
     echo "m68000 corpus is incomplete: $CORPUS" >&2
     exit 1
   }

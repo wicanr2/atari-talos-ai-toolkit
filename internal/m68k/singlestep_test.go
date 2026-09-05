@@ -366,6 +366,17 @@ func TestSingleStepMOVEFromSR(t *testing.T) {
 	testSingleStepCorpus(t, "MOVEfromSR.json.bin")
 }
 
+func TestSingleStepTAS(t *testing.T) {
+	testSingleStepCorpusAdjusted(t, "TAS.json.bin", 2500, func(corpusTest) bool { return true }, func(test *corpusTest) {
+		if test.Initial.CPU.Prefetch[0]>>3&7 == 0 {
+			return
+		}
+		// 上游明載其 TAS 5-cycle RMW timing 不正確；兩個 Hatari／Atari ST
+		// 案例都確認 (An) 為 16 clocks，因此只在此語料入口套用局部勘誤。
+		test.Clocks += 2
+	})
+}
+
 func TestSingleStepMULS(t *testing.T) {
 	testSingleStepCorpus(t, "MULS.json.bin")
 }
@@ -598,6 +609,10 @@ func testSingleStepCorpus(t *testing.T, name string) {
 }
 
 func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept func(corpusTest) bool) {
+	testSingleStepCorpusAdjusted(t, name, want, accept, nil)
+}
+
+func testSingleStepCorpusAdjusted(t *testing.T, name string, want int, accept func(corpusTest) bool, adjust func(*corpusTest)) {
 	t.Helper()
 	root := os.Getenv("TALOS_M68000_TESTS")
 	if root == "" {
@@ -614,6 +629,9 @@ func testSingleStepCorpusFiltered(t *testing.T, name string, want int, accept fu
 		}
 		accepted++
 		test := test
+		if adjust != nil {
+			adjust(&test)
+		}
 		t.Run(test.Name, func(t *testing.T) {
 			cpu := CPU{State: test.Initial.CPU, Bus: test.Initial.RAM}
 			result, err := cpu.Step()

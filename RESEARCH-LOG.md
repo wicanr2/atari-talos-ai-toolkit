@@ -198,6 +198,13 @@
 - `MOVEfromSR.json.bin` 固定語料 2,500 筆分為 Dn 404、正常 memory 1,118、
   odd destination vector 3 共 978 筆；確認 MC68000 user mode 合法、SR 不變，memory
   型依序讀舊目的 word、完成 prefetch、再寫入完整 SR。
+- DM12EN 31 份重建組語的剩餘特殊指令盤點中只有 TAS 有 1 個靜態使用點：
+  `COMMAND.S:198`；`COMMAND.C:119` 的原始註解確認它以舊值 Z 判斷命令佇列鎖，
+  再設定 byte bit 7。
+- `TAS.json.bin` 共 2,500 筆，Dn 392、memory 2,108；上游明載特殊 5-cycle RMW
+  timing 不正確。48-byte Hatari PRG 連續執行兩次 `TAS (A0)`，FrameCycles 每次皆
+  增加 16，分別確認 `01→81, N/Z=0` 與 `81→81, N=1/Z=0`，因此 memory 語料總
+  clocks 逐筆加 2；pin-level 波形未由 debugger 觀測，維持未建模。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁

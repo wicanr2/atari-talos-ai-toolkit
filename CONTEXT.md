@@ -132,6 +132,10 @@
 - `MOVE SR,<ea>` 共 2,500 筆全部通過；涵蓋 Dn／全部可修改 word memory EA、
   user mode、SR 保留、目的舊值讀取、prefetch、寫回、EA clocks 與 978 筆 vector 3。
   CPU 累計外部單步驗收 225,000 筆。
+- `TAS.B` 共 2,500 筆全部通過；涵蓋 Dn／全部可修改 byte memory EA、舊值旗標、
+  bit 7 寫回、A7 delta 與 transaction。上游已知 memory timing 少 2 clocks，已由
+  Hatari／Atari ST 兩次 `(A0)` 實測確認為 16 clocks 後局部勘誤；CPU 累計外部單步
+  驗收 227,500 筆。pin-level 5-cycle RMW 波形仍未建模。
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
   read-only 與 typed bus fault 均有測試。
