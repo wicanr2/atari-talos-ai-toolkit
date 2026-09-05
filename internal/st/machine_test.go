@@ -1233,15 +1233,20 @@ func TestMFPBInterruptPriorityAndInService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memory.mfpIERB, memory.mfpIMRB, memory.mfpIPRB = 0x30, 0x30, 0x30
+	memory.mfpIERB, memory.mfpIMRB, memory.mfpIPRB = 0x70, 0x70, 0x70
 	machine := &Machine{Memory: memory}
-	if channel, ok := machine.mfpBInterruptChannel(); !ok || channel != 5 {
-		t.Fatalf("channel/ok=%d/%v want 5/true", channel, ok)
+	if channel, ok := machine.mfpBInterruptChannel(); !ok || channel != 6 {
+		t.Fatalf("channel/ok=%d/%v want 6/true", channel, ok)
+	}
+	memory.mfpISRB = 0x40
+	if channel, ok := machine.mfpBInterruptChannel(); ok {
+		t.Fatalf("in-service channel 6 allowed channel %d", channel)
 	}
 	memory.mfpISRB = 0x20
-	if channel, ok := machine.mfpBInterruptChannel(); ok {
-		t.Fatalf("in-service channel 5 allowed channel %d", channel)
+	if channel, ok := machine.mfpBInterruptChannel(); !ok || channel != 6 {
+		t.Fatalf("lower in-service channel/ok=%d/%v want 6/true", channel, ok)
 	}
+	memory.mfpIPRB = 0x30
 	memory.mfpISRB = 0x10
 	if channel, ok := machine.mfpBInterruptChannel(); !ok || channel != 5 {
 		t.Fatalf("lower in-service channel/ok=%d/%v want 5/true", channel, ok)
@@ -1794,6 +1799,42 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		t.Fatalf("clock request did not complete instructions=%d interrupts=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State)
 	}
+	for steps := 0; steps < 100_000 && !machine.Memory.ikbdClockResponseComplete && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate != nil || !machine.Memory.ikbdClockResponseComplete ||
+		machine.Memory.ikbdClockResponseDelivered != 7 || machine.Memory.ikbdClockResponseReadCount != 7 ||
+		machine.Memory.ikbdClockResponseReads != ikbdClockResponse ||
+		machine.ikbdClockResponseDeliveryClocks != [7]uint64{11626334, 11636574, 11646814, 11657054, 11667294, 11677534, 11687774} ||
+		machine.Memory.ikbdClockResponseReadClocks != [7]uint64{11626630, 11636858, 11647106, 11657338, 11667578, 11677826, 11688058} ||
+		machine.Instructions != 874579 || machine.Interrupts != 471 || machine.Clocks != 11688070 ||
+		machine.CPU.State.D != [8]uint32{1, 0x83, 0, 0, 0x00080000, 0x00100000, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc0794, 0x2b26, 0, 0, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f48 ||
+		machine.CPU.State.SR != 0x2600 || machine.CPU.State.PC != 0x00fc07ae ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4eba, 0x0018} || machine.nextIKBDClockResponseClock != 0 {
+		t.Fatalf("clock response complete=%v delivered/read=%d/%d values=%v delivery-clocks=%v read-clocks=%v instructions=%d interrupts=%d clocks=%d state=%+v next=%d err=%v",
+			machine.Memory.ikbdClockResponseComplete, machine.Memory.ikbdClockResponseDelivered,
+			machine.Memory.ikbdClockResponseReadCount, machine.Memory.ikbdClockResponseReads,
+			machine.ikbdClockResponseDeliveryClocks, machine.Memory.ikbdClockResponseReadClocks,
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.nextIKBDClockResponseClock, nextGate)
+	}
+	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
+		machine.Instructions != 874900 || machine.Interrupts != 471 || machine.Clocks != 11691528 ||
+		machine.Memory.ikbdACIATDR != 0x1c || machine.Memory.ikbdACIATXPending ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0, 0x1b, 0, 0x00080000, 0x00140000, 0x24, 1} ||
+		machine.CPU.State.A != [7]uint32{0x2b30, 0x2b26, 0x00fc5132, 0x00fc5142, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f4c ||
+		machine.CPU.State.SR != 0x2308 || machine.CPU.State.PC != 0x00fc515a ||
+		machine.CPU.State.Prefetch != [2]uint16{0xfc02, 0x241f} {
+		t.Fatalf("post-clock gate instructions=%d interrupts=%d clocks=%d state=%+v TDR=%02x pending=%v err=%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.ikbdACIATDR, machine.Memory.ikbdACIATXPending, nextGate)
+	}
 }
 
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
@@ -1823,6 +1864,37 @@ func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
 		memory.ikbdACIAStatus != 0x83 {
 		t.Fatalf("delivered deadline/RDR/status=%d/%02x/%02x", machine.ikbdResetRXDeadline,
 			memory.ikbdACIARDR, memory.ikbdACIAStatus)
+	}
+}
+
+func TestMachineSchedulesIKBDClockResponseAfterRequestFrame(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdACIATDR = 0x1c
+	memory.ikbdACIATXShiftTicks = 1
+	machine := &Machine{Memory: memory, Clocks: 1000, aciaClockStarted: true, nextACIABitClock: 1000}
+	machine.advanceClockedDevices()
+	if machine.ikbdClockRequestTXClock != 1000 || machine.nextIKBDClockResponseClock != 17384 {
+		t.Fatalf("request/response clocks=%d/%d", machine.ikbdClockRequestTXClock,
+			machine.nextIKBDClockResponseClock)
+	}
+	machine.Clocks = 17383
+	machine.advanceClockedDevices()
+	if memory.ikbdClockResponseDelivered != 0 {
+		t.Fatal("clock response arrived before deadline")
+	}
+	machine.Clocks = 17384
+	machine.advanceClockedDevices()
+	if memory.ikbdClockResponseDelivered != 1 || memory.ikbdACIARDR != 0xfc ||
+		machine.ikbdClockResponseDeliveryClocks[0] != 17384 ||
+		machine.nextIKBDClockResponseClock != 27624 {
+		t.Fatalf("delivery/RDR/clocks/next=%d/%02x/%v/%d",
+			memory.ikbdClockResponseDelivered, memory.ikbdACIARDR,
+			machine.ikbdClockResponseDeliveryClocks, machine.nextIKBDClockResponseClock)
 	}
 }
 

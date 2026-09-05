@@ -7,31 +7,35 @@ const colorST60HzFrameClocks uint64 = 263 * 508
 const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
+var ikbdClockResponse = [7]byte{0xfc, 0, 0, 0, 0, 0, 1}
+
 type Machine struct {
-	CPU                     m68k.CPU
-	Memory                  *Memory
-	Instructions            uint64
-	Interrupts              uint64
-	Clocks                  uint64
-	nextVBLClock            uint64
-	vblFrameClocks          uint64
-	vblPending              bool
-	aciaClockStarted        bool
-	nextACIABitClock        uint64
-	ikbdResetRXDeadline     uint64
-	ikbdResetRXClock        uint64
-	ikbdSecondTXClock       uint64
-	ikbdClockRequestTXClock uint64
-	timerCClockStarted      bool
-	timerCPeriods           uint64
-	nextTimerCClock         uint64
-	timerDClockStarted      bool
-	timerDPeriods           uint64
-	nextTimerDClock         uint64
-	fdcRestoreClockStarted  bool
-	nextFDCRestoreClock     uint64
-	fdcSeekClockStarted     bool
-	nextFDCSeekClock        uint64
+	CPU                             m68k.CPU
+	Memory                          *Memory
+	Instructions                    uint64
+	Interrupts                      uint64
+	Clocks                          uint64
+	nextVBLClock                    uint64
+	vblFrameClocks                  uint64
+	vblPending                      bool
+	aciaClockStarted                bool
+	nextACIABitClock                uint64
+	ikbdResetRXDeadline             uint64
+	ikbdResetRXClock                uint64
+	ikbdSecondTXClock               uint64
+	ikbdClockRequestTXClock         uint64
+	nextIKBDClockResponseClock      uint64
+	ikbdClockResponseDeliveryClocks [7]uint64
+	timerCClockStarted              bool
+	timerCPeriods                   uint64
+	nextTimerCClock                 uint64
+	timerDClockStarted              bool
+	timerDPeriods                   uint64
+	nextTimerDClock                 uint64
+	fdcRestoreClockStarted          bool
+	nextFDCRestoreClock             uint64
+	fdcSeekClockStarted             bool
+	nextFDCSeekClock                uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -61,6 +65,8 @@ func (m *Machine) Reset() error {
 	m.ikbdResetRXClock = 0
 	m.ikbdSecondTXClock = 0
 	m.ikbdClockRequestTXClock = 0
+	m.nextIKBDClockResponseClock = 0
+	m.ikbdClockResponseDeliveryClocks = [7]uint64{}
 	m.timerCClockStarted = false
 	m.timerCPeriods = 0
 	m.nextTimerCClock = 0
@@ -110,9 +116,20 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 			return result, nil
 		}
 	}
-	result, err := m.CPU.StepAt(m.Clocks)
+	stepEpoch := m.Clocks
+	clockReads := uint8(0)
+	if m.Memory != nil {
+		clockReads = m.Memory.ikbdClockResponseReadCount
+	}
+	result, err := m.CPU.StepAt(stepEpoch)
 	if err != nil {
 		return result, err
+	}
+	if m.Memory != nil && m.Memory.ikbdClockResponseReadCount == clockReads+1 &&
+		m.Memory.ikbdClockResponseReadClocks[clockReads] == 0 {
+		// The remaining MOVE.B read paths still use the untimed Bus method.
+		// Preserve the instruction epoch until those paths expose their bus phase.
+		m.Memory.ikbdClockResponseReadClocks[clockReads] = stepEpoch
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
@@ -198,6 +215,19 @@ func (m *Machine) advanceClockedDevices() {
 		m.nextACIABitClock = m.Clocks + 1024
 	}
 	m.advanceDueACIAClocks()
+	for m.nextIKBDClockResponseClock != 0 && m.Clocks >= m.nextIKBDClockResponseClock {
+		index := m.Memory.ikbdClockResponseDelivered
+		if int(index) >= len(ikbdClockResponse) ||
+			!m.Memory.deliverIKBDClockResponse(index, ikbdClockResponse[index]) {
+			break
+		}
+		m.ikbdClockResponseDeliveryClocks[index] = m.nextIKBDClockResponseClock
+		if int(index)+1 == len(ikbdClockResponse) {
+			m.nextIKBDClockResponseClock = 0
+		} else {
+			m.nextIKBDClockResponseClock += 10 * 1024
+		}
+	}
 	if m.ikbdResetRXDeadline != 0 && m.Clocks >= m.ikbdResetRXDeadline {
 		m.ikbdResetRXClock = m.ikbdResetRXDeadline
 		m.Memory.deliverIKBDResetResponse()
@@ -221,8 +251,8 @@ func (m *Machine) mfpBInterruptChannel() (uint8, bool) {
 	if m.Memory == nil {
 		return 0, false
 	}
-	requests := m.Memory.mfpIPRB & m.Memory.mfpIERB & m.Memory.mfpIMRB & 0x30
-	for channel := uint8(5); ; channel-- {
+	requests := m.Memory.mfpIPRB & m.Memory.mfpIERB & m.Memory.mfpIMRB & 0x70
+	for channel := uint8(6); ; channel-- {
 		bit := byte(1 << channel)
 		if requests&bit != 0 && m.Memory.mfpISRB&^(bit-1) == 0 {
 			return channel, true
@@ -260,6 +290,7 @@ func (m *Machine) advanceDueACIAClocks() {
 		}
 		if !clockRequestDone && m.Memory.ikbdClockRequestDone {
 			m.ikbdClockRequestTXClock = m.nextACIABitClock
+			m.nextIKBDClockResponseClock = m.nextACIABitClock + 16*1024
 		}
 		m.nextACIABitClock += 1024
 	}

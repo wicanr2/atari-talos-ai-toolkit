@@ -98,102 +98,108 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 }
 
 type Memory struct {
-	ram                     []byte
-	rom                     []byte
-	mmuConfig               byte
-	videoBaseHigh           byte
-	videoBaseMiddle         byte
-	activeVideoBase         uint32
-	videoSyncMode           byte
-	videoSync50Transition   bool
-	shifterPalette          [16]uint16
-	shifterResolution       byte
-	psgRegisterSelect       byte
-	psgRegisters            [16]byte
-	psgDriveStage           uint8
-	dmaMode                 uint16
-	dmaAddress              uint32
-	dmaAddressWriteStage    uint8
-	dmaSectorCount          uint8
-	dmaResetCount           uint8
-	dmaInitStage            uint8
-	acsiStage               uint8
-	acsiTarget              int8
-	acsiCommand             byte
-	acsiAttemptMask         byte
-	acsiCommandReceipts     [8]byte
-	acsiTimeoutReturnClock  uint64
-	acsiTimeoutReturnClocks [8]uint64
-	fdcCommand              byte
-	fdcStatus               byte
-	fdcStatusTypeI          bool
-	fdcIRQ                  bool
-	fdcInitStage            uint8
-	fdcProbeDrive           int8
-	fdcRestorePending       bool
-	fdcRestoreStartClock    uint64
-	fdcRestoreInactivePolls uint8
-	fdcRestoreIRQObserved   bool
-	fdcStatusReadClock      uint64
-	fdcData                 byte
-	fdcSeekPending          bool
-	fdcSeekStartClock       uint64
-	fdcSeekInactivePolls    uint8
-	fdcSeekIRQObserved      bool
-	fdcSeekStatusReadClock  uint64
-	ikbdACIAControl         byte
-	ikbdACIAStatus          byte
-	ikbdACIAConfigured      bool
-	ikbdACIATDR             byte
-	ikbdACIATXPending       bool
-	ikbdACIATXShiftTicks    uint8
-	ikbdResetCommandDone    bool
-	ikbdResetCommandHandled bool
-	ikbdClockRequestDone    bool
-	ikbdClockRequestHandled bool
-	ikbdACIARDR             byte
-	ikbdResetResponseRead   bool
-	ikbdStaleRDRReads       uint8
-	midiACIAControl         byte
-	midiACIAStatus          byte
-	midiACIAConfigured      bool
-	mfpACIAEnableStage      uint8
-	mfpTimerDSystemStage    uint8
-	mfpTimerDStopStage      uint8
-	mfpUSARTReconfigStage   uint8
-	mfpGPIP                 byte
-	mfpGPIPIn               byte
-	mfpAER                  byte
-	mfpDDR                  byte
-	mfpIERA                 byte
-	mfpIERB                 byte
-	mfpIPRA                 byte
-	mfpIPRB                 byte
-	mfpISRA                 byte
-	mfpISRB                 byte
-	mfpIMRA                 byte
-	mfpIMRB                 byte
-	mfpVR                   byte
-	mfpTACR                 byte
-	mfpTBCR                 byte
-	mfpTCDCR                byte
-	mfpTimerCStart          bool
-	mfpTimerCStartClock     uint64
-	mfpTimerDStart          bool
-	mfpTimerDStartClock     uint64
-	mfpTADR                 byte
-	mfpTBDR                 byte
-	mfpTCDR                 byte
-	mfpTDDR                 byte
-	mfpTAMain               byte
-	mfpTBMain               byte
-	mfpTCMain               byte
-	mfpTDMain               byte
-	mfpSCR                  byte
-	mfpUCR                  byte
-	mfpRSR                  byte
-	mfpTSR                  byte
-	mfpTSRSet               bool
+	ram                         []byte
+	rom                         []byte
+	mmuConfig                   byte
+	videoBaseHigh               byte
+	videoBaseMiddle             byte
+	activeVideoBase             uint32
+	videoSyncMode               byte
+	videoSync50Transition       bool
+	shifterPalette              [16]uint16
+	shifterResolution           byte
+	psgRegisterSelect           byte
+	psgRegisters                [16]byte
+	psgDriveStage               uint8
+	dmaMode                     uint16
+	dmaAddress                  uint32
+	dmaAddressWriteStage        uint8
+	dmaSectorCount              uint8
+	dmaResetCount               uint8
+	dmaInitStage                uint8
+	acsiStage                   uint8
+	acsiTarget                  int8
+	acsiCommand                 byte
+	acsiAttemptMask             byte
+	acsiCommandReceipts         [8]byte
+	acsiTimeoutReturnClock      uint64
+	acsiTimeoutReturnClocks     [8]uint64
+	fdcCommand                  byte
+	fdcStatus                   byte
+	fdcStatusTypeI              bool
+	fdcIRQ                      bool
+	fdcInitStage                uint8
+	fdcProbeDrive               int8
+	fdcRestorePending           bool
+	fdcRestoreStartClock        uint64
+	fdcRestoreInactivePolls     uint8
+	fdcRestoreIRQObserved       bool
+	fdcStatusReadClock          uint64
+	fdcData                     byte
+	fdcSeekPending              bool
+	fdcSeekStartClock           uint64
+	fdcSeekInactivePolls        uint8
+	fdcSeekIRQObserved          bool
+	fdcSeekStatusReadClock      uint64
+	ikbdACIAControl             byte
+	ikbdACIAStatus              byte
+	ikbdACIAConfigured          bool
+	ikbdACIATDR                 byte
+	ikbdACIATXPending           bool
+	ikbdACIATXShiftTicks        uint8
+	ikbdResetCommandDone        bool
+	ikbdResetCommandHandled     bool
+	ikbdClockRequestDone        bool
+	ikbdClockRequestHandled     bool
+	ikbdACIARDR                 byte
+	ikbdClockResponseActive     bool
+	ikbdClockResponseDelivered  uint8
+	ikbdClockResponseReadCount  uint8
+	ikbdClockResponseReads      [7]byte
+	ikbdClockResponseReadClocks [7]uint64
+	ikbdClockResponseComplete   bool
+	ikbdResetResponseRead       bool
+	ikbdStaleRDRReads           uint8
+	midiACIAControl             byte
+	midiACIAStatus              byte
+	midiACIAConfigured          bool
+	mfpACIAEnableStage          uint8
+	mfpTimerDSystemStage        uint8
+	mfpTimerDStopStage          uint8
+	mfpUSARTReconfigStage       uint8
+	mfpGPIP                     byte
+	mfpGPIPIn                   byte
+	mfpAER                      byte
+	mfpDDR                      byte
+	mfpIERA                     byte
+	mfpIERB                     byte
+	mfpIPRA                     byte
+	mfpIPRB                     byte
+	mfpISRA                     byte
+	mfpISRB                     byte
+	mfpIMRA                     byte
+	mfpIMRB                     byte
+	mfpVR                       byte
+	mfpTACR                     byte
+	mfpTBCR                     byte
+	mfpTCDCR                    byte
+	mfpTimerCStart              bool
+	mfpTimerCStartClock         uint64
+	mfpTimerDStart              bool
+	mfpTimerDStartClock         uint64
+	mfpTADR                     byte
+	mfpTBDR                     byte
+	mfpTCDR                     byte
+	mfpTDDR                     byte
+	mfpTAMain                   byte
+	mfpTBMain                   byte
+	mfpTCMain                   byte
+	mfpTDMain                   byte
+	mfpSCR                      byte
+	mfpUCR                      byte
+	mfpRSR                      byte
+	mfpTSR                      byte
+	mfpTSRSet                   bool
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -302,8 +308,17 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 			value := m.ikbdACIARDR
 			m.ikbdACIAStatus &^= 0x81
 			m.mfpGPIPIn |= 0x10
-			m.ikbdResetResponseRead = true
-			m.ikbdStaleRDRReads = 1
+			if m.ikbdClockResponseActive && m.ikbdClockResponseReadCount < m.ikbdClockResponseDelivered {
+				m.ikbdClockResponseReads[m.ikbdClockResponseReadCount] = value
+				m.ikbdClockResponseReadCount++
+				if m.ikbdClockResponseReadCount == uint8(len(m.ikbdClockResponseReads)) {
+					m.ikbdClockResponseActive = false
+					m.ikbdClockResponseComplete = true
+				}
+			} else {
+				m.ikbdResetResponseRead = true
+				m.ikbdStaleRDRReads = 1
+			}
 			return value, nil
 		}
 		if m.ikbdACIAConfigured && m.ikbdStaleRDRReads != 0 {
@@ -311,7 +326,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 			return m.ikbdACIARDR, nil
 		}
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
-	case address == MIDIACIAControl, address == MIDIACIAData:
+	case address == MIDIACIAControl:
+		if m.midiACIAConfigured {
+			return m.midiACIAStatus, nil
+		}
+		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
+	case address == MIDIACIAData:
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == MFPGPIP:
 		m.mfpGPIP = m.mfpGPIP&m.mfpDDR | m.mfpGPIPIn&^m.mfpDDR
@@ -409,7 +429,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
+		clockReadCount := m.ikbdClockResponseReadCount
 		value, err := m.ReadByte(address, access.FunctionCode)
+		if err == nil && address&AddressMask == IKBDACIAData &&
+			m.ikbdClockResponseReadCount == clockReadCount+1 {
+			m.ikbdClockResponseReadClocks[clockReadCount] = access.Clock
+		}
 		return value, 4, err
 	}
 	wait, err := busSlotWait(access.Clock)
@@ -1282,6 +1307,12 @@ func (m *Memory) ColdReset() {
 	m.ikbdClockRequestDone = false
 	m.ikbdClockRequestHandled = false
 	m.ikbdACIARDR = 0
+	m.ikbdClockResponseActive = false
+	m.ikbdClockResponseDelivered = 0
+	m.ikbdClockResponseReadCount = 0
+	m.ikbdClockResponseReads = [7]byte{}
+	m.ikbdClockResponseReadClocks = [7]uint64{}
+	m.ikbdClockResponseComplete = false
 	m.ikbdResetResponseRead = false
 	m.ikbdStaleRDRReads = 0
 	m.midiACIAControl = 0
@@ -1381,6 +1412,21 @@ func (m *Memory) deliverIKBDResetResponse() {
 		m.ikbdACIARDR = 0xf1
 		m.ikbdACIAStatus |= 0x81
 	}
+}
+
+func (m *Memory) deliverIKBDClockResponse(index uint8, value byte) bool {
+	if !m.ikbdACIAConfigured || !m.ikbdClockRequestHandled ||
+		index != m.ikbdClockResponseDelivered || int(index) >= len(m.ikbdClockResponseReads) ||
+		m.ikbdACIAStatus&1 != 0 {
+		return false
+	}
+	m.ikbdClockResponseActive = true
+	m.ikbdACIARDR = value
+	m.ikbdACIAStatus |= 0x81
+	m.mfpGPIPIn &^= 0x10
+	m.mfpIPRB |= 0x40
+	m.ikbdClockResponseDelivered++
+	return true
 }
 
 // ProgrammedVideoBase returns the address selected for the next Shifter base reload.

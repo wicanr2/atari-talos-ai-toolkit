@@ -522,3 +522,9 @@
   11,609,950完成frame，觀察邊界為868,214／11,609,966。response `$FC + 6-byte`
   明確留給下一規格，未以guest timeout冒充原版路徑。完整240,000筆corpus、
   固定ROM、全測試、vet與build通過，規格115升CONFORMED。
+- 完成IKBD clock response與MFP channel 6：固定profile逐筆送出
+  `$FC,$00,$00,$00,$00,$00,$01`，每筆建立ACIA RDRF／IRQ、GPIP4 active-low與
+  vector `$46`，EmuTOS共用handler先讀MIDI status `$02`，再由`_ikbdsys`消費RDR。
+  七筆於874,579 instructions／471 interrupts／11,688,070 clocks收齊，下一gate為
+  874,900／11,691,528的set-clock `$FFFC02=$1B`。完整240,000筆corpus、固定ROM、
+  全測試、vet與build通過，規格116升CONFORMED。

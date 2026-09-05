@@ -1687,8 +1687,8 @@ func TestMIDIACIAControlInit(t *testing.T) {
 			t.Fatalf("configured MIDI ACIA control %02x unexpectedly accepted", value)
 		}
 	}
-	if _, err := memory.ReadByte(MIDIACIAControl, 5); err == nil {
-		t.Fatal("out-of-scope MIDI ACIA status read unexpectedly accepted")
+	if got, err := memory.ReadByte(MIDIACIAControl, 5); err != nil || got != 2 {
+		t.Fatalf("configured MIDI ACIA status=%02x err=%v", got, err)
 	}
 	if err := memory.WriteByte(MIDIACIAData, 0, 5); err == nil {
 		t.Fatal("MIDI ACIA data write unexpectedly accepted")
@@ -2002,6 +2002,55 @@ func TestIKBDACIAClockRequestTransmit(t *testing.T) {
 	if memory.ikbdClockRequestDone || memory.ikbdClockRequestHandled {
 		t.Fatalf("clock request reset done/handled=%v/%v", memory.ikbdClockRequestDone,
 			memory.ikbdClockRequestHandled)
+	}
+}
+
+func TestIKBDACIAClockResponseUsesMFPChannelSix(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockRequestHandled = true
+	memory.mfpGPIPIn = 0xa1
+	memory.mfpIERB = 0x60
+	memory.mfpIMRB = 0x60
+	memory.mfpVR = 0x48
+
+	for index, want := range ikbdClockResponse {
+		if !memory.deliverIKBDClockResponse(uint8(index), want) {
+			t.Fatalf("response byte %d was not delivered", index)
+		}
+		if memory.ikbdACIAStatus != 0x83 || memory.mfpGPIPIn&0x10 != 0 || memory.mfpIPRB&0x40 == 0 {
+			t.Fatalf("byte %d status/GPIP/IPRB=%02x/%02x/%02x", index,
+				memory.ikbdACIAStatus, memory.mfpGPIPIn, memory.mfpIPRB)
+		}
+		if memory.deliverIKBDClockResponse(uint8(index+1), 0xee) {
+			t.Fatalf("byte %d overwrote unread RDR", index+1)
+		}
+		memory.acknowledgeMFPB(6)
+		if memory.mfpIPRB&0x40 != 0 || memory.mfpISRB&0x40 == 0 {
+			t.Fatalf("byte %d acknowledge IPRB/ISRB=%02x/%02x", index, memory.mfpIPRB, memory.mfpISRB)
+		}
+		got, wait, err := memory.ReadByteAt(IKBDACIAData,
+			m68k.BusAccess{Clock: uint64(100 + index), FunctionCode: 5})
+		if err != nil || wait != 4 || got != want || memory.ikbdACIAStatus != 2 ||
+			memory.mfpGPIPIn&0x10 == 0 || memory.ikbdStaleRDRReads != 0 {
+			t.Fatalf("byte %d read/wait/status/GPIP/stale=%02x/%d/%02x/%02x/%d err=%v",
+				index, got, wait, memory.ikbdACIAStatus, memory.mfpGPIPIn,
+				memory.ikbdStaleRDRReads, err)
+		}
+		if err := memory.WriteByte(MFPISRB, 0xbf, 5); err != nil || memory.mfpISRB&0x40 != 0 {
+			t.Fatalf("byte %d end-of-interrupt ISRB=%02x err=%v", index, memory.mfpISRB, err)
+		}
+	}
+	if !memory.ikbdClockResponseComplete || memory.ikbdClockResponseActive ||
+		memory.ikbdClockResponseReads != ikbdClockResponse ||
+		memory.ikbdClockResponseReadClocks != [7]uint64{100, 101, 102, 103, 104, 105, 106} {
+		t.Fatalf("response completion/active/reads/clocks=%v/%v/%v/%v",
+			memory.ikbdClockResponseComplete, memory.ikbdClockResponseActive,
+			memory.ikbdClockResponseReads, memory.ikbdClockResponseReadClocks)
 	}
 }
 
