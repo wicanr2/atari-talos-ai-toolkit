@@ -203,6 +203,40 @@ func TestMachineEmuTOSExecutesRESET(t *testing.T) {
 	}
 }
 
+func TestMachineEmuTOSEmptyCartridgeProbe(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 12; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	state := machine.CPU.State
+	if machine.Instructions != 12 || machine.Clocks != 380 || state.PC != 0x00fc0098 ||
+		state.Prefetch != [2]uint16{0x660a, 0x4dfa} || state.SSP != 0x0fec ||
+		state.USP != 0 || state.SR != 0x2700 || state.D != [8]uint32{} || state.A != [7]uint32{} {
+		t.Fatalf("cartridge-probe boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+}
+
 func TestMachineResetWithEmuTOS(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {

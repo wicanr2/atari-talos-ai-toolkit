@@ -163,3 +163,9 @@
   register preservation、FC=6 prefetch 與 132 clocks；ST memory reset MMU latch
   但不清 RAM。EmuTOS 第 11 條／352 clocks 與 Hatari 全狀態一致，新停點收斂到
   `$FA0000` 空 cartridge window。
+- 建立 128 KiB 空 cartridge ROM window：`$FA0000–$FBFFFF` 回 `$FF`，
+  user／supervisor 可讀、write typed read-only fault，且與 MMU translation 分離。
+  EmuTOS 第 12 條／380 clocks 與 Hatari 全狀態一致。
+- 逐條追查新停點，確認第 14 條 RAM write 因全機週期位置比固定 CPU timing
+  多 2 clocks；工作轉入 cycle-aware bus／Shifter arbitration 架構決策，
+  `$FC00BE` line-F 先保留 oracle 收據而不越過前置差異實作。

@@ -245,3 +245,15 @@
   Hatari debugger 顯示 operand `$FFFFFFFF`，Atari Talos 對 `$FA0000`
   回 `unmapped` typed bus fault。下一切片需確認 Atari ST cartridge
   `$FA0000–$FBFFFF` 空槽與載入映像的正式契約。
+- Hatari v2.4.1 commit `4371dcd647fc85d31c0629400adaeaa4212040d9`：
+  `src/cpu/memory.c:1798–1803` 將 `$FA0000–$FBFFFF` 映射為 ROM；
+  `src/cart.c:108–139` reset 時以 `$FF` 填滿 `$20000` bytes；ROM write backend
+  對 byte／word／long 均產生 bus error。Atari Talos 依此建立空槽，不複製 GPL 程式碼。
+- 空 cartridge 後，兩引擎在第 12 條 `CMPI.L` 完成時皆為 380 clocks；第 13 條
+  `BNE` 仍同為 10。第 14 條 `MOVE.L #$FC00B2,$0010` 首次分歧：Hatari
+  FrameCycles `390→416`（26），Atari Talos `390→414`（24）。同形狀指令較早
+  為 24 clocks，故這 2 clocks 是依全機週期位置產生的 RAM／Shifter bus wait，
+  不能寫死在 MOVE timing。
+- Hatari `$FC00BE` `$F010` 會讀 vector 11=`$FC00D4`，以 36 clocks 進 handler；
+  但該邊界 Hatari=496、Atari Talos=494 clocks。line-F 實作必須等待前置
+  bus arbitration clocks 對齊，避免以 exception timing 掩蓋較早差異。

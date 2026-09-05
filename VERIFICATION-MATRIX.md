@@ -39,8 +39,9 @@
 | 68000 `MOVEC` illegal／vector 4 | `$4E7A/$4E7B`、saved opcode PC、format-0 frame、FC／bus、36 clocks | synthetic 雙方向／user／supervisor；Hatari／EmuTOS 同 ROM | 通過；第 8 條／128 clocks 到 `$FC0074` state／frame 全同 |
 | vector 2 absolute-short address | CPU 32-bit EA、24-bit bus、14-byte frame、68 clocks | synthetic `$4A78,$8006`；Hatari／EmuTOS 同 ROM | 通過；第 10 條／220 clocks 完整 frame 全同 |
 | MC68000 `RESET` | privilege、external reset hook、register preservation、prefetch、132 clocks | synthetic user／supervisor；Hatari／EmuTOS 同 ROM | 通過；第 11 條／352 clocks state／prefetch 全同 |
+| ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、`MOVEC`→vector 4、vector 2 fault address 與 `RESET` 已建立；cartridge／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；已完全對拍至第 11 條／352 clocks，停在 `$FA0000` |
+| TOS 開機 | reset、MMU、exceptions、`RESET` 與空 cartridge 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；完全對拍至第 12 條／380 clocks，第 14 條首次差 2 clocks |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

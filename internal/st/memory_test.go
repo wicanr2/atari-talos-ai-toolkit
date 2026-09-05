@@ -153,6 +153,72 @@ func TestM68KResetClearsMMUConfigurationWithoutClearingRAM(t *testing.T) {
 	}
 }
 
+func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if CartridgeEnd-CartridgeBase+1 != CartridgeSize {
+		t.Fatalf("cartridge window size=%x want %x", CartridgeEnd-CartridgeBase+1, CartridgeSize)
+	}
+	for _, test := range []struct {
+		address uint32
+		fc      uint8
+	}{
+		{CartridgeBase, 1},
+		{CartridgeBase + CartridgeSize/2, 2},
+		{CartridgeEnd, 5},
+		{CartridgeEnd, 6},
+	} {
+		got, readErr := memory.ReadByte(test.address, test.fc)
+		if readErr != nil || got != 0xff {
+			t.Fatalf("ReadByte(%06x,fc=%d)=%02x/%v", test.address, test.fc, got, readErr)
+		}
+	}
+	for _, address := range []uint32{CartridgeBase, CartridgeEnd - 1} {
+		got, readErr := memory.ReadWord(address, 5)
+		if readErr != nil || got != 0xffff {
+			t.Fatalf("ReadWord(%06x)=%04x/%v", address, got, readErr)
+		}
+	}
+	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadWord(CartridgeBase, 5); err != nil || got != 0xffff {
+		t.Fatalf("cartridge after MMU change=%04x/%v", got, err)
+	}
+	for _, write := range []struct {
+		address uint32
+		word    bool
+	}{
+		{CartridgeBase, false},
+		{CartridgeEnd - 1, true},
+	} {
+		var writeErr error
+		if write.word {
+			writeErr = memory.WriteWord(write.address, 0x1234, 5)
+		} else {
+			writeErr = memory.WriteByte(write.address, 0x12, 5)
+		}
+		var fault *BusFault
+		if !errors.As(writeErr, &fault) || fault.Reason != FaultReadOnly ||
+			fault.Address != write.address || !fault.Write {
+			t.Fatalf("write fault at %06x=%#v/%v", write.address, fault, writeErr)
+		}
+	}
+	if _, err := memory.ReadWord(CartridgeEnd, 5); err == nil {
+		t.Fatal("odd cartridge-end word read unexpectedly succeeded")
+	} else {
+		var fault *BusFault
+		if !errors.As(err, &fault) || fault.Reason != FaultOddWordAddress {
+			t.Fatalf("odd cartridge-end fault=%#v/%v", fault, err)
+		}
+	}
+	if _, err := memory.ReadByte(CartridgeBase-1, 5); err == nil {
+		t.Fatal("pre-cartridge gap unexpectedly mapped")
+	}
+}
+
 func TestMMUAbsentSecondPhysicalBankFaults(t *testing.T) {
 	memory, err := NewMemory(RAM512K, testROM())
 	if err != nil {

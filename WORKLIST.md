@@ -52,7 +52,10 @@
 | 68000 `MOVEC` illegal instruction／vector 4 | **CONFORMED** | `$4E7A/$4E7B`、36 clocks；EmuTOS 以 8 條／128 clocks 到 `$FC0074`，frame／state 全同 |
 | vector 2 absolute-short fault address | **CONFORMED** | frame 保存 `$FFFF8006`、bus 保存 `$FF8006`；第 10 條／220 clocks 完整對拍 |
 | MC68000 `RESET` | **CONFORMED** | privilege、external hook、132 clocks；EmuTOS 第 11 條／352 clocks 同狀態 |
-| ST cartridge `$FA0000–$FBFFFF` | 待規格 | 空槽 `$FA0000` 在 Hatari 讀為 `$FFFFFFFF`；需以 Atari 硬體契約確認 read／write／映像邊界 |
+| ST 空 cartridge `$FA0000–$FBFFFF` | **CONFORMED** | 128 KiB `$FF` read-only window；EmuTOS 第 12 條／380 clocks 同狀態 |
+| CPU／machine cycle-aware bus 契約 | 待共同決策 | 第 14 條 RAM write 首見 Hatari 26／Talos 24 clocks；須支援 Shifter arbitration 與未來 timed I/O |
+| ST RAM／Shifter bus arbitration | 待規格 | cycle-aware bus 定案後，對拍第 14 條動態 `+2` wait，不改 opcode 固定 timing |
+| MC68000 line-F／vector 11 | 待規格 | `$FC00BE` `$F010`；Hatari vector=`$FC00D4`、exception 36 clocks，但須先修正前置總時鐘 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

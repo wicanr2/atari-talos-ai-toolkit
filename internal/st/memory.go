@@ -3,14 +3,17 @@ package st
 import "fmt"
 
 const (
-	AddressMask = 0x00ff_ffff
-	RAM512K     = 512 * 1024
-	RAM1M       = 1024 * 1024
-	TOSROMSize  = 192 * 1024
-	TOSROMBase  = 0x00fc_0000
-	TOSROMEnd   = 0x00fe_ffff
-	IOBase      = 0x00ff_0000
-	MMUConfig   = 0x00ff_8001
+	AddressMask   = 0x00ff_ffff
+	RAM512K       = 512 * 1024
+	RAM1M         = 1024 * 1024
+	TOSROMSize    = 192 * 1024
+	TOSROMBase    = 0x00fc_0000
+	TOSROMEnd     = 0x00fe_ffff
+	CartridgeBase = 0x00fa_0000
+	CartridgeEnd  = 0x00fb_ffff
+	CartridgeSize = 128 * 1024
+	IOBase        = 0x00ff_0000
+	MMUConfig     = 0x00ff_8001
 )
 
 type FaultReason string
@@ -76,6 +79,8 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 			return m.ram[physical], nil
 		}
 		return 0, m.fault(address, functionCode, false, 1, FaultUnmapped)
+	case address >= CartridgeBase && address <= CartridgeEnd:
+		return 0xff, nil
 	case address >= TOSROMBase && address <= TOSROMEnd:
 		return m.rom[address-TOSROMBase], nil
 	default:
@@ -108,7 +113,8 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mmuConfig = value
 		return nil
 	}
-	if address < 8 || address >= TOSROMBase && address <= TOSROMEnd {
+	if address < 8 || address >= CartridgeBase && address <= CartridgeEnd ||
+		address >= TOSROMBase && address <= TOSROMEnd {
 		return m.fault(address, functionCode, true, 1, FaultReadOnly)
 	}
 	physical, ok := m.ramAddress(address)
@@ -142,7 +148,8 @@ func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uin
 	if fault := m.validateAccess(address, functionCode, true, size); fault != nil {
 		return 0, fault
 	}
-	if address < 8 || address >= TOSROMBase && address <= TOSROMEnd {
+	if address < 8 || address >= CartridgeBase && address <= CartridgeEnd ||
+		address >= TOSROMBase && address <= TOSROMEnd {
 		return 0, m.fault(address, functionCode, true, size, FaultReadOnly)
 	}
 	physical, ok := m.ramAddress(address)

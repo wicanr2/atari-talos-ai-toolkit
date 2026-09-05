@@ -157,6 +157,10 @@
   prefetch；EmuTOS 第 11 條／352 clocks 與 Hatari 同狀態。新的第一失敗點是
   `$FC008A` `CMPI.L` 讀取 `$FA0000` cartridge window；Hatari 回 `$FFFFFFFF`，
   Atari Talos 目前回 unmapped bus fault。
+- 空 cartridge `$FA0000–$FBFFFF` 已建立為 128 KiB `$FF` read-only window；
+  EmuTOS 第 12 條／380 clocks 與 Hatari 同狀態。逐條向後比對後，第 14 條
+  RAM write 首次出現 Hatari 26／Atari Talos 24 clocks；這是依全機當下週期
+  變動的 Shifter bus arbitration 缺口，不是該 MOVE opcode 的固定 timing。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -170,6 +174,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 擴充 MC68000 vector 2 其餘 fault 路徑，再加入啟動所需 I/O；下一個開機
-   gate 是依 Atari ST cartridge 位址契約建立 `$FA0000–$FBFFFF` 空槽讀值，
-   讓 EmuTOS 越過第 12 條的 cartridge probe。
+4. 先決定並建立 CPU／machine／bus 的 cycle-aware access 契約，實作 ST RAM／
+   Shifter arbitration 的動態 wait state；恢復第 14 條同 clocks 後，再處理
+   `$FC00BE` line-F vector 11 與後續開機。
