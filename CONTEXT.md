@@ -355,6 +355,11 @@
   於clock 2,986,242讀`$FF8604`；固定無磁片profile回`$00E4`，再清IRQ並將GPIP5
   恢復inactive high。完成點289,865 instructions／2,986,256 clocks；下一gate為
   289,982 instructions／2,987,452 clocks的`$FF8606=$0086` data-register selector。
+- ST WD1772 same-track seek已CONFORMED：第一顆drive依序寫mode `$0086`、data `$0000`、
+  mode `$0080`、command `$0013`；motor已開、TR=DR=head track 0、verify off，故沿固定
+  729 CPU-clock Type-I期限完成。Talos自2,988,614起算，九次inactive poll後由
+  2,989,930的status read回`$E4`並清IRQ；完成點290,223 instructions／2,989,944
+  clocks。下一gate為290,296／2,990,830的YM2149 `$FF8800` byte write，開始切至drive 1。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -364,7 +369,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理`$FF8606=$0086`選data register、
-   `$FF8604=$0000`與後續seek `$13`；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理YM2149 port A切至drive 1，並
+   重用已證實的force-interrupt／restore／seek探測鏈；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

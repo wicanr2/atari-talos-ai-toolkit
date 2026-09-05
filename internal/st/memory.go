@@ -119,6 +119,12 @@ type Memory struct {
 	fdcRestoreInactivePolls uint8
 	fdcRestoreIRQObserved   bool
 	fdcStatusReadClock      uint64
+	fdcData                 byte
+	fdcSeekPending          bool
+	fdcSeekStartClock       uint64
+	fdcSeekInactivePolls    uint8
+	fdcSeekIRQObserved      bool
+	fdcSeekStatusReadClock  uint64
 	ikbdACIAControl         byte
 	ikbdACIAStatus          byte
 	ikbdACIAConfigured      bool
@@ -275,6 +281,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		if m.fdcInitStage == 5 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.fdcRestoreIRQObserved = true
 		}
+		if m.fdcInitStage == 11 && m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
+			m.fdcSeekInactivePolls++
+		}
+		if m.fdcInitStage == 12 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
+			m.fdcSeekIRQObserved = true
+		}
 		return m.mfpGPIP, nil
 	case address == MFPAER:
 		return m.mfpAER, nil
@@ -377,7 +389,7 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 		if fault := m.validateAccess(address, functionCode, false, 2); fault != nil {
 			return 0, fault
 		}
-		if m.fdcInitStage != 6 || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
+		if (m.fdcInitStage != 6 && m.fdcInitStage != 13) || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
 			!m.fdcIRQ || m.mfpGPIPIn&0x20 != 0 {
 			return 0, m.fault(address, functionCode, false, 2, FaultUnsupportedDeviceState)
 		}
@@ -385,7 +397,11 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 		value := uint16(m.fdcStatus)
 		m.fdcIRQ = false
 		m.mfpGPIPIn |= 0x20
-		m.fdcInitStage = 7
+		if m.fdcInitStage == 6 {
+			m.fdcInitStage = 7
+		} else {
+			m.fdcInitStage = 14
+		}
 		return value, nil
 	}
 	if address >= ShifterPaletteBase && address <= ShifterPaletteEnd {
@@ -413,12 +429,19 @@ func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint
 	if err != nil {
 		return 0, 0, err
 	}
-	wasStatusRead := address&AddressMask == STDiskController && m.fdcInitStage == 6
+	statusReadStage := m.fdcInitStage
+	wasStatusRead := address&AddressMask == STDiskController &&
+		(statusReadStage == 6 || statusReadStage == 13)
 	value, err := m.ReadWord(address, access.FunctionCode)
 	if err == nil && address&AddressMask == STDiskController {
 		wait += 4
-		if wasStatusRead && m.fdcInitStage == 7 {
-			m.fdcStatusReadClock = access.Clock
+		if wasStatusRead {
+			if statusReadStage == 6 && m.fdcInitStage == 7 {
+				m.fdcStatusReadClock = access.Clock
+			}
+			if statusReadStage == 13 && m.fdcInitStage == 14 {
+				m.fdcSeekStatusReadClock = access.Clock
+			}
 		}
 	}
 	return value, wait, err
@@ -901,6 +924,36 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.fdcInitStage = 6
 			return nil
 		}
+		if address == STDMAControl && m.fdcInitStage == 7 && m.dmaMode == 0x0080 && value == 0x0086 {
+			m.dmaMode = value
+			m.fdcInitStage = 8
+			return nil
+		}
+		if address == STDiskController && m.fdcInitStage == 8 && m.dmaMode == 0x0086 && value == 0x0000 {
+			m.fdcData = byte(value)
+			m.fdcInitStage = 9
+			return nil
+		}
+		if address == STDMAControl && m.fdcInitStage == 9 && m.dmaMode == 0x0086 && value == 0x0080 {
+			m.dmaMode = value
+			m.fdcInitStage = 10
+			return nil
+		}
+		if address == STDiskController && m.fdcInitStage == 10 && m.dmaMode == 0x0080 &&
+			m.fdcData == 0 && value == 0x0013 {
+			m.fdcCommand = byte(value)
+			m.fdcStatus = 0xe5
+			m.fdcStatusTypeI = true
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.fdcSeekPending = true
+			m.fdcInitStage = 11
+			return nil
+		}
+		if address == STDMAControl && m.fdcInitStage == 12 && m.dmaMode == 0x0080 && value == 0x0080 {
+			m.fdcInitStage = 13
+			return nil
+		}
 		if address == STDiskController && m.fdcInitStage == 3 && m.dmaMode == 0x0080 && value == 0x000b {
 			m.fdcCommand = byte(value)
 			m.fdcStatus = 0x81
@@ -954,6 +1007,7 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		return 0, err
 	}
 	wasRestorePending := m.fdcRestorePending
+	wasSeekPending := m.fdcSeekPending
 	err = m.WriteWord(address, value, access.FunctionCode)
 	if err == nil {
 		address &= AddressMask
@@ -962,6 +1016,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		}
 		if !wasRestorePending && m.fdcRestorePending {
 			m.fdcRestoreStartClock = access.Clock
+		}
+		if !wasSeekPending && m.fdcSeekPending {
+			m.fdcSeekStartClock = access.Clock
 		}
 	}
 	return wait, err
@@ -1016,6 +1073,12 @@ func (m *Memory) ColdReset() {
 	m.fdcRestoreInactivePolls = 0
 	m.fdcRestoreIRQObserved = false
 	m.fdcStatusReadClock = 0
+	m.fdcData = 0
+	m.fdcSeekPending = false
+	m.fdcSeekStartClock = 0
+	m.fdcSeekInactivePolls = 0
+	m.fdcSeekIRQObserved = false
+	m.fdcSeekStatusReadClock = 0
 	m.mfpGPIPIn |= 0x20
 	m.ikbdACIAControl = 0
 	m.ikbdACIAStatus = 0
@@ -1078,6 +1141,17 @@ func (m *Memory) completeFDCRestore() {
 	m.mfpGPIPIn &^= 0x20
 	m.fdcRestorePending = false
 	m.fdcInitStage = 5
+}
+
+func (m *Memory) completeFDCSeek() {
+	if !m.fdcSeekPending {
+		return
+	}
+	m.fdcStatus = 0xe4
+	m.fdcIRQ = true
+	m.mfpGPIPIn &^= 0x20
+	m.fdcSeekPending = false
+	m.fdcInitStage = 12
 }
 
 func (m *Memory) mfpVector(channel uint8) uint8 {

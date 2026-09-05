@@ -462,3 +462,10 @@
   D0=`$FFFF00E4`且GPIP5恢復inactive。下一gate為289,982／2,987,452的
   `$FF8606=$0086`。完整240,000筆corpus、固定ROM、全測試、vet與build通過，規格106
   升CONFORMED。
+- 完成第一顆drive的WD1772 data-register與same-track seek：固定EmuTOS／Hatari依序
+  寫`$0086/$0000/$0080/$0013`；Hatari state machine證實motor已開、TR=DR=0、verify
+  off時仍是728 FDC clocks，CPU＋FDC trace另證實九次inactive GPIP read後才讀到active。
+  Talos seek自clock 2,988,614起算，於2,989,930讀status `$E4`並清IRQ，290,223
+  instructions／2,989,944 clocks完成。下一gate離開FDC，為290,296／2,990,830的
+  YM2149 `$FF8800` byte write。完整240,000筆corpus、固定ROM、全測試、vet與build
+  通過，規格107升CONFORMED。

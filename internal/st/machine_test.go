@@ -1527,16 +1527,50 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Instructions, machine.Interrupts, machine.Clocks, state,
 			machine.Memory.fdcStatusReadClock)
 	}
+	for steps := 0; steps < 512 && machine.Memory.fdcInitStage < 14; steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("FDC seek instructions=%d interrupts=%d clocks=%d state=%+v stage=%d polls=%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.fdcInitStage, machine.Memory.fdcSeekInactivePolls, err)
+		}
+	}
+	if machine.Memory.fdcInitStage != 14 || machine.Memory.fdcData != 0 ||
+		machine.Memory.fdcCommand != 0x13 || machine.Memory.fdcStatus != 0xe4 ||
+		machine.Memory.fdcSeekInactivePolls != 9 || !machine.Memory.fdcSeekIRQObserved ||
+		machine.Memory.fdcSeekPending || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn&0x20 == 0 ||
+		machine.Memory.fdcSeekStatusReadClock == 0 {
+		t.Fatalf("FDC seek boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/data/command/status/polls/observed/pending/IRQ/GPIP/readClock=%d/%02x/%02x/%02x/%d/%v/%v/%v/%02x/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.fdcInitStage, machine.Memory.fdcData, machine.Memory.fdcCommand,
+			machine.Memory.fdcStatus, machine.Memory.fdcSeekInactivePolls,
+			machine.Memory.fdcSeekIRQObserved, machine.Memory.fdcSeekPending,
+			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn,
+			machine.Memory.fdcSeekStatusReadClock)
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{0xffff00e4, 0x0091, 0x01b4, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA = [7]uint32{0, 0, 0x00003008, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 290223 || machine.Interrupts != 234 || machine.Clocks != 2989944 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f48 ||
+		state.SR != 0x2310 || state.PC != 0x00fc38a0 ||
+		state.Prefetch != [2]uint16{0x4e75, 0x2f0a} ||
+		machine.Memory.fdcSeekStartClock != 2988614 ||
+		machine.Memory.fdcSeekStatusReadClock != 2989930 || machine.nextFDCSeekClock != 0 {
+		t.Fatalf("FDC seek exact boundary instructions=%d interrupts=%d clocks=%d state=%+v start/read/next=%d/%d/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.fdcSeekStartClock, machine.Memory.fdcSeekStatusReadClock,
+			machine.nextFDCSeekClock)
+	}
 	var nextGate error
-	for steps := 0; steps < 128 && nextGate == nil; steps++ {
+	for steps := 0; steps < 256 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	var busFault *BusFault
-	if !errors.As(nextGate, &busFault) || busFault.Address != STDMAControl || !busFault.Write ||
-		busFault.Size != 2 || machine.Instructions != 289982 || machine.Interrupts != 234 ||
-		machine.Clocks != 2987452 || machine.CPU.State.PC != 0x00fc3728 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
-		t.Fatalf("next FDC gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+	if !errors.As(nextGate, &busFault) || busFault.Address != PSGRegisterSelect || !busFault.Write ||
+		busFault.Size != 1 || machine.Instructions != 290296 || machine.Interrupts != 234 ||
+		machine.Clocks != 2990830 || machine.CPU.State.PC != 0x00fc36d0 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
+		t.Fatalf("next gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }
@@ -1697,6 +1731,109 @@ func TestFDCStatusReadClearsIRQ(t *testing.T) {
 		memory.mfpGPIPIn&0x20 == 0 || memory.fdcStatusReadClock != 0 {
 		t.Fatalf("reset stage/status/IRQ/GPIP=%d/%02x/%v/%02x", memory.fdcInitStage,
 			memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+}
+
+func TestFDCSeekTrackZeroDeadlineAndStatus(t *testing.T) {
+	rom := testROM()
+	copy(rom[:8], []byte{0x00, 0x00, 0x10, 0x00, 0x00, 0xfc, 0x00, 0x00})
+	memory, err := NewMemory(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.dmaMode = 0x0080
+	memory.fdcCommand = 0x0b
+	memory.fdcStatus = 0xe4
+	memory.fdcStatusTypeI = true
+	memory.fdcInitStage = 7
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil || memory.fdcInitStage != 7 {
+		t.Fatal("data write before selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0086,
+		m68k.BusAccess{Clock: 2000, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 8 || memory.dmaMode != 0x0086 {
+		t.Fatalf("data selector wait/err/stage/mode=%d/%v/%d/%04x", wait, err,
+			memory.fdcInitStage, memory.dmaMode)
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0,
+		m68k.BusAccess{Clock: 2100, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 9 || memory.fdcData != 0 {
+		t.Fatalf("data wait/err/stage/value=%d/%v/%d/%02x", wait, err,
+			memory.fdcInitStage, memory.fdcData)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 2200, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 10 || memory.dmaMode != 0x0080 {
+		t.Fatalf("command selector wait/err/stage/mode=%d/%v/%d/%04x", wait, err,
+			memory.fdcInitStage, memory.dmaMode)
+	}
+	if err := memory.WriteWord(STDiskController, 0x0012, 5); err == nil ||
+		memory.fdcInitStage != 10 || memory.fdcSeekPending {
+		t.Fatal("wrong seek command unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x0013,
+		m68k.BusAccess{Clock: 2300, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 11 || !memory.fdcSeekPending ||
+		memory.fdcSeekStartClock != 2300 || memory.fdcStatus != 0xe5 || memory.fdcIRQ {
+		t.Fatalf("seek wait/err/stage/pending/start/status/IRQ=%d/%v/%d/%v/%d/%02x/%v",
+			wait, err, memory.fdcInitStage, memory.fdcSeekPending,
+			memory.fdcSeekStartClock, memory.fdcStatus, memory.fdcIRQ)
+	}
+	for i := 0; i < 9; i++ {
+		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+			t.Fatalf("inactive poll %d=%02x err=%v", i, got, err)
+		}
+	}
+	if memory.fdcSeekInactivePolls != 9 || !memory.fdcSeekPending {
+		t.Fatalf("polls/pending=%d/%v", memory.fdcSeekInactivePolls, memory.fdcSeekPending)
+	}
+	machine := &Machine{Memory: memory, Clocks: 3028}
+	machine.CPU.Bus = memory
+	machine.advanceClockedDevices()
+	if !machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 3029 ||
+		!memory.fdcSeekPending || memory.fdcStatus != 0xe5 {
+		t.Fatalf("early scheduler/next/pending/status=%v/%d/%v/%02x",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock,
+			memory.fdcSeekPending, memory.fdcStatus)
+	}
+	machine.Clocks = 3029
+	machine.advanceClockedDevices()
+	if machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 0 || memory.fdcSeekPending ||
+		memory.fdcInitStage != 12 || memory.fdcStatus != 0xe4 || !memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatalf("complete scheduler/next/pending/stage/status/IRQ/GPIP=%v/%d/%v/%d/%02x/%v/%02x",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.fdcSeekPending,
+			memory.fdcInitStage, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+		!memory.fdcSeekIRQObserved {
+		t.Fatalf("active poll=%02x err=%v observed=%v", got, err, memory.fdcSeekIRQObserved)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 3100, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 13 {
+		t.Fatalf("status selector wait/err/stage=%d/%v/%d", wait, err, memory.fdcInitStage)
+	}
+	value, wait, err := memory.ReadWordAt(STDiskController,
+		m68k.BusAccess{Clock: 3200, FunctionCode: 5})
+	if err != nil || wait != 4 || value != 0xe4 || memory.fdcInitStage != 14 ||
+		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 || memory.fdcSeekStatusReadClock != 3200 {
+		t.Fatalf("status value/wait/err/stage/IRQ/GPIP/clock=%04x/%d/%v/%d/%v/%02x/%d",
+			value, wait, err, memory.fdcInitStage, memory.fdcIRQ, memory.mfpGPIPIn,
+			memory.fdcSeekStatusReadClock)
+	}
+	machine.fdcSeekClockStarted = true
+	machine.nextFDCSeekClock = 4000
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 0 || memory.fdcData != 0 ||
+		memory.fdcSeekPending || memory.fdcSeekStartClock != 0 || memory.fdcSeekInactivePolls != 0 ||
+		memory.fdcSeekIRQObserved || memory.fdcSeekStatusReadClock != 0 {
+		t.Fatalf("reset scheduler/next/data/pending/start/polls/observed/readClock=%v/%d/%02x/%v/%d/%d/%v/%d",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.fdcData,
+			memory.fdcSeekPending, memory.fdcSeekStartClock, memory.fdcSeekInactivePolls,
+			memory.fdcSeekIRQObserved, memory.fdcSeekStatusReadClock)
 	}
 }
 

@@ -29,6 +29,8 @@ type Machine struct {
 	nextTimerDClock        uint64
 	fdcRestoreClockStarted bool
 	nextFDCRestoreClock    uint64
+	fdcSeekClockStarted    bool
+	nextFDCSeekClock       uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -65,6 +67,8 @@ func (m *Machine) Reset() error {
 	m.nextTimerDClock = 0
 	m.fdcRestoreClockStarted = false
 	m.nextFDCRestoreClock = 0
+	m.fdcSeekClockStarted = false
+	m.nextFDCSeekClock = 0
 	return nil
 }
 
@@ -135,6 +139,17 @@ func (m *Machine) advanceClockedDevices() {
 		m.fdcRestoreClockStarted = false
 		m.nextFDCRestoreClock = 0
 	}
+	if !m.fdcSeekClockStarted && m.Memory != nil && m.Memory.fdcSeekPending &&
+		m.Memory.fdcSeekStartClock != 0 {
+		m.fdcSeekClockStarted = true
+		m.nextFDCSeekClock = fdcSeekDeadline(m.Memory.fdcSeekStartClock)
+	}
+	if m.fdcSeekClockStarted && m.Memory != nil && m.Memory.fdcSeekPending &&
+		m.Clocks >= m.nextFDCSeekClock {
+		m.Memory.completeFDCSeek()
+		m.fdcSeekClockStarted = false
+		m.nextFDCSeekClock = 0
+	}
 	if m.timerDClockStarted && m.Memory != nil && !m.Memory.mfpTimerDStart {
 		m.timerDClockStarted = false
 		m.timerDPeriods = 0
@@ -189,6 +204,12 @@ func (m *Machine) advanceClockedDevices() {
 }
 
 func fdcRestoreDeadline(start uint64) uint64 {
+	const numerator uint64 = 728 * 8021248
+	const denominator uint64 = 8000000
+	return start + numerator/denominator
+}
+
+func fdcSeekDeadline(start uint64) uint64 {
 	const numerator uint64 = 728 * 8021248
 	const denominator uint64 = 8000000
 	return start + numerator/denominator
