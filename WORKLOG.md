@@ -455,3 +455,10 @@
   下一gate定位為289,818／2,985,802的`$FF8606` word write。完整240,000筆corpus亦確認
   奇數來源／目的位址例外未被timed path繞過；全測試、vet與build通過，規格105升
   CONFORMED。
+- 完成WD1772 restore後Type-I status read與IRQ清除：EmuTOS原始碼確認
+  `get_fdc_reg(FDC_CS)`的selector／delay／read順序，固定Hatari trace在`$FC3888`
+  寫mode `$0080`，於`$FC3898`回`$00E4`並清IRQ。Talos新增exact word-read bus phase；
+  固定ROM在clock 2,986,242取樣，於289,865 instructions／2,986,256 clocks完成，
+  D0=`$FFFF00E4`且GPIP5恢復inactive。下一gate為289,982／2,987,452的
+  `$FF8606=$0086`。完整240,000筆corpus、固定ROM、全測試、vet與build通過，規格106
+  升CONFORMED。

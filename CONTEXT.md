@@ -350,8 +350,11 @@
 - ST WD1772 restore與IRQ期限已CONFORMED：第二次mode `$0080`後接受`$0B`，以
   `floor(728*8021248/8000000)=729` CPU clocks排程；status由`$81`完成為`$84`，
   GPIP5由inactive high轉active low。固定EmuTOS自clock 2,984,902起算，完成九次
-  inactive輪詢後於289,803 instructions／2,985,654 clocks實際讀到`$91`。下一gate
-  為289,818 instructions／2,985,802 clocks的`$FF8606` word write。
+  inactive輪詢後於289,803 instructions／2,985,654 clocks實際讀到`$91`。
+- ST WD1772 Type-I status read-clear已CONFORMED：EmuTOS同值重寫mode `$0080`後，
+  於clock 2,986,242讀`$FF8604`；固定無磁片profile回`$00E4`，再清IRQ並將GPIP5
+  恢復inactive high。完成點289,865 instructions／2,986,256 clocks；下一gate為
+  289,982 instructions／2,987,452 clocks的`$FF8606=$0086` data-register selector。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -361,7 +364,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理restore後的`$FF8606` mode write、
-   WD1772 status read與read-clear IRQ；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理`$FF8606=$0086`選data register、
+   `$FF8604=$0000`與後續seek `$13`；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

@@ -1502,14 +1502,39 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Instructions, machine.Interrupts, machine.Clocks, state,
 			machine.Memory.fdcRestoreStartClock, machine.nextFDCRestoreClock)
 	}
+	for steps := 0; steps < 128 && machine.Memory.fdcInitStage < 7; steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("FDC status read instructions=%d interrupts=%d clocks=%d state=%+v stage=%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.fdcInitStage, err)
+		}
+	}
+	if machine.Memory.fdcInitStage != 7 || machine.Memory.fdcStatus != 0xe4 ||
+		machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("FDC status boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/status/IRQ/GPIP=%d/%02x/%v/%02x",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.fdcInitStage, machine.Memory.fdcStatus, machine.Memory.fdcIRQ,
+			machine.Memory.mfpGPIPIn)
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{0xffff00e4, 0x0091, 0, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA = [7]uint32{0xffff8800, 1, 0, 0, 0x00003008, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 289865 || machine.Interrupts != 234 || machine.Clocks != 2986256 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f42 ||
+		state.SR != 0x2310 || state.PC != 0x00fc38a0 ||
+		state.Prefetch != [2]uint16{0x4e75, 0x2f0a} || machine.Memory.fdcStatusReadClock != 2986242 {
+		t.Fatalf("FDC status exact boundary instructions=%d interrupts=%d clocks=%d state=%+v readClock=%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.fdcStatusReadClock)
+	}
 	var nextGate error
 	for steps := 0; steps < 128 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	var busFault *BusFault
 	if !errors.As(nextGate, &busFault) || busFault.Address != STDMAControl || !busFault.Write ||
-		busFault.Size != 2 || machine.Instructions != 289818 || machine.Interrupts != 234 ||
-		machine.Clocks != 2985802 || machine.CPU.State.PC != 0x00fc3890 ||
+		busFault.Size != 2 || machine.Instructions != 289982 || machine.Interrupts != 234 ||
+		machine.Clocks != 2987452 || machine.CPU.State.PC != 0x00fc3728 ||
 		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
 		t.Fatalf("next FDC gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
@@ -1620,6 +1645,58 @@ func TestMachineCompletesFDCRestoreAtDeadline(t *testing.T) {
 		t.Fatalf("reset scheduler/next/pending/start/polls/observed=%v/%d/%v/%d/%d/%v",
 			machine.fdcRestoreClockStarted, machine.nextFDCRestoreClock, memory.fdcRestorePending,
 			memory.fdcRestoreStartClock, memory.fdcRestoreInactivePolls, memory.fdcRestoreIRQObserved)
+	}
+}
+
+func TestFDCStatusReadClearsIRQ(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.dmaMode = 0x0080
+	memory.fdcCommand = 0x0b
+	memory.fdcStatus = 0x84
+	memory.fdcStatusTypeI = true
+	memory.fdcIRQ = true
+	memory.mfpGPIPIn &^= 0x20
+	memory.fdcInitStage = 5
+	if err := memory.WriteWord(STDMAControl, 0x0082, 5); err == nil ||
+		memory.fdcInitStage != 5 || memory.dmaMode != 0x0080 || !memory.fdcIRQ {
+		t.Fatal("wrong post-restore mode unexpectedly accepted")
+	}
+	if _, err := memory.ReadWord(STDiskController, 5); err == nil ||
+		memory.fdcInitStage != 5 || !memory.fdcIRQ || memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatal("status read before mode unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 2000, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.fdcInitStage != 6 || memory.fdcStatus != 0x84 || !memory.fdcIRQ {
+		t.Fatalf("mode wait/err/stage/status/IRQ=%d/%v/%d/%02x/%v", wait, err,
+			memory.fdcInitStage, memory.fdcStatus, memory.fdcIRQ)
+	}
+	if _, err := memory.ReadWord(STDiskController, 1); err == nil ||
+		memory.fdcInitStage != 6 || !memory.fdcIRQ {
+		t.Fatal("user status read unexpectedly accepted")
+	}
+	value, wait, err := memory.ReadWordAt(STDiskController,
+		m68k.BusAccess{Clock: 2000, FunctionCode: 5})
+	if err != nil || wait != 4 || value != 0x00e4 || memory.fdcInitStage != 7 ||
+		memory.fdcStatus != 0xe4 || memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("status value/wait/err/stage/state/IRQ/GPIP=%04x/%d/%v/%d/%02x/%v/%02x",
+			value, wait, err, memory.fdcInitStage, memory.fdcStatus, memory.fdcIRQ,
+			memory.mfpGPIPIn)
+	}
+	if memory.fdcStatusReadClock != 2000 {
+		t.Fatalf("status read clock=%d want 2000", memory.fdcStatusReadClock)
+	}
+	if _, err := memory.ReadWord(STDiskController, 5); err == nil || memory.fdcInitStage != 7 {
+		t.Fatal("repeated status read unexpectedly accepted")
+	}
+	memory.ColdReset()
+	if memory.fdcInitStage != 0 || memory.fdcStatus != 0 || memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 == 0 || memory.fdcStatusReadClock != 0 {
+		t.Fatalf("reset stage/status/IRQ/GPIP=%d/%02x/%v/%02x", memory.fdcInitStage,
+			memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
 }
 

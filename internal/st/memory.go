@@ -118,6 +118,7 @@ type Memory struct {
 	fdcRestoreStartClock    uint64
 	fdcRestoreInactivePolls uint8
 	fdcRestoreIRQObserved   bool
+	fdcStatusReadClock      uint64
 	ikbdACIAControl         byte
 	ikbdACIAStatus          byte
 	ikbdACIAConfigured      bool
@@ -178,6 +179,10 @@ func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
 func (m *Memory) HasExactWordWriteTiming(address uint32) bool {
 	address &= AddressMask
 	return address == STDMAControl || address == STDiskController
+}
+
+func (m *Memory) HasExactWordReadTiming(address uint32) bool {
+	return address&AddressMask == STDiskController
 }
 
 func (m *Memory) isModeledPSGByte(address uint32) bool {
@@ -368,6 +373,21 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 	if address&1 != 0 {
 		return 0, m.fault(address, functionCode, false, 2, FaultOddWordAddress)
 	}
+	if address == STDiskController {
+		if fault := m.validateAccess(address, functionCode, false, 2); fault != nil {
+			return 0, fault
+		}
+		if m.fdcInitStage != 6 || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
+			!m.fdcIRQ || m.mfpGPIPIn&0x20 != 0 {
+			return 0, m.fault(address, functionCode, false, 2, FaultUnsupportedDeviceState)
+		}
+		m.fdcStatus = 0xe4
+		value := uint16(m.fdcStatus)
+		m.fdcIRQ = false
+		m.mfpGPIPIn |= 0x20
+		m.fdcInitStage = 7
+		return value, nil
+	}
 	if address >= ShifterPaletteBase && address <= ShifterPaletteEnd {
 		if fault := m.validateAccess(address, functionCode, false, 2); fault != nil {
 			return 0, fault
@@ -393,7 +413,14 @@ func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint
 	if err != nil {
 		return 0, 0, err
 	}
+	wasStatusRead := address&AddressMask == STDiskController && m.fdcInitStage == 6
 	value, err := m.ReadWord(address, access.FunctionCode)
+	if err == nil && address&AddressMask == STDiskController {
+		wait += 4
+		if wasStatusRead && m.fdcInitStage == 7 {
+			m.fdcStatusReadClock = access.Clock
+		}
+	}
 	return value, wait, err
 }
 
@@ -870,6 +897,10 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.fdcInitStage = 3
 			return nil
 		}
+		if address == STDMAControl && m.fdcInitStage == 5 && m.dmaMode == 0x0080 && value == 0x0080 {
+			m.fdcInitStage = 6
+			return nil
+		}
 		if address == STDiskController && m.fdcInitStage == 3 && m.dmaMode == 0x0080 && value == 0x000b {
 			m.fdcCommand = byte(value)
 			m.fdcStatus = 0x81
@@ -984,6 +1015,7 @@ func (m *Memory) ColdReset() {
 	m.fdcRestoreStartClock = 0
 	m.fdcRestoreInactivePolls = 0
 	m.fdcRestoreIRQObserved = false
+	m.fdcStatusReadClock = 0
 	m.mfpGPIPIn |= 0x20
 	m.ikbdACIAControl = 0
 	m.ikbdACIAStatus = 0

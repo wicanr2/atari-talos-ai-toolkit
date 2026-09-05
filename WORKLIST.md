@@ -80,6 +80,7 @@
 | ST YM2149 port A首次drive-select更新 | **CONFORMED** | 同值選R14、讀`$07`、寫`$05`；289,556條／2,983,132 clocks |
 | ST DMA mode／WD1772 force-interrupt初始化 | **CONFORMED** | mode `$0080`選command/status、`$D0`清IRQ並建立Type-I status；timed word bus接入後289,612條／2,983,704 clocks |
 | ST WD1772 restore／GPIP5 IRQ期限 | **CONFORMED** | `$0B`自timed bus phase起729 CPU clocks；九次inactive輪詢後讀`$91`，289,803條／2,985,654 clocks |
+| ST WD1772 Type-I status read-clear | **CONFORMED** | mode `$0080`同值write，固定無磁片status `$E4`；read清IRQ／GPIP5，289,865條／2,986,256 clocks |
 | ST IKBD ACIA control init | **CONFORMED** | `$03→$96`、status TDRE=`$02`；68,551 條／968,772 clocks 抵達首筆 data write |
 | ST IKBD ACIA first transmit deadline | **CONFORMED** | TDR=`$80`、TDRE clear／1024-clock restore；68,645 條／969,640 clocks 抵達第二 byte `$01` |
 | ST IKBD ACIA second TX／reset response | **CONFORMED** | `$01`雙buffer、10-tick frame、513,024-clock `$F1` response；128,378條／21 IRQ／1,509,022 clocks讀取 `$F1` |
@@ -102,5 +103,5 @@
 | ST low-res 320×200 4-plane 索引畫面 | **CONFORMED** | 32,000-byte DMA snapshot→64,000 indices；Hatari VBL7 raw／decoded SHA-256 與 histogram 通過 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART與FDC restore IRQ已接；下一步restore後mode／status read-clear |
+| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART與FDC restore status已接；下一步data-register selector／seek |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

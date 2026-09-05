@@ -174,12 +174,16 @@ type wordReadFaultBus struct {
 
 type timedRecordingBus struct {
 	SparseMemory
-	accesses []BusAccess
-	wait     uint32
+	accesses      []BusAccess
+	wait          uint32
+	exactWordRead uint32
 }
 
 func (b *timedRecordingBus) HasExactByteWriteTiming(uint32) bool { return true }
 func (b *timedRecordingBus) HasExactWordWriteTiming(uint32) bool { return true }
+func (b *timedRecordingBus) HasExactWordReadTiming(address uint32) bool {
+	return address == b.exactWordRead
+}
 
 func (b *timedRecordingBus) ReadByteAt(address uint32, access BusAccess) (byte, uint32, error) {
 	b.accesses = append(b.accesses, access)
@@ -283,6 +287,28 @@ func TestMOVEWordStackDisplacementToAbsoluteShortAppliesTimedWriteWait(t *testin
 	}
 	if len(result.Transactions) != 5 {
 		t.Fatalf("transactions=%+v", result.Transactions)
+	}
+}
+
+func TestMOVEWordAbsoluteShortToDataRegisterAppliesTimedReadWait(t *testing.T) {
+	bus := &timedRecordingBus{SparseMemory: SparseMemory{
+		0x104: 0x4e, 0x105: 0x71,
+		0x106: 0x4e, 0x107: 0x75,
+		0x200: 0x12, 0x201: 0x34,
+	}, wait: 4, exactWordRead: 0x200}
+	cpu := CPU{Bus: bus, State: State{
+		SR: supervisor, PC: 0x104, Prefetch: [2]uint16{0x3038, 0x0200},
+	}}
+	result, err := cpu.StepAt(1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(bus.accesses, []BusAccess{{Clock: 1004, FunctionCode: 5}}) {
+		t.Fatalf("timed accesses=%+v", bus.accesses)
+	}
+	if result.Clocks != 16 || cpu.State.PC != 0x108 || cpu.State.D[0] != 0x1234 ||
+		cpu.State.Prefetch != [2]uint16{0x4e71, 0x4e75} {
+		t.Fatalf("result=%+v state=%+v", result, cpu.State)
 	}
 }
 

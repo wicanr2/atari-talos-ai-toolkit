@@ -88,6 +88,13 @@ type ExactWordWriteBus interface {
 	HasExactWordWriteTiming(address uint32) bool
 }
 
+// ExactWordReadBus identifies addresses whose word-read phase has been
+// migrated to TimedBus. Unverified addresses keep the legacy instruction path.
+type ExactWordReadBus interface {
+	TimedBus
+	HasExactWordReadTiming(address uint32) bool
+}
+
 // BusFault exposes the information the MC68000 places in a bus-error frame.
 // Backends may implement it without importing this package.
 type BusFault interface {
@@ -3648,7 +3655,16 @@ func (s *moveWordStep) readWordSource(mode, reg uint8) (uint16, uint32, bool, *S
 		result, err := c.enterAddressError(s.opcode, address, s.sourceFaultPC(mode, reg), s.transactions, 54+cost, readFC, "re", true)
 		return 0, cost, true, &result, err
 	}
-	value, err := c.Bus.ReadWord(address&addressMask, readFC)
+	var value uint16
+	var wait uint32
+	var err error
+	if bus, exact := c.Bus.(ExactWordReadBus); exact && bus.HasExactWordReadTiming(address) {
+		value, wait, err = bus.ReadWordAt(address&addressMask,
+			BusAccess{Clock: c.epoch + uint64(cost-4), FunctionCode: readFC})
+	} else {
+		value, err = c.Bus.ReadWord(address&addressMask, readFC)
+	}
+	cost += wait
 	if err != nil {
 		var fault BusFault
 		if errors.As(err, &fault) {
