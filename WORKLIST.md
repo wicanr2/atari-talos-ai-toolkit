@@ -53,7 +53,7 @@
 | vector 2 absolute-short fault address | **CONFORMED** | frame 保存 `$FFFF8006`、bus 保存 `$FF8006`；第 10 條／220 clocks 完整對拍 |
 | MC68000 `RESET` | **CONFORMED** | privilege、external hook、132 clocks；EmuTOS 第 11 條／352 clocks 同狀態 |
 | ST 空 cartridge `$FA0000–$FBFFFF` | **CONFORMED** | 128 KiB `$FF` read-only window；EmuTOS 第 12 條／380 clocks 同狀態 |
-| CPU／machine cycle-aware bus 契約 | 待共同決策 | 第 14 條 RAM write 首見 Hatari 26／Talos 24 clocks；須支援 Shifter arbitration 與未來 timed I/O |
+| CPU／machine cycle-aware bus 契約 | **READY／進行中** | 完整漸進式架構已定案；語料 idle／active timeline 基礎已接線，runtime epoch／timed access 尚待逐族遷移 |
 | ST RAM／Shifter bus arbitration | 待規格 | cycle-aware bus 定案後，對拍第 14 條動態 `+2` wait，不改 opcode 固定 timing |
 | MC68000 line-F／vector 11 | 待規格 | `$FC00BE` `$F010`；Hatari vector=`$FC00D4`、exception 36 clocks，但須先修正前置總時鐘 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |

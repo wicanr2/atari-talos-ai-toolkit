@@ -21,6 +21,7 @@ type corpusTest struct {
 	Initial      corpusState
 	Final        corpusState
 	Transactions []Transaction
+	Timeline     []BusPhase
 	Clocks       uint32
 }
 
@@ -715,8 +716,8 @@ func readCorpusTest(r io.Reader) (corpusTest, error) {
 	if err != nil {
 		return corpusTest{}, err
 	}
-	transactions, clocks, err := readTransactions(r)
-	return corpusTest{Name: name, Initial: initial, Final: final, Transactions: transactions, Clocks: clocks}, err
+	transactions, timeline, clocks, err := readTransactions(r)
+	return corpusTest{Name: name, Initial: initial, Final: final, Transactions: transactions, Timeline: timeline, Clocks: clocks}, err
 }
 
 func readName(r io.Reader) (string, error) {
@@ -793,55 +794,60 @@ func readCorpusState(r io.Reader) (corpusState, error) {
 	return corpusState{CPU: state, RAM: ram}, nil
 }
 
-func readTransactions(r io.Reader) ([]Transaction, uint32, error) {
+func readTransactions(r io.Reader) ([]Transaction, []BusPhase, uint32, error) {
 	if err := readBlockHeader(r, 0x456789ab); err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 	clocks, err := readU32(r)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 	count, err := readU32(r)
 	if err != nil || count > 1<<20 {
-		return nil, 0, fmt.Errorf("invalid transaction count %d: %v", count, err)
+		return nil, nil, 0, fmt.Errorf("invalid transaction count %d: %v", count, err)
 	}
 	out := make([]Transaction, 0, count)
+	timeline := make([]BusPhase, 0, count)
+	var offset uint32
 	for i := uint32(0); i < count; i++ {
 		var kind uint8
 		if err := binary.Read(r, binary.LittleEndian, &kind); err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		cycle, err := readU32(r)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
+		phase := BusPhase{Offset: offset, Cycles: cycle}
+		offset += cycle
 		if kind == 0 {
+			timeline = append(timeline, phase)
 			continue
 		}
 		fc, err := readU32(r)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		address, err := readU32(r)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		data, err := readU32(r)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		uds, err := readU32(r)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		lds, err := readU32(r)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		kinds := map[uint8]string{1: "w", 2: "r", 3: "t", 4: "re", 5: "we"}
 		label, ok := kinds[kind]
 		if !ok {
-			return nil, 0, fmt.Errorf("unknown transaction kind %d", kind)
+			return nil, nil, 0, fmt.Errorf("unknown transaction kind %d", kind)
 		}
 		size := uint8(1)
 		if uds+lds == 2 {
@@ -851,10 +857,16 @@ func readTransactions(r io.Reader) ([]Transaction, uint32, error) {
 		if label == "re" || label == "we" {
 			busData = 0
 		}
-		out = append(out, Transaction{Kind: label, Cycle: cycle, FC: uint8(fc), Address: address,
-			Size: size, Data: busData, UDS: uds != 0, LDS: lds != 0})
+		transaction := Transaction{Kind: label, Cycle: cycle, FC: uint8(fc), Address: address,
+			Size: size, Data: busData, UDS: uds != 0, LDS: lds != 0}
+		out = append(out, transaction)
+		phase.Transaction = &transaction
+		timeline = append(timeline, phase)
 	}
-	return out, clocks, nil
+	if offset != clocks {
+		return nil, nil, 0, fmt.Errorf("timeline duration %d does not match instruction clocks %d", offset, clocks)
+	}
+	return out, timeline, clocks, nil
 }
 
 func readBlockHeader(r io.Reader, want uint32) error {

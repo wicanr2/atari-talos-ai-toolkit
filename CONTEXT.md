@@ -11,6 +11,8 @@
 - Go library 與 CLI 共用協定型別；CLI 的穩定公開介面是 JSON Lines。
 - Hatari 只作外部 oracle，不使用其 GPL 程式碼。
 - 授權採 RRSAL-1.0；原版 TOS、磁碟與遊戲素材由使用者自備。
+- CPU／machine／bus 採完整、漸進式 cycle-aware access：bus 在 access 前取得
+  全機 epoch 加指令內 offset，動態 wait 會推移同一指令的後續 phase；不採事後補 clocks。
 
 ## 現況
 
@@ -174,6 +176,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 先決定並建立 CPU／machine／bus 的 cycle-aware access 契約，實作 ST RAM／
+4. 依 READY 規格 055 建立 CPU／machine／bus runtime cycle-aware access，實作 ST RAM／
    Shifter arbitration 的動態 wait state；恢復第 14 條同 clocks 後，再處理
    `$FC00BE` line-F vector 11 與後續開機。

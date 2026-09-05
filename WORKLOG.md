@@ -169,3 +169,7 @@
 - 逐條追查新停點，確認第 14 條 RAM write 因全機週期位置比固定 CPU timing
   多 2 clocks；工作轉入 cycle-aware bus／Shifter arbitration 架構決策，
   `$FC00BE` line-F 先保留 oracle 收據而不越過前置差異實作。
+- 使用者定案採完整、漸進式 cycle-aware Bus；完成 READY 規格 055，明定 access 前
+  傳入 machine epoch＋instruction offset、wait 推移後續 phase，以及未遷移 timed path
+  失敗即關閉。新增 `BusPhase`，讓固定 MC68000 語料不再丟棄 idle phase，並在每筆載入時
+  驗證完整 timeline duration 等於 instruction clocks；227,500 筆回歸、靜態檢查與建置通過。

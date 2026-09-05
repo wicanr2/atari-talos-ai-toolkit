@@ -31,6 +31,15 @@ type Transaction struct {
 	LDS     bool
 }
 
+// BusPhase preserves the instruction-local position and duration of one
+// bus timeline phase. Transaction is nil for an internal/idle phase.
+// Absolute machine time is the instruction epoch plus Offset.
+type BusPhase struct {
+	Offset      uint32
+	Cycles      uint32
+	Transaction *Transaction
+}
+
 type StepResult struct {
 	Clocks       uint32
 	Transactions []Transaction
