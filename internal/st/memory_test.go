@@ -2273,6 +2273,69 @@ func TestIKBDACIAClockReadbackResponseHasIndependentReceipts(t *testing.T) {
 	}
 }
 
+func TestIKBDACIARecurringClockPollsResetPerCycle(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockRequestHandled = true
+	memory.ikbdSetClockComplete = true
+	memory.ikbdClockReadbackRequestHandled = true
+	memory.ikbdClockReadbackComplete = true
+	memory.flopVBLMediaComplete = true
+
+	for cycle := uint32(1); cycle <= 2; cycle++ {
+		if err := memory.WriteByte(IKBDACIAData, 0x1b, 5); err == nil {
+			t.Fatalf("cycle %d wrong command unexpectedly accepted", cycle)
+		}
+		if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err != nil ||
+			!memory.ikbdClockPollRequestWritten || !memory.ikbdACIATXPending {
+			t.Fatalf("cycle %d request written/pending=%v/%v err=%v", cycle,
+				memory.ikbdClockPollRequestWritten, memory.ikbdACIATXPending, err)
+		}
+		if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err == nil {
+			t.Fatalf("cycle %d overlapping request unexpectedly accepted", cycle)
+		}
+		memory.advanceIKBDACIAClock(1024)
+		for tick := 1; tick <= 10; tick++ {
+			memory.advanceIKBDACIAClock(uint64((tick + 1) * 1024))
+		}
+		if memory.ikbdClockPollRequestWritten ||
+			memory.ikbdClockPollRequestCount != cycle {
+			t.Fatalf("cycle %d request written/completions=%v/%d", cycle,
+				memory.ikbdClockPollRequestWritten, memory.ikbdClockPollRequestCount)
+		}
+		for index, want := range ikbdClockReadback {
+			if !memory.deliverIKBDClockResponse(3, uint8(index), want) {
+				t.Fatalf("cycle %d response %d was not delivered", cycle, index)
+			}
+			memory.recordIKBDClockResponseDeliveryClock(3, uint8(index), uint64(cycle*1000)+uint64(index))
+			got, _, err := memory.ReadByteAt(IKBDACIAData,
+				m68k.BusAccess{Clock: uint64(cycle*2000) + uint64(index), FunctionCode: 5})
+			if err != nil || got != want {
+				t.Fatalf("cycle %d response %d=%02x err=%v want %02x", cycle, index, got, err, want)
+			}
+		}
+		if memory.ikbdClockPollCompleteCount != cycle ||
+			memory.ikbdClockPollResponseActive ||
+			memory.ikbdClockPollResponseReads != ikbdClockReadback {
+			t.Fatalf("cycle %d complete/active/reads=%d/%v/%v", cycle,
+				memory.ikbdClockPollCompleteCount,
+				memory.ikbdClockPollResponseActive, memory.ikbdClockPollResponseReads)
+		}
+	}
+	memory.ColdReset()
+	if memory.ikbdClockPollRequestWritten || memory.ikbdClockPollRequestCount != 0 ||
+		memory.ikbdClockPollResponseActive || memory.ikbdClockPollResponseDelivered != 0 ||
+		memory.ikbdClockPollResponseReadCount != 0 || memory.ikbdClockPollResponseReads != [7]byte{} ||
+		memory.ikbdClockPollDeliveryClocks != [7]uint64{} || memory.ikbdClockPollReadClocks != [7]uint64{} ||
+		memory.ikbdClockPollCompleteCount != 0 {
+		t.Fatal("cold reset retained recurring clock-poll state")
+	}
+}
+
 func TestMFPTimerDataStoppedLoad(t *testing.T) {
 	for _, test := range []struct {
 		name     string

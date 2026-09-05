@@ -408,6 +408,11 @@
   status讀取clock為13,036,978。下一gate為1,085,703／548／13,927,048的IKBD
   `$FFFC02=$1C`；Hatari VBL77確認這是可重入的第三次讀時鐘請求，回傳值仍為
   `$FC,$24,$03,$17,$00,$00,$00`。
+- IKBD可重入讀時鐘週期已CONFORMED：第三輪`$1C` frame於13,937,502完成，固定profile
+  七筆回應於14,015,326送達完畢，EmuTOS於1,092,926 instructions／558 interrupts／
+  14,015,626 clocks收齊。實作以單調request／response counters與每輪獨立receipt取代
+  一次性特例，synthetic已連續跑過兩輪。下一gate為1,120,640／568／14,318,580的
+  `$FF8800=$0E`；Hatari VBL90證實這是port A保持`$23`的下一輪`flopvbl()`檢查。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -417,8 +422,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步把固定EmuTOS在VBL77再次發出的
-   IKBD `$1C`讀時鐘命令收攏成可重入的確定性請求／回應週期，再續跑定位下一gate。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步將`flopvbl()`由首輪drive-0特例
+   收攏成可重入、依輪次選drive 0／1的媒體檢查，先接固定Hatari VBL90序列。
    RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

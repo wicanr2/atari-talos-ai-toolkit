@@ -1868,17 +1868,39 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn, machine.Instructions,
 			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 200_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 200_000 && machine.Memory.ikbdClockPollCompleteCount == 0 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
-		machine.Instructions != 1085703 || machine.Interrupts != 548 || machine.Clocks != 13927048 ||
-		machine.CPU.State.D != [8]uint32{0xffffffff, 0x5c, 0x1c, 0, 0, 1, 5, 1} ||
-		machine.CPU.State.A != [7]uint32{0x00fc261e, 0x23b2, 0x00fc5132, 0x00fc5142, 0x00fc5916, 0x00fc5276, 0x00000ffc} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0ede ||
-		machine.CPU.State.SR != 0x2308 || machine.CPU.State.PC != 0x00fc515a ||
-		machine.CPU.State.Prefetch != [2]uint16{0xfc02, 0x241f} {
-		t.Fatalf("post-flopvbl gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+	if nextGate != nil || machine.Memory.ikbdClockPollRequestCount != 1 ||
+		machine.Memory.ikbdClockPollCompleteCount != 1 || machine.ikbdClockPollRequestTXClock != 13937502 ||
+		machine.Memory.ikbdClockPollResponseDelivered != 7 || machine.Memory.ikbdClockPollResponseReadCount != 7 ||
+		machine.Memory.ikbdClockPollResponseReads != ikbdClockReadback ||
+		machine.Memory.ikbdClockPollDeliveryClocks != [7]uint64{13953886, 13964126, 13974366, 13984606, 13994846, 14005086, 14015326} ||
+		machine.Instructions != 1092926 || machine.Interrupts != 558 || machine.Clocks != 14015626 ||
+		machine.CPU.State.D != [8]uint32{0, 0x183, 0x0f, 0, 0, 1, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc0794, 0x23b2, 0x00fc52e4, 0x00fc5916, 0x00fc5916, 0x00fc5276, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0ed6 ||
+		machine.CPU.State.SR != 0x2604 || machine.CPU.State.PC != 0x00fc07ae ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4eba, 0x0018} || machine.nextIKBDClockResponseClock != 0 {
+		t.Fatalf("clock poll complete requests=%d responses=%d tx=%d delivered/read=%d/%d values=%v delivery=%v read=%v instructions=%d interrupts=%d clocks=%d state=%+v next=%d err=%v",
+			machine.Memory.ikbdClockPollRequestCount, machine.Memory.ikbdClockPollCompleteCount,
+			machine.ikbdClockPollRequestTXClock, machine.Memory.ikbdClockPollResponseDelivered,
+			machine.Memory.ikbdClockPollResponseReadCount, machine.Memory.ikbdClockPollResponseReads,
+			machine.Memory.ikbdClockPollDeliveryClocks, machine.Memory.ikbdClockPollReadClocks,
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.nextIKBDClockResponseClock, nextGate)
+	}
+	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xff8800 fc=5: unsupported_device_state" ||
+		machine.Instructions != 1120640 || machine.Interrupts != 568 || machine.Clocks != 14318580 ||
+		machine.CPU.State.D != [8]uint32{3, 3, 0x2410, 1, 0x00fce2fa, 3, 0, 0x11} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 8, 0x00fc36b8, 1039580, 0x100, 0x00fc58e8, 0x00fcc8d8} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0df8 ||
+		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36d0 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
+		t.Fatalf("post-clock-poll gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }
@@ -1967,6 +1989,41 @@ func TestMachineSchedulesIKBDClockReadbackAfterBufferedRequest(t *testing.T) {
 			memory.ikbdClockReadbackRequestDone, memory.ikbdClockReadbackRequestHandled,
 			machine.ikbdClockReadbackRequestTXClock, machine.ikbdClockResponseRound,
 			machine.nextIKBDClockResponseClock)
+	}
+}
+
+func TestMachineSchedulesRecurringIKBDClockPoll(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockRequestHandled = true
+	memory.ikbdSetClockComplete = true
+	memory.ikbdClockReadbackRequestHandled = true
+	memory.ikbdClockReadbackComplete = true
+	memory.flopVBLMediaComplete = true
+	memory.ikbdClockPollRequestWritten = true
+	memory.ikbdACIATXShift = 0x1c
+	memory.ikbdACIATXShiftTicks = 1
+	machine := &Machine{Memory: memory, Clocks: 1000, aciaClockStarted: true, nextACIABitClock: 1000}
+	machine.advanceClockedDevices()
+	if memory.ikbdClockPollRequestCount != 1 || machine.ikbdClockPollScheduledCount != 1 ||
+		machine.ikbdClockPollRequestTXClock != 1000 || machine.ikbdClockResponseRound != 3 ||
+		machine.nextIKBDClockResponseClock != 17384 {
+		t.Fatalf("poll completion/scheduled/tx/round/response=%d/%d/%d/%d/%d",
+			memory.ikbdClockPollRequestCount, machine.ikbdClockPollScheduledCount,
+			machine.ikbdClockPollRequestTXClock, machine.ikbdClockResponseRound,
+			machine.nextIKBDClockResponseClock)
+	}
+	machine.Clocks = 17384
+	machine.advanceClockedDevices()
+	if memory.ikbdClockPollResponseDelivered != 1 || memory.ikbdACIARDR != 0xfc ||
+		memory.ikbdClockPollDeliveryClocks[0] != 17384 || machine.nextIKBDClockResponseClock != 27624 {
+		t.Fatalf("poll delivery/RDR/clocks/next=%d/%02x/%v/%d",
+			memory.ikbdClockPollResponseDelivered, memory.ikbdACIARDR,
+			memory.ikbdClockPollDeliveryClocks, machine.nextIKBDClockResponseClock)
 	}
 }
 

@@ -545,3 +545,9 @@
   13,037,306 clocks完成；同時訂正先前把CPU D0=`$05`誤當control bus value的紀錄，
   實際register select為`$0E`。下一gate為VBL77再次寫IKBD `$1C`；95-VBL Hatari
   trace確認回傳仍是`$FC,$24,$03,$17,$00,$00,$00`，留待下一個READY規格泛化。
+- 完成規格120：將第三輪起的IKBD `$1C`讀時鐘實作為可重入週期，以單調request／
+  response completion counters排程，且每輪重置獨立payload／delivery receipt，不覆寫
+  前兩輪歷史。固定ROM於13,937,502完成request，七筆
+  `$FC,$24,$03,$17,$00,$00,$00`於14,015,326送畢，guest在1,092,926 instructions／
+  558 interrupts／14,015,626 clocks收齊。下一gate為1,120,640／14,318,580的
+  `$FF8800=$0E`；Hatari VBL90顯示為port A維持`$23`的週期性`flopvbl()`檢查。

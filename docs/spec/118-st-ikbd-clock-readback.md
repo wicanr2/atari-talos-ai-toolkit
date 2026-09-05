@@ -68,6 +68,7 @@ readback完成後的系統初始化、畫面、鍵盤／滑鼠與實時走秒排
   至timed read bus的指令起始epoch，不冒稱指令內精確bus phase。
 - readback完成邊界為889,609 instructions／483 interrupts／11,851,910 clocks。
   後續正常執行至1,005,202 instructions／521 interrupts／13,036,392 clocks，下一gate
-  是YM2149 `$FF8800=$05` register-select byte write。
+  是YM2149 `$FF8800=$0E` register-14 select byte write。先前依D0誤記為`$05`；
+  規格119的固定Hatari bus trace已訂正。
 - 固定ROM、完整240,000筆CPU corpus、全測試、`go vet -stdmethods=false ./...`與
   `go build ./...`均通過。

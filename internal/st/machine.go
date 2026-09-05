@@ -27,6 +27,8 @@ type Machine struct {
 	ikbdSecondTXClock               uint64
 	ikbdClockRequestTXClock         uint64
 	ikbdClockReadbackRequestTXClock uint64
+	ikbdClockPollRequestTXClock     uint64
+	ikbdClockPollScheduledCount     uint32
 	ikbdClockResponseRound          uint8
 	nextIKBDClockResponseClock      uint64
 	ikbdClockResponseDeliveryClocks [7]uint64
@@ -70,6 +72,8 @@ func (m *Machine) Reset() error {
 	m.ikbdSecondTXClock = 0
 	m.ikbdClockRequestTXClock = 0
 	m.ikbdClockReadbackRequestTXClock = 0
+	m.ikbdClockPollRequestTXClock = 0
+	m.ikbdClockPollScheduledCount = 0
 	m.ikbdClockResponseRound = 0
 	m.nextIKBDClockResponseClock = 0
 	m.ikbdClockResponseDeliveryClocks = [7]uint64{}
@@ -295,6 +299,7 @@ func (m *Machine) advanceDueACIAClocks() {
 		secondPending := m.Memory.ikbdACIATDR == 1 && m.Memory.ikbdACIATXPending
 		clockRequestDone := m.Memory.ikbdClockRequestDone
 		clockReadbackRequestDone := m.Memory.ikbdClockReadbackRequestDone
+		clockPollRequestCount := m.Memory.ikbdClockPollRequestCount
 		m.Memory.advanceIKBDACIAClock(m.nextACIABitClock)
 		if secondPending && !m.Memory.ikbdACIATXPending {
 			m.ikbdSecondTXClock = m.nextACIABitClock
@@ -311,6 +316,13 @@ func (m *Machine) advanceDueACIAClocks() {
 		if !clockReadbackRequestDone && m.Memory.ikbdClockReadbackRequestDone {
 			m.ikbdClockReadbackRequestTXClock = m.nextACIABitClock
 			m.ikbdClockResponseRound = 2
+			m.nextIKBDClockResponseClock = m.nextACIABitClock + 16*1024
+		}
+		if clockPollRequestCount != m.Memory.ikbdClockPollRequestCount &&
+			m.Memory.ikbdClockPollRequestCount > m.ikbdClockPollScheduledCount {
+			m.ikbdClockPollRequestTXClock = m.nextACIABitClock
+			m.ikbdClockPollScheduledCount = m.Memory.ikbdClockPollRequestCount
+			m.ikbdClockResponseRound = 3
 			m.nextIKBDClockResponseClock = m.nextACIABitClock + 16*1024
 		}
 		m.nextACIABitClock += 1024

@@ -178,6 +178,15 @@ type Memory struct {
 	ikbdClockReadbackDeliveryClocks [7]uint64
 	ikbdClockReadbackReadClocks     [7]uint64
 	ikbdClockReadbackComplete       bool
+	ikbdClockPollRequestWritten     bool
+	ikbdClockPollRequestCount       uint32
+	ikbdClockPollResponseActive     bool
+	ikbdClockPollResponseDelivered  uint8
+	ikbdClockPollResponseReadCount  uint8
+	ikbdClockPollResponseReads      [7]byte
+	ikbdClockPollDeliveryClocks     [7]uint64
+	ikbdClockPollReadClocks         [7]uint64
+	ikbdClockPollCompleteCount      uint32
 	ikbdResetResponseRead           bool
 	ikbdStaleRDRReads               uint8
 	midiACIAControl                 byte
@@ -343,6 +352,14 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 					m.ikbdClockReadbackActive = false
 					m.ikbdClockReadbackComplete = true
 				}
+			} else if m.ikbdClockPollResponseActive &&
+				m.ikbdClockPollResponseReadCount < m.ikbdClockPollResponseDelivered {
+				m.ikbdClockPollResponseReads[m.ikbdClockPollResponseReadCount] = value
+				m.ikbdClockPollResponseReadCount++
+				if m.ikbdClockPollResponseReadCount == uint8(len(m.ikbdClockPollResponseReads)) {
+					m.ikbdClockPollResponseActive = false
+					m.ikbdClockPollCompleteCount++
+				}
 			} else if m.ikbdClockResponseActive && m.ikbdClockResponseReadCount < m.ikbdClockResponseDelivered {
 				m.ikbdClockResponseReads[m.ikbdClockResponseReadCount] = value
 				m.ikbdClockResponseReadCount++
@@ -466,6 +483,7 @@ func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
 		clockReadCount := m.ikbdClockResponseReadCount
 		readbackCount := m.ikbdClockReadbackReadCount
+		pollCount := m.ikbdClockPollResponseReadCount
 		value, err := m.ReadByte(address, access.FunctionCode)
 		if err == nil && address&AddressMask == IKBDACIAData &&
 			m.ikbdClockResponseReadCount == clockReadCount+1 {
@@ -474,6 +492,10 @@ func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32
 		if err == nil && address&AddressMask == IKBDACIAData &&
 			m.ikbdClockReadbackReadCount == readbackCount+1 {
 			m.ikbdClockReadbackReadClocks[readbackCount] = access.Clock
+		}
+		if err == nil && address&AddressMask == IKBDACIAData &&
+			m.ikbdClockPollResponseReadCount == pollCount+1 {
+			m.ikbdClockPollReadClocks[pollCount] = access.Clock
 		}
 		return value, 4, err
 	}
@@ -725,8 +747,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		validClockReadback := value == 0x1c && m.ikbdSetClockWriteCount == 7 &&
 			m.ikbdSetClockCompleteCount == 6 && !m.ikbdSetClockComplete &&
 			m.ikbdACIATXShiftTicks != 0 && !m.ikbdClockReadbackRequestWritten
+		validClockPoll := value == 0x1c && m.ikbdClockReadbackComplete && m.flopVBLMediaComplete &&
+			m.ikbdACIATXShiftTicks == 0 && !m.ikbdClockPollRequestWritten &&
+			!m.ikbdClockPollResponseActive &&
+			m.ikbdClockPollRequestCount == m.ikbdClockPollCompleteCount
 		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
-			(validFirst || validSecond || validClockRequest || validSetClock || validClockReadback) {
+			(validFirst || validSecond || validClockRequest || validSetClock || validClockReadback || validClockPoll) {
 			m.ikbdACIATDR = value
 			m.ikbdACIATXPending = true
 			m.ikbdACIAStatus &^= 2
@@ -735,6 +761,13 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 				m.ikbdSetClockWriteCount++
 			} else if validClockReadback {
 				m.ikbdClockReadbackRequestWritten = true
+			} else if validClockPoll {
+				m.ikbdClockPollRequestWritten = true
+				m.ikbdClockPollResponseDelivered = 0
+				m.ikbdClockPollResponseReadCount = 0
+				m.ikbdClockPollResponseReads = [7]byte{}
+				m.ikbdClockPollDeliveryClocks = [7]uint64{}
+				m.ikbdClockPollReadClocks = [7]uint64{}
 			}
 			return nil
 		}
@@ -1427,6 +1460,15 @@ func (m *Memory) ColdReset() {
 	m.ikbdClockReadbackDeliveryClocks = [7]uint64{}
 	m.ikbdClockReadbackReadClocks = [7]uint64{}
 	m.ikbdClockReadbackComplete = false
+	m.ikbdClockPollRequestWritten = false
+	m.ikbdClockPollRequestCount = 0
+	m.ikbdClockPollResponseActive = false
+	m.ikbdClockPollResponseDelivered = 0
+	m.ikbdClockPollResponseReadCount = 0
+	m.ikbdClockPollResponseReads = [7]byte{}
+	m.ikbdClockPollDeliveryClocks = [7]uint64{}
+	m.ikbdClockPollReadClocks = [7]uint64{}
+	m.ikbdClockPollCompleteCount = 0
 	m.ikbdResetResponseRead = false
 	m.ikbdStaleRDRReads = 0
 	m.midiACIAControl = 0
@@ -1520,6 +1562,10 @@ func (m *Memory) advanceIKBDACIAClock(clocks ...uint64) {
 		} else if completed == 0x1c && m.ikbdSetClockComplete && !m.ikbdClockReadbackRequestHandled {
 			m.ikbdClockReadbackRequestDone = true
 			m.ikbdClockReadbackRequestHandled = true
+		} else if completed == 0x1c && m.ikbdClockPollRequestWritten &&
+			m.ikbdClockReadbackComplete && m.flopVBLMediaComplete {
+			m.ikbdClockPollRequestWritten = false
+			m.ikbdClockPollRequestCount++
 		} else if m.ikbdClockResponseComplete &&
 			m.ikbdSetClockCompleteCount < m.ikbdSetClockWriteCount &&
 			completed == m.ikbdSetClockWrites[m.ikbdSetClockCompleteCount] {
@@ -1558,12 +1604,18 @@ func (m *Memory) nextIKBDClockResponse(round uint8) (int, byte) {
 		index := int(m.ikbdClockReadbackDelivered)
 		return index, ikbdClockReadback[index]
 	}
+	if round == 3 && int(m.ikbdClockPollResponseDelivered) < len(ikbdClockReadback) {
+		index := int(m.ikbdClockPollResponseDelivered)
+		return index, ikbdClockReadback[index]
+	}
 	return -1, 0
 }
 
 func (m *Memory) deliverIKBDClockResponse(round, index uint8, value byte) bool {
 	validRound := round == 1 && m.ikbdClockRequestHandled && index == m.ikbdClockResponseDelivered ||
-		round == 2 && m.ikbdClockReadbackRequestHandled && index == m.ikbdClockReadbackDelivered
+		round == 2 && m.ikbdClockReadbackRequestHandled && index == m.ikbdClockReadbackDelivered ||
+		round == 3 && m.ikbdClockPollRequestCount > m.ikbdClockPollCompleteCount &&
+			index == m.ikbdClockPollResponseDelivered
 	if !m.ikbdACIAConfigured || !validRound || int(index) >= len(ikbdClockResponse) ||
 		m.ikbdACIAStatus&1 != 0 {
 		return false
@@ -1571,9 +1623,12 @@ func (m *Memory) deliverIKBDClockResponse(round, index uint8, value byte) bool {
 	if round == 1 {
 		m.ikbdClockResponseActive = true
 		m.ikbdClockResponseDelivered++
-	} else {
+	} else if round == 2 {
 		m.ikbdClockReadbackActive = true
 		m.ikbdClockReadbackDelivered++
+	} else {
+		m.ikbdClockPollResponseActive = true
+		m.ikbdClockPollResponseDelivered++
 	}
 	m.ikbdACIARDR = value
 	m.ikbdACIAStatus |= 0x81
@@ -1585,6 +1640,8 @@ func (m *Memory) deliverIKBDClockResponse(round, index uint8, value byte) bool {
 func (m *Memory) recordIKBDClockResponseDeliveryClock(round, index uint8, clock uint64) {
 	if round == 2 {
 		m.ikbdClockReadbackDeliveryClocks[index] = clock
+	} else if round == 3 {
+		m.ikbdClockPollDeliveryClocks[index] = clock
 	}
 }
 
