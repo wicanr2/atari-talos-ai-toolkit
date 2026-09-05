@@ -2019,14 +2019,14 @@ func TestIKBDACIAClockResponseUsesMFPChannelSix(t *testing.T) {
 	memory.mfpVR = 0x48
 
 	for index, want := range ikbdClockResponse {
-		if !memory.deliverIKBDClockResponse(uint8(index), want) {
+		if !memory.deliverIKBDClockResponse(1, uint8(index), want) {
 			t.Fatalf("response byte %d was not delivered", index)
 		}
 		if memory.ikbdACIAStatus != 0x83 || memory.mfpGPIPIn&0x10 != 0 || memory.mfpIPRB&0x40 == 0 {
 			t.Fatalf("byte %d status/GPIP/IPRB=%02x/%02x/%02x", index,
 				memory.ikbdACIAStatus, memory.mfpGPIPIn, memory.mfpIPRB)
 		}
-		if memory.deliverIKBDClockResponse(uint8(index+1), 0xee) {
+		if memory.deliverIKBDClockResponse(1, uint8(index+1), 0xee) {
 			t.Fatalf("byte %d overwrote unread RDR", index+1)
 		}
 		memory.acknowledgeMFPB(6)
@@ -2062,6 +2062,7 @@ func TestIKBDACIASetClockBuffersSevenFrames(t *testing.T) {
 	memory.ikbdACIAConfigured = true
 	memory.ikbdACIAStatus = 2
 	memory.ikbdClockResponseComplete = true
+	memory.ikbdClockRequestHandled = true
 	clock := uint64(1000)
 	if err := memory.WriteByte(IKBDACIAData, 0x1a, 5); err == nil {
 		t.Fatal("wrong set-clock command unexpectedly accepted")
@@ -2112,6 +2113,97 @@ func TestIKBDACIASetClockBuffersSevenFrames(t *testing.T) {
 		memory.ikbdSetClockWrites != [7]byte{} || memory.ikbdSetClockCompletions != [7]byte{} ||
 		memory.ikbdSetClockCompletionClocks != [7]uint64{} {
 		t.Fatal("cold reset retained set-clock state")
+	}
+}
+
+func TestIKBDACIAReadbackRequestBuffersAcrossPackets(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockResponseComplete = true
+	memory.ikbdClockRequestHandled = true
+	memory.ikbdSetClockWrites = ikbdSetClockPacket
+	memory.ikbdSetClockWriteCount = 7
+	memory.ikbdSetClockCompletions = ikbdSetClockPacket
+	memory.ikbdSetClockCompleteCount = 6
+	memory.ikbdACIATXShift = 0
+	memory.ikbdACIATXShiftTicks = 1
+
+	if wait, err := memory.WriteByteAt(IKBDACIAData, 0x1c,
+		m68k.BusAccess{Clock: 1000, FunctionCode: 5}); err != nil || wait != 4 ||
+		!memory.ikbdClockReadbackRequestWritten || !memory.ikbdACIATXPending ||
+		memory.ikbdACIAStatus&2 != 0 {
+		t.Fatalf("readback buffer wait/written/pending/status=%d/%v/%v/%02x err=%v",
+			wait, memory.ikbdClockReadbackRequestWritten, memory.ikbdACIATXPending,
+			memory.ikbdACIAStatus, err)
+	}
+	memory.advanceIKBDACIAClock(2000)
+	if !memory.ikbdSetClockComplete || memory.ikbdSetClockCompleteCount != 7 ||
+		memory.ikbdSetClockCompletionClocks[6] != 2000 || memory.ikbdACIATXShift != 0x1c ||
+		memory.ikbdACIATXShiftTicks != 10 || memory.ikbdACIATXPending || memory.ikbdACIAStatus&2 == 0 {
+		t.Fatalf("packet boundary set-complete/count/clock/shift/ticks/pending/status=%v/%d/%d/%02x/%d/%v/%02x",
+			memory.ikbdSetClockComplete, memory.ikbdSetClockCompleteCount,
+			memory.ikbdSetClockCompletionClocks[6], memory.ikbdACIATXShift,
+			memory.ikbdACIATXShiftTicks, memory.ikbdACIATXPending, memory.ikbdACIAStatus)
+	}
+	for tick := 1; tick <= 10; tick++ {
+		memory.advanceIKBDACIAClock(uint64(2000 + tick*1024))
+	}
+	if !memory.ikbdClockReadbackRequestDone || !memory.ikbdClockReadbackRequestHandled ||
+		memory.ikbdACIATXShiftTicks != 0 {
+		t.Fatalf("readback request done/handled/ticks=%v/%v/%d",
+			memory.ikbdClockReadbackRequestDone, memory.ikbdClockReadbackRequestHandled,
+			memory.ikbdACIATXShiftTicks)
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err == nil {
+		t.Fatal("duplicate readback request unexpectedly accepted")
+	}
+}
+
+func TestIKBDACIAClockReadbackResponseHasIndependentReceipts(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockReadbackRequestHandled = true
+	memory.mfpGPIPIn = 0xa1
+	for index, want := range ikbdClockReadback {
+		if !memory.deliverIKBDClockResponse(2, uint8(index), want) {
+			t.Fatalf("readback byte %d was not delivered", index)
+		}
+		memory.recordIKBDClockResponseDeliveryClock(2, uint8(index), uint64(200+index))
+		got, wait, err := memory.ReadByteAt(IKBDACIAData,
+			m68k.BusAccess{Clock: uint64(300 + index), FunctionCode: 5})
+		if err != nil || wait != 4 || got != want || memory.ikbdACIAStatus != 2 ||
+			memory.mfpGPIPIn&0x10 == 0 {
+			t.Fatalf("readback byte %d got/wait/status/GPIP=%02x/%d/%02x/%02x err=%v",
+				index, got, wait, memory.ikbdACIAStatus, memory.mfpGPIPIn, err)
+		}
+	}
+	if !memory.ikbdClockReadbackComplete || memory.ikbdClockReadbackActive ||
+		memory.ikbdClockReadbackReads != ikbdClockReadback ||
+		memory.ikbdClockReadbackDeliveryClocks != [7]uint64{200, 201, 202, 203, 204, 205, 206} ||
+		memory.ikbdClockReadbackReadClocks != [7]uint64{300, 301, 302, 303, 304, 305, 306} ||
+		memory.ikbdClockResponseDelivered != 0 || memory.ikbdClockResponseReadCount != 0 {
+		t.Fatalf("readback complete/active/reads/delivery/read/first-round=%v/%v/%v/%v/%v/%d/%d",
+			memory.ikbdClockReadbackComplete, memory.ikbdClockReadbackActive,
+			memory.ikbdClockReadbackReads, memory.ikbdClockReadbackDeliveryClocks,
+			memory.ikbdClockReadbackReadClocks, memory.ikbdClockResponseDelivered,
+			memory.ikbdClockResponseReadCount)
+	}
+	memory.ColdReset()
+	if memory.ikbdClockReadbackRequestWritten || memory.ikbdClockReadbackRequestDone ||
+		memory.ikbdClockReadbackRequestHandled || memory.ikbdClockReadbackActive ||
+		memory.ikbdClockReadbackDelivered != 0 || memory.ikbdClockReadbackReadCount != 0 ||
+		memory.ikbdClockReadbackReads != [7]byte{} ||
+		memory.ikbdClockReadbackDeliveryClocks != [7]uint64{} ||
+		memory.ikbdClockReadbackReadClocks != [7]uint64{} || memory.ikbdClockReadbackComplete {
+		t.Fatal("cold reset retained clock-readback state")
 	}
 }
 

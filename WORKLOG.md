@@ -533,3 +533,9 @@
   10 ticks時，guest即於881,554 instructions／11,753,400 clocks嘗試buffer下一個
   `$1C`。因此117保持READY，跨packet TDR buffering另立下一規格，不把write receipt
   冒充完整firmware consumption。
+- 完成規格117／118：MC6850跨packet TDR buffering先在11,763,550提交set-clock最後
+  frame，再於同一deadline載入第二個`$1C`，並在11,773,790完成request。固定profile
+  readback `$FC,$24,$03,$17,$00,$00,$00`七筆皆經MFP channel 6由EmuTOS消費，完成點
+  889,609 instructions／483 interrupts／11,851,910 clocks。下一gate為
+  1,005,202／13,036,392的YM2149 `$FF8800=$05`。完整240,000筆corpus、固定ROM、
+  全測試、vet與build通過，117與118均升CONFORMED。

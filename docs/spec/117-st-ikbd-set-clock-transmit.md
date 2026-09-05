@@ -1,6 +1,6 @@
 # 117 — ST IKBD set-clock傳送
 
-狀態：**READY**。
+狀態：**CONFORMED**。
 
 ## 範圍與停止線
 
@@ -59,11 +59,12 @@ register與10-tick 8N1 frame。IKBD更新內部時鐘後的第二筆`$1C` read-c
 
 本切片不修改Dungeon Master規則、資料、素材、畫面、存檔或權利邊界。
 
-## 實作中發現的下一閘門
+## CONFORMED收據
 
 固定ROM已自然接受七筆set-clock writes，前六筆frame completion clocks為
 `11,702,110 / 11,712,350 / 11,722,590 / 11,732,830 / 11,743,070 /
 11,753,310`。第七筆`$00`在shift register尚餘10 ticks、TDRE已恢復時，EmuTOS於
 881,554 instructions／473 interrupts／11,753,400 clocks嘗試寫下一筆`$1C`。
-這是跨packet TDR buffering的新行為，排除於本規格；在下一份READY規格接線並讓第七筆
-自然完成以前，本規格維持 **READY**，不得升CONFORMED。
+這是跨packet TDR buffering的新行為，由規格118接線；第七筆於11,763,550完成，
+同一deadline載入已緩衝的`$1C`。七筆write／completion receipts與固定Hatari
+`IKBD_Cmd_SetClock`一致，故本規格升 **CONFORMED**。

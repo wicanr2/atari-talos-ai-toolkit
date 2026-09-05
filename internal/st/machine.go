@@ -9,6 +9,7 @@ const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 var ikbdClockResponse = [7]byte{0xfc, 0, 0, 0, 0, 0, 1}
 var ikbdSetClockPacket = [7]byte{0x1b, 0x24, 0x03, 0x17, 0, 0, 0}
+var ikbdClockReadback = [7]byte{0xfc, 0x24, 0x03, 0x17, 0, 0, 0}
 
 type Machine struct {
 	CPU                             m68k.CPU
@@ -25,6 +26,8 @@ type Machine struct {
 	ikbdResetRXClock                uint64
 	ikbdSecondTXClock               uint64
 	ikbdClockRequestTXClock         uint64
+	ikbdClockReadbackRequestTXClock uint64
+	ikbdClockResponseRound          uint8
 	nextIKBDClockResponseClock      uint64
 	ikbdClockResponseDeliveryClocks [7]uint64
 	timerCClockStarted              bool
@@ -66,6 +69,8 @@ func (m *Machine) Reset() error {
 	m.ikbdResetRXClock = 0
 	m.ikbdSecondTXClock = 0
 	m.ikbdClockRequestTXClock = 0
+	m.ikbdClockReadbackRequestTXClock = 0
+	m.ikbdClockResponseRound = 0
 	m.nextIKBDClockResponseClock = 0
 	m.ikbdClockResponseDeliveryClocks = [7]uint64{}
 	m.timerCClockStarted = false
@@ -119,8 +124,10 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	}
 	stepEpoch := m.Clocks
 	clockReads := uint8(0)
+	readbackReads := uint8(0)
 	if m.Memory != nil {
 		clockReads = m.Memory.ikbdClockResponseReadCount
+		readbackReads = m.Memory.ikbdClockReadbackReadCount
 	}
 	result, err := m.CPU.StepAt(stepEpoch)
 	if err != nil {
@@ -131,6 +138,10 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 		// The remaining MOVE.B read paths still use the untimed Bus method.
 		// Preserve the instruction epoch until those paths expose their bus phase.
 		m.Memory.ikbdClockResponseReadClocks[clockReads] = stepEpoch
+	}
+	if m.Memory != nil && m.Memory.ikbdClockReadbackReadCount == readbackReads+1 &&
+		m.Memory.ikbdClockReadbackReadClocks[readbackReads] == 0 {
+		m.Memory.ikbdClockReadbackReadClocks[readbackReads] = stepEpoch
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
@@ -217,13 +228,15 @@ func (m *Machine) advanceClockedDevices() {
 	}
 	m.advanceDueACIAClocks()
 	for m.nextIKBDClockResponseClock != 0 && m.Clocks >= m.nextIKBDClockResponseClock {
-		index := m.Memory.ikbdClockResponseDelivered
-		if int(index) >= len(ikbdClockResponse) ||
-			!m.Memory.deliverIKBDClockResponse(index, ikbdClockResponse[index]) {
+		index, value := m.Memory.nextIKBDClockResponse(m.ikbdClockResponseRound)
+		if index < 0 || !m.Memory.deliverIKBDClockResponse(m.ikbdClockResponseRound, uint8(index), value) {
 			break
 		}
-		m.ikbdClockResponseDeliveryClocks[index] = m.nextIKBDClockResponseClock
-		if int(index)+1 == len(ikbdClockResponse) {
+		m.Memory.recordIKBDClockResponseDeliveryClock(m.ikbdClockResponseRound, uint8(index), m.nextIKBDClockResponseClock)
+		if m.ikbdClockResponseRound == 1 {
+			m.ikbdClockResponseDeliveryClocks[index] = m.nextIKBDClockResponseClock
+		}
+		if index+1 == len(ikbdClockResponse) {
 			m.nextIKBDClockResponseClock = 0
 		} else {
 			m.nextIKBDClockResponseClock += 10 * 1024
@@ -281,6 +294,7 @@ func (m *Machine) advanceDueACIAClocks() {
 	for m.aciaClockStarted && m.nextACIABitClock != 0 && m.Clocks >= m.nextACIABitClock {
 		secondPending := m.Memory.ikbdACIATDR == 1 && m.Memory.ikbdACIATXPending
 		clockRequestDone := m.Memory.ikbdClockRequestDone
+		clockReadbackRequestDone := m.Memory.ikbdClockReadbackRequestDone
 		m.Memory.advanceIKBDACIAClock(m.nextACIABitClock)
 		if secondPending && !m.Memory.ikbdACIATXPending {
 			m.ikbdSecondTXClock = m.nextACIABitClock
@@ -291,6 +305,12 @@ func (m *Machine) advanceDueACIAClocks() {
 		}
 		if !clockRequestDone && m.Memory.ikbdClockRequestDone {
 			m.ikbdClockRequestTXClock = m.nextACIABitClock
+			m.ikbdClockResponseRound = 1
+			m.nextIKBDClockResponseClock = m.nextACIABitClock + 16*1024
+		}
+		if !clockReadbackRequestDone && m.Memory.ikbdClockReadbackRequestDone {
+			m.ikbdClockReadbackRequestTXClock = m.nextACIABitClock
+			m.ikbdClockResponseRound = 2
 			m.nextIKBDClockResponseClock = m.nextACIABitClock + 16*1024
 		}
 		m.nextACIABitClock += 1024

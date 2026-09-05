@@ -396,11 +396,12 @@
   `$FC,$00,$00,$00,$00,$00,$01`；每筆經MFP channel 6 vector `$46`由EmuTOS正常
   handler消費。七筆於874,579 instructions／471 interrupts／11,688,070 clocks收齊；
   下一gate是874,900／11,691,528的IKBD set-clock `$FFFC02=$1B` write。
-- IKBD set-clock規格117為READY且已接七筆write與shift-register身分；固定ROM自然寫入
-  `$1B,$24,$03,$17,$00,$00,$00`，前六筆frame已完成。第七筆在shift尚餘10 ticks時，
-  guest於881,554 instructions／473 interrupts／11,753,400 clocks嘗試把下一個
-  read-clock `$1C`放進已恢復TDRE的TDR。跨packet buffering尚未有READY規格，故117
-  不得升CONFORMED。
+- IKBD set-clock與clock readback已CONFORMED：固定ROM寫入
+  `$1B,$24,$03,$17,$00,$00,$00`，第七筆於11,763,550完成並在同一serial deadline
+  載入預先buffer的第二個`$1C`；request於11,773,790完成。readback
+  `[FC,24,03,17,00,00,00]`於889,609 instructions／483 interrupts／11,851,910 clocks
+  全數由EmuTOS消費。下一gate為1,005,202／521／13,036,392的YM2149
+  `$FF8800=$05` register-select byte write。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -410,8 +411,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步為set-clock最後一個frame傳送期間
-   緩衝下一筆`$1C`建立READY規格；完成後讓IKBD讀回`$24,$03,$17,$00,$00,$00`。
-   維持固定profile，不同步host wall-clock。RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步由固定EmuTOS／Hatari證據確認
+   1,005,202 instructions的YM2149 register 5 select及其consumer序列，再立READY規格。
+   RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

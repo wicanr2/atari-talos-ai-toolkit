@@ -1820,29 +1820,46 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
 			machine.nextIKBDClockResponseClock, nextGate)
 	}
-	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 100_000 && !machine.Memory.ikbdClockReadbackComplete && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
-		machine.Memory.ikbdSetClockComplete || machine.Memory.ikbdSetClockWriteCount != 7 ||
-		machine.Memory.ikbdSetClockCompleteCount != 6 || machine.Memory.ikbdSetClockWrites != ikbdSetClockPacket ||
-		machine.Memory.ikbdSetClockCompletions != ikbdSetClockPacket ||
-		machine.Memory.ikbdSetClockCompletionClocks != [7]uint64{11702110, 11712350, 11722590, 11732830, 11743070, 11753310, 0} ||
-		machine.Instructions != 881554 || machine.Interrupts != 473 || machine.Clocks != 11753400 ||
-		machine.Memory.ikbdACIATXShift != 0 || machine.Memory.ikbdACIATXShiftTicks != 10 ||
-		machine.Memory.ikbdACIATDR != 0 || machine.Memory.ikbdACIATXPending ||
-		machine.CPU.State.D != [8]uint32{0xffffffff, 0x5c, 0x1c, 0, 0x00080000, 0x00100000, 5, 1} ||
-		machine.CPU.State.A != [7]uint32{0x00fc261e, 0x23b2, 0x00fc5132, 0x00fc5142, 0, 0x00fc01f4, 0x00000ffc} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f18 ||
-		machine.CPU.State.SR != 0x2308 || machine.CPU.State.PC != 0x00fc515a ||
-		machine.CPU.State.Prefetch != [2]uint16{0xfc02, 0x241f} {
-		t.Fatalf("set-clock gate complete=%v count=%d/%d writes=%v completions=%v clocks=%v instructions=%d interrupts=%d clocks=%d state=%+v shift/ticks/TDR/pending=%02x/%d/%02x/%v err=%v",
-			machine.Memory.ikbdSetClockComplete, machine.Memory.ikbdSetClockWriteCount,
-			machine.Memory.ikbdSetClockCompleteCount, machine.Memory.ikbdSetClockWrites,
-			machine.Memory.ikbdSetClockCompletions, machine.Memory.ikbdSetClockCompletionClocks,
-			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
-			machine.Memory.ikbdACIATXShift, machine.Memory.ikbdACIATXShiftTicks,
-			machine.Memory.ikbdACIATDR, machine.Memory.ikbdACIATXPending, nextGate)
+	if nextGate != nil || !machine.Memory.ikbdClockReadbackComplete ||
+		!machine.Memory.ikbdClockReadbackRequestWritten || !machine.Memory.ikbdClockReadbackRequestDone ||
+		!machine.Memory.ikbdClockReadbackRequestHandled || machine.ikbdClockReadbackRequestTXClock != 11773790 ||
+		!machine.Memory.ikbdSetClockComplete || machine.Memory.ikbdSetClockCompleteCount != 7 ||
+		machine.Memory.ikbdSetClockCompletionClocks != [7]uint64{11702110, 11712350, 11722590, 11732830, 11743070, 11753310, 11763550} ||
+		machine.Memory.ikbdClockReadbackDelivered != 7 || machine.Memory.ikbdClockReadbackReadCount != 7 ||
+		machine.Memory.ikbdClockReadbackReads != ikbdClockReadback ||
+		machine.Memory.ikbdClockReadbackDeliveryClocks != [7]uint64{11790174, 11800414, 11810654, 11820894, 11831134, 11841374, 11851614} ||
+		machine.Memory.ikbdClockReadbackReadClocks != [7]uint64{11790462, 11800706, 11810938, 11821178, 11831430, 11841658, 11851898} ||
+		machine.Instructions != 889609 || machine.Interrupts != 483 || machine.Clocks != 11851910 ||
+		machine.CPU.State.D != [8]uint32{0, 0x83, 0, 0, 0x00080000, 0x00100000, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc0794, 0x23b2, 0, 0, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f10 ||
+		machine.CPU.State.SR != 0x2604 || machine.CPU.State.PC != 0x00fc07ae ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4eba, 0x0018} || machine.nextIKBDClockResponseClock != 0 {
+		t.Fatalf("readback complete=%v request written/done/handled=%v/%v/%v request-clock=%d set complete/count/clocks=%v/%d/%v delivered/read=%d/%d values=%v delivery-clocks=%v read-clocks=%v instructions=%d interrupts=%d clocks=%d state=%+v next=%d err=%v",
+			machine.Memory.ikbdClockReadbackComplete, machine.Memory.ikbdClockReadbackRequestWritten,
+			machine.Memory.ikbdClockReadbackRequestDone, machine.Memory.ikbdClockReadbackRequestHandled,
+			machine.ikbdClockReadbackRequestTXClock, machine.Memory.ikbdSetClockComplete,
+			machine.Memory.ikbdSetClockCompleteCount, machine.Memory.ikbdSetClockCompletionClocks,
+			machine.Memory.ikbdClockReadbackDelivered, machine.Memory.ikbdClockReadbackReadCount,
+			machine.Memory.ikbdClockReadbackReads, machine.Memory.ikbdClockReadbackDeliveryClocks,
+			machine.Memory.ikbdClockReadbackReadClocks, machine.Instructions, machine.Interrupts,
+			machine.Clocks, machine.CPU.State, machine.nextIKBDClockResponseClock, nextGate)
+	}
+	for steps := 0; steps < 200_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xff8800 fc=5: unsupported_device_state" ||
+		machine.Instructions != 1005202 || machine.Interrupts != 521 || machine.Clocks != 13036392 ||
+		machine.CPU.State.D != [8]uint32{5, 5, 0x2400, 0, 0x00fce2fa, 0x00100003, 0, 1} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 8, 0x00fc36b8, 0x000fa19f, 0x100, 0x00fc58e8, 0x00fcc8d8} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e04 ||
+		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36d0 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
+		t.Fatalf("post-readback gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }
 
@@ -1906,6 +1923,30 @@ func TestMachineSchedulesIKBDClockResponseAfterRequestFrame(t *testing.T) {
 		t.Fatalf("delivery/RDR/clocks/next=%d/%02x/%v/%d",
 			memory.ikbdClockResponseDelivered, memory.ikbdACIARDR,
 			machine.ikbdClockResponseDeliveryClocks, machine.nextIKBDClockResponseClock)
+	}
+}
+
+func TestMachineSchedulesIKBDClockReadbackAfterBufferedRequest(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockRequestHandled = true
+	memory.ikbdSetClockComplete = true
+	memory.ikbdClockReadbackRequestWritten = true
+	memory.ikbdACIATXShift = 0x1c
+	memory.ikbdACIATXShiftTicks = 1
+	machine := &Machine{Memory: memory, Clocks: 1000, aciaClockStarted: true, nextACIABitClock: 1000}
+	machine.advanceClockedDevices()
+	if !memory.ikbdClockReadbackRequestDone || !memory.ikbdClockReadbackRequestHandled ||
+		machine.ikbdClockReadbackRequestTXClock != 1000 || machine.ikbdClockResponseRound != 2 ||
+		machine.nextIKBDClockResponseClock != 17384 {
+		t.Fatalf("readback done/handled/request/round/response=%v/%v/%d/%d/%d",
+			memory.ikbdClockReadbackRequestDone, memory.ikbdClockReadbackRequestHandled,
+			machine.ikbdClockReadbackRequestTXClock, machine.ikbdClockResponseRound,
+			machine.nextIKBDClockResponseClock)
 	}
 }
 
