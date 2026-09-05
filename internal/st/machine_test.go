@@ -2,7 +2,6 @@ package st
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -104,7 +103,7 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	machine.CPU.State.A[0] = 0x87654321
 	machine.CPU.State.USP = 0x00abcdef
 	machine.Instructions, machine.Interrupts, machine.Clocks = 99, 3, 1234
-	machine.firstVBLRaised, machine.vblPending = true, true
+	machine.nextVBLClock, machine.vblPending = 9999, true
 	if err := machine.Memory.WriteByte(MMUConfig, 0x0a, 5); err != nil {
 		t.Fatal(err)
 	}
@@ -120,9 +119,9 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 		t.Fatalf("reset changed unspecified registers: %+v", state)
 	}
 	if machine.Instructions != 0 || machine.Interrupts != 0 || machine.Clocks != 0 ||
-		machine.firstVBLRaised || machine.vblPending {
-		t.Fatalf("reset counters/events instructions=%d interrupts=%d clocks=%d raised=%v pending=%v",
-			machine.Instructions, machine.Interrupts, machine.Clocks, machine.firstVBLRaised, machine.vblPending)
+		machine.nextVBLClock != firstColorSTVBLClock || machine.vblPending {
+		t.Fatalf("reset counters/events instructions=%d interrupts=%d clocks=%d next=%d pending=%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.nextVBLClock, machine.vblPending)
 	}
 	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("machine cold-reset MMU=%02x err=%v", got, err)
@@ -1094,17 +1093,41 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 		t.Fatalf("STOP pre-state mismatch instructions=%d interrupts=%d clocks=%d: %+v", machine.Instructions, machine.Interrupts, machine.Clocks, stopPreState)
 	}
 	result, err := machine.Step()
-	if err != nil || result.Clocks != 4 || machine.Instructions != 7604 || machine.Interrupts != 1 || machine.Clocks != 178228 ||
+	if err != nil || result.Clocks != 4 || machine.Instructions != 7604 || machine.Interrupts != 1 || machine.Clocks != 178244 ||
 		machine.CPU.State.SR != 0x2300 || !machine.CPU.IsStopped() ||
 		machine.CPU.State.PC != 0x00fcd09e || machine.CPU.State.Prefetch != [2]uint16{0x4e72, 0x2300} {
 		t.Fatalf("STOP result=%+v instructions=%d clocks=%d pre=%+v state=%+v err=%v",
 			result, machine.Instructions, machine.Clocks, stopPreState, machine.CPU.State, err)
 	}
-	if result, err := machine.Step(); !errors.Is(err, m68k.ErrStopped) || result.Clocks != 0 ||
-		len(result.Transactions) != 0 || len(result.Timeline) != 0 ||
-		machine.Instructions != 7604 || machine.Interrupts != 1 || machine.Clocks != 178228 || !machine.CPU.IsStopped() {
-		t.Fatalf("stopped machine result=%+v instructions=%d clocks=%d state=%+v err=%v",
-			result, machine.Instructions, machine.Clocks, machine.CPU.State, err)
+	result, err = machine.Step()
+	state = machine.CPU.State
+	if err != nil || result.Clocks != 115740 || machine.Instructions != 7604 || machine.Interrupts != 2 ||
+		machine.Clocks != 293984 || machine.CPU.IsStopped() || state.D != wantSTOPD || state.A != wantSTOPA ||
+		state.SSP != 0x0f6a || state.SR != 0x2400 || state.PC != 0x00fc044a ||
+		state.Prefetch != [2]uint16{0x52b8, 0x0466} {
+		t.Fatalf("second VBL result=%+v instructions=%d clocks=%d state=%+v err=%v",
+			result, machine.Instructions, machine.Clocks, state, err)
+	}
+	wantSecondFrame := []uint16{0x2300, 0x00fc, 0xd09e}
+	for i, want := range wantSecondFrame {
+		got, readErr := machine.Memory.ReadWord(0x0f6a+uint32(i*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("second VBL frame[%d]=%04x/%v want %04x", i, got, readErr, want)
+		}
+	}
+	if _, err := machine.Step(); err != nil {
+		t.Fatal(err)
+	}
+	frHigh, err := machine.Memory.ReadWord(0x466, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frLow, err := machine.Memory.ReadWord(0x468, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := uint32(frHigh)<<16 | uint32(frLow); got != 2 {
+		t.Fatalf("guest second VBL handler frclock=%d want 2", got)
 	}
 }
 

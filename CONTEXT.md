@@ -239,7 +239,7 @@
 - MC68000 `STOP` 已 CONFORMED：執行前 supervisor 判權、immediate SR `$A71F`
   masking、4 clocks、stopped latch、重複 Step 原子停止與 CPU Reset 清除均已接線；
   2,500 筆固定外部語料全過。固定 EmuTOS 的 opcode 位址是 `$FCD09A`，Talos pipeline
-  PC `$FCD09E` 指向下一指令；規格 075 接入第一 VBL 後，第 7,604 條／178,228 clocks
+  PC `$FCD09E` 指向下一指令；規格 075／076 接入 VBL 與 IACK 後，第 7,604 條／178,244 clocks
   再次以 SR=`$2300` 停機。Hatari 同點 opcode／SR／prefetch 一致，D2=`$2710`、
   D3=`$1` 也已收斂；舊 7,599／178,096 與 D3=0 收據已被規格 075 取代。
 - 固定 color ST profile 的 MFP GPIP input sample 已 CONFORMED：bus read 依 DDR 合併
@@ -252,8 +252,11 @@
 - ST reset frame 第一個 GLUE VBL 已 CONFORMED：cold color ST 在 133,668 clocks
   raise pending，mask 7 期間保留，於 `$FC6904` 前 mask 3 接受。`--fast-boot false`
   的 Hatari 與 Talos 在 `$FC0446` handler 入口 D/A、SSP、SR、frame、prefetch 全同；
-  guest opcode 真正令 `$466 frclock` 從 0 變 1，沒有由 host 直接寫記憶體。recurring
-  VBL 與 stopped-clock advancement 尚未接，因此第二個 STOP 是目前真實 gate。
+  guest opcode 真正令 `$466 frclock` 從 0 變 1，沒有由 host 直接寫記憶體。規格 076
+  已補上 50 Hz recurring deadline、E-clock／video IACK 與 STOP 快轉；第二次 handler
+  在 293,984 clocks 完整 state／frame 對上 Hatari，guest 將 `$466` 由 1 增至 2。
+  有界續跑跨過第三次 VBL 後，在 7,654 instructions／3 interrupts／454,504 clocks
+  對 `$FF8260` Shifter resolution byte write 失敗即關閉，這是目前真實 gate。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -267,5 +270,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片規格化 recurring color-ST VBL 與 stopped-clock advancement，讓第二個
-   STOP 等到下一 deadline 後再由 `$FC0446` 將 `$466` 從 1 增至 2。
+4. 下一個整機切片先查 Atari Shifter 規格與固定 Hatari trace，規格化 `$FF8260`
+   resolution byte write；不得在 framebuffer／video mode 尚未收斂前把它當普通 latch。

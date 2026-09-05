@@ -41,12 +41,13 @@ level-4 pending latch 與 CPU instruction-boundary 接受。後續 frame、執�
 2. 每條 CPU instruction 完成後，若全機 clocks 首次跨過 deadline，就只設定 level-4
    pending。SR mask 不會讓 event 消失，也不得提前讀 vector 或寫 `frclock`。
 3. 每次 `Machine.Step` 在下一條 instruction 前先嘗試接受 pending。mask 阻擋時照常執行
-   instruction；可接受時呼叫規格 074 的 CPU autovector，該次 Step 回傳 44-clock
-   exception core action，加上既有 ST bus slot wait 後本固定狀態為 46 machine clocks；
-   增加 `Interrupts`，不增加 `Instructions`，並清 pending。
+   instruction；可接受時呼叫規格 074 的 CPU autovector，增加 `Interrupts`、不增加
+   `Instructions`，並清 pending。此切片原先只驗收 44-clock exception core 加 ST bus
+   slot wait；規格 076 已補上位於 core 前的 E-clock／video IACK，固定第一個 handler
+   entry 因而由 177,996 clocks 訂正為 178,012。register、frame 與 guest 行為不變。
 4. 下一次 Step 才執行 handler 第一條；`$466` 必須由 ROM opcode `$52B8,$0466` 改成 1。
-5. 第一個 event raised 後不排下一個 deadline。本切片之後若 CPU 再因 STOP 等待第二個
-   VBL，維持 `ErrStopped`；不得用第一 frame 常數反覆假造 event。
+5. 本切片原本在第一個 event raised 後不排下一個 deadline；後續 recurring deadline 與
+   STOP 快轉現由規格 076 接手，不得用第一 frame 常數反覆假造 event。
 
 ## 驗收與停止線
 

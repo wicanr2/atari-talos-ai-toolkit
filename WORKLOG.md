@@ -297,3 +297,11 @@
   真正令 `$466` 由 0 變 1，返回後 D3=1；新 STOP gate 為 7,604 instructions、1 interrupt、
   178,228 clocks。完整 232,500 筆 corpus、固定 ROM、全測試、
   `go vet -stdmethods=false ./...` 與 CLI build 通過，規格 075 升 CONFORMED。
+- 完成固定 50 Hz recurring VBL、STOP 快轉與 ST 視訊 IACK：由 Hatari 固定 source
+  查實 `12-clock IACK start → 10-clock E-clock 對齊 → 10-clock video IACK`，沒有以固定
+  16 clocks 猜補。第二 deadline 為 293,924，Talos 在 293,984 clocks 進入第二次
+  `$FC0446`，完整 D/A、SSP、SR、saved PC 與 prefetch 對上 Hatari，guest handler 真正令
+  `$466 frclock` 由 1 變 2。同步訂正规格 075 首次 handler 的 machine clock 為 178,012；
+  register／frame 結論不變。有界續跑可跨第三次 VBL，於 7,654 instructions、3 interrupts、
+  454,504 clocks 在 `$FF8260` Shifter resolution byte write 失敗即關閉，成為下一 gate。
+  規格 076 升 CONFORMED。

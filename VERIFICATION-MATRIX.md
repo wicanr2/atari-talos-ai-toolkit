@@ -40,7 +40,8 @@
 | vector 2 absolute-short address | CPU 32-bit EA、24-bit bus、14-byte frame、68 clocks | synthetic `$4A78,$8006`；Hatari／EmuTOS 同 ROM | 通過；第 10 條／220 clocks 完整 frame 全同 |
 | MC68000 `RESET` | privilege、external reset hook、register preservation、prefetch、132 clocks | synthetic user／supervisor；Hatari／EmuTOS 同 ROM | 通過；第 11 條／352 clocks state／prefetch 全同 |
 | MC68000 level 4 autovector 接受 | mask／非法 level fail-closed、running／STOP saved PC、format-0 frame、timed bus 44 clocks | 固定 EmuTOS `$70=$FC0446`；Hatari 第一／第二 VBL handler 入口 SR／SSP／frame／prefetch | 通過；CPU 接受層與第一 GLUE VBL 已接線 |
-| ST reset frame 第一個 GLUE VBL | deadline crossing、mask pending、interrupt／instruction 分帳、guest handler 寫入 | 固定 EmuTOS＋Hatari 2.4.1 `--fast-boot false` 第一 `$FC0446` D/A／SSP／SR／frame／prefetch與 `$466` consumer | 通過；第一 event 完成，recurring frame 與 stopped-clock advancement 待補 |
+| ST reset frame 第一個 GLUE VBL | deadline crossing、mask pending、interrupt／instruction 分帳、guest handler 寫入 | 固定 EmuTOS＋Hatari 2.4.1 `--fast-boot false` 第一 `$FC0446` D/A／SSP／SR／frame／prefetch與 `$466` consumer | 通過；E-clock／video IACK machine clock 由 recurring 規格補齊 |
+| ST 50 Hz recurring VBL／STOP 快轉 | 313×512 deadline、E-clock 公式、video IACK、idle timeline、STOP 喚醒與 guest handler | 固定 EmuTOS＋Hatari 第二 `$FC0446` 完整 state／frame／prefetch；`$466:1→2` | 通過；第二 handler 293,984 clocks，下一 gate `$FF8260` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | reset、MMU、exceptions、`RESET` 與空 cartridge 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；完全對拍至第 12 條／380 clocks，第 14 條首次差 2 clocks |
