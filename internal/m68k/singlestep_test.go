@@ -362,6 +362,10 @@ func TestSingleStepMOVEToStatus(t *testing.T) {
 	}
 }
 
+func TestSingleStepMOVEFromSR(t *testing.T) {
+	testSingleStepCorpus(t, "MOVEfromSR.json.bin")
+}
+
 func TestSingleStepMULS(t *testing.T) {
 	testSingleStepCorpus(t, "MULS.json.bin")
 }

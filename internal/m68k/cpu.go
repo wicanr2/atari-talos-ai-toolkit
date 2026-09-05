@@ -73,6 +73,8 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepMOVEToStatus(opcode, false)
 	case opcode&0xffc0 == 0x46c0:
 		return c.stepMOVEToStatus(opcode, true)
+	case opcode&0xffc0 == 0x40c0:
+		return c.stepMOVEFromSR(opcode)
 	case opcode&0xff00 == 0x4600 && opcode>>6&3 <= 2:
 		return c.stepUnaryModify(opcode, false)
 	case opcode&0xff00 == 0x4400 && opcode>>6&3 <= 2:
@@ -317,6 +319,25 @@ func (c *CPU) stepMOVEToStatus(opcode uint16, statusRegister bool) (StepResult, 
 		return StepResult{}, err
 	}
 	return StepResult{Clocks: 12 + cost, Transactions: step.transactions}, nil
+}
+
+func (c *CPU) stepMOVEFromSR(opcode uint16) (StepResult, error) {
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if mode == 1 || mode == 7 && reg > 1 {
+		return StepResult{}, fmt.Errorf("m68k: invalid MOVE from SR destination mode %d:%d", mode, reg)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	if mode == 0 {
+		c.State.D[reg] = c.State.D[reg]&0xffff_0000 | uint32(c.State.SR)
+		if err := stream.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 6, Transactions: stream.transactions}, nil
+	}
+	return stream.logicalWordMemory(opcode, mode, reg, c.State.SR, 8, logicalReplace)
 }
 
 func (c *CPU) stepBit(opcode uint16, immediate bool) (StepResult, error) {
@@ -2570,7 +2591,9 @@ func (s *moveByteStep) logicalWordMemory(opcode uint16, mode, reg uint8, operand
 	}
 	s.transactions = append(s.transactions, readTransaction(address&addressMask, s.dataFC, value))
 	result := logicalWord(value, operand, operation)
-	s.cpu.setLogicalFlags(uint32(result), 16)
+	if operation != logicalReplace {
+		s.cpu.setLogicalFlags(uint32(result), 16)
+	}
 	if err := s.refill(); err != nil {
 		return StepResult{}, err
 	}
@@ -2763,6 +2786,7 @@ const (
 	logicalAND logicalOperation = iota
 	logicalOR
 	logicalEOR
+	logicalReplace
 )
 
 func (c *CPU) stepEORToDataRegister(opcode uint16, bits uint8) (StepResult, error) {
@@ -2806,6 +2830,8 @@ func logicalLong(left, right uint32, operation logicalOperation) uint32 {
 		return left | right
 	case logicalEOR:
 		return left ^ right
+	case logicalReplace:
+		return right
 	default:
 		return left & right
 	}

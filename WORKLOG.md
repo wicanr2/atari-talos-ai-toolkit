@@ -131,6 +131,9 @@
 - 完成 `MOVE <ea>,CCR` 與 `MOVE <ea>,SR`；固定語料 5,000 筆涵蓋 masks、word data EA、
   vector 3、user privilege vector 8、S bit 切換後 program FC 與 `PC-2` 管線重讀，
   全數通過後累計外部單步驗收 222,500 筆。
+- 完成 `MOVE SR,<ea>`；固定語料 2,500 筆涵蓋 Dn／memory destination、user mode、
+  SR 保留、RMW bus 次序、EA clocks 與 978 筆 vector 3，全數通過後累計外部單步
+  驗收 225,000 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。
