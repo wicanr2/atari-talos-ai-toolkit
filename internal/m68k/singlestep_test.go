@@ -648,6 +648,9 @@ func testSingleStepCorpusAdjusted(t *testing.T, name string, want int, accept fu
 			if result.Clocks != test.Clocks || !reflect.DeepEqual(result.Transactions, test.Transactions) {
 				t.Fatalf("bus mismatch\n got: %#v\nwant: clocks=%d transactions=%#v", result, test.Clocks, test.Transactions)
 			}
+			if name == "NOP.json.bin" && !reflect.DeepEqual(result.Timeline, test.Timeline) {
+				t.Fatalf("timeline mismatch\n got: %#v\nwant: %#v", result.Timeline, test.Timeline)
+			}
 		})
 	}
 	if accepted != want {

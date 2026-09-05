@@ -43,6 +43,7 @@ type BusPhase struct {
 type StepResult struct {
 	Clocks       uint32
 	Transactions []Transaction
+	Timeline     []BusPhase
 }
 
 type Bus interface {
@@ -50,6 +51,23 @@ type Bus interface {
 	ReadWord(address uint32, functionCode uint8) (uint16, error)
 	WriteByte(address uint32, value byte, functionCode uint8) error
 	WriteWord(address uint32, value uint16, functionCode uint8) error
+}
+
+// BusAccess identifies when an access starts on the machine-wide clock.
+type BusAccess struct {
+	Clock        uint64
+	FunctionCode uint8
+}
+
+// TimedBus is the cycle-aware form of Bus. Wait is the number of idle clocks
+// inserted before the access. Bus remains available during incremental CPU
+// migration; exact-timing machine paths must use only migrated instructions.
+type TimedBus interface {
+	Bus
+	ReadByteAt(address uint32, access BusAccess) (value byte, wait uint32, err error)
+	ReadWordAt(address uint32, access BusAccess) (value uint16, wait uint32, err error)
+	WriteByteAt(address uint32, value byte, access BusAccess) (wait uint32, err error)
+	WriteWordAt(address uint32, value uint16, access BusAccess) (wait uint32, err error)
 }
 
 // BusFault exposes the information the MC68000 places in a bus-error frame.
@@ -68,6 +86,7 @@ type ResetBus interface {
 type CPU struct {
 	State State
 	Bus   Bus
+	epoch uint64
 }
 
 func (c *CPU) Reset() error {
@@ -114,9 +133,16 @@ func (c *CPU) Reset() error {
 }
 
 func (c *CPU) Step() (StepResult, error) {
+	return c.StepAt(0)
+}
+
+// StepAt executes one instruction at a machine-wide clock epoch. Instructions
+// are migrated to timed bus access incrementally under spec 055.
+func (c *CPU) StepAt(epoch uint64) (StepResult, error) {
 	if c.Bus == nil {
 		return StepResult{}, fmt.Errorf("m68k: nil bus")
 	}
+	c.epoch = epoch
 	opcode := c.State.Prefetch[0]
 	switch {
 	case opcode&0xff00 == 0x0800:
@@ -328,7 +354,7 @@ func (c *CPU) Step() (StepResult, error) {
 	if c.State.SR&supervisor != 0 {
 		fc = 6
 	}
-	word, err := c.Bus.ReadWord(address, fc)
+	word, wait, err := c.readWordAt(address, fc, 0)
 	if err != nil {
 		return StepResult{}, err
 	}
@@ -336,10 +362,24 @@ func (c *CPU) Step() (StepResult, error) {
 	c.State.Prefetch[1] = word
 	c.State.PC += 2
 
-	return StepResult{Clocks: 4, Transactions: []Transaction{{
+	transaction := Transaction{
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
-	}}}, nil
+	}
+	timeline := make([]BusPhase, 0, 2)
+	if wait != 0 {
+		timeline = append(timeline, BusPhase{Cycles: wait})
+	}
+	timeline = append(timeline, BusPhase{Offset: wait, Cycles: 4, Transaction: &transaction})
+	return StepResult{Clocks: 4 + wait, Transactions: []Transaction{transaction}, Timeline: timeline}, nil
+}
+
+func (c *CPU) readWordAt(address uint32, functionCode uint8, offset uint32) (uint16, uint32, error) {
+	if bus, ok := c.Bus.(TimedBus); ok {
+		return bus.ReadWordAt(address, BusAccess{Clock: c.epoch + uint64(offset), FunctionCode: functionCode})
+	}
+	value, err := c.Bus.ReadWord(address, functionCode)
+	return value, 0, err
 }
 
 func (c *CPU) stepMOVEToUSP(opcode uint16) (StepResult, error) {

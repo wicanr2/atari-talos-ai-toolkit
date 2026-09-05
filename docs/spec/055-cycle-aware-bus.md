@@ -1,6 +1,6 @@
 # 055 — CPU／machine／bus cycle-aware access 契約
 
-狀態：**READY**（時間軸基礎已接線；runtime access 遷移未完成）。
+狀態：**READY**（時間軸與首個 runtime access 已接線；其餘指令遷移未完成）。
 
 ## 決策與範圍
 
@@ -42,11 +42,14 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
 
 ## 漸進接線
 
-1. **本切片**：語料載入器保留所有 idle／active phases，計算每一 phase 的 offset，
+1. **已完成**：語料載入器保留所有 idle／active phases，計算每一 phase 的 offset，
    並對每筆測試驗證 phase duration 總和等於 instruction clocks；既有 active bus
    比較不變。
-2. 建立 instruction epoch 與 timed access／wait 回傳介面，先以不競爭的 memory
-   證明 state、transaction 與 clocks 完全不變。
+2. **首切片已完成**：`Machine.Step` 以目前全機 clocks 呼叫 `CPU.StepAt`；
+   `TimedBus` 的 byte／word read／write 均接收 `BusAccess{Clock, FunctionCode}` 並回傳
+   wait。NOP／MOVEQ／SWAP／EXT 共用的 4-clock prefetch 已遷移；零 wait 時保留既有
+   active transaction，非零 wait 時在實際 access 前插入 idle phase 並推高總 clocks。
+   未建立 exact mode 前，尚未遷移的指令仍使用 legacy Bus；不得據此宣稱全 CPU timed。
 3. 以語料時間軸逐族遷移 CPU access；每族同時比對 phase 序列，禁止只比總 clocks。
 4. 另寫 READY Shifter arbitration 規格後，接入 ST RAM，對拍 EmuTOS 第 14 條的
    動態 wait；再前進 line-F／vector 11。
@@ -56,5 +59,9 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
 - 全部固定 MC68000 語料可讀取時間軸，且每筆 `sum(phase.Cycles) == Clocks`。
 - 既有 227,500 筆 CPU state／RAM／clock／active transaction 比較全綠。
 - Go 單元測試、`go vet`、全程式建置通過；JSON Lines golden tests 不變。
-- 本切片完成只可稱「時間軸基礎已接線」，不可稱 cycle-aware runtime、Shifter
+- NOP 的 2,500 筆語料須連完整 phase timeline 逐筆相同；synthetic timed Bus 須證明
+  epoch 在 access 前送達，2-clock wait 產生 idle 2＋active 4，且 legacy transaction
+  duration 仍為 4。machine 整合測試須證明非零 epoch 傳入 CPU。
+- 固定 EmuTOS ROM 前 12 條維持 380 clocks 與既有 state／prefetch 收據。
+- 本切片完成只可稱「首個 cycle-aware runtime access 已接線」，不可稱全 CPU、Shifter
   arbitration 或 Atari ST 開機完成。

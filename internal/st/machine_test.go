@@ -5,7 +5,45 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
 )
+
+type epochRecordingMemory struct {
+	*Memory
+	clocks []uint64
+	wait   uint32
+}
+
+func (m *epochRecordingMemory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint32, error) {
+	m.clocks = append(m.clocks, access.Clock)
+	value, err := m.Memory.ReadWord(address, access.FunctionCode)
+	return value, m.wait, err
+}
+
+func TestMachinePassesCurrentClockAsInstructionEpoch(t *testing.T) {
+	rom := make([]byte, TOSROMSize)
+	rom[2], rom[3] = 0x12, 0x34
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus := &epochRecordingMemory{Memory: machine.Memory, wait: 2}
+	machine.CPU.Bus = bus
+	machine.CPU.State = m68k.State{SR: 0x2000, PC: TOSROMBase + 2,
+		Prefetch: [2]uint16{0x4e71, 0xabcd}}
+	machine.Instructions, machine.Clocks = 9, 390
+	result, err := machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bus.clocks) != 1 || bus.clocks[0] != 390 {
+		t.Fatalf("access clocks=%v want [390]", bus.clocks)
+	}
+	if result.Clocks != 6 || machine.Instructions != 10 || machine.Clocks != 396 {
+		t.Fatalf("result=%+v counters=%d/%d", result, machine.Instructions, machine.Clocks)
+	}
+}
 
 func TestMachineResetFromROMShadow(t *testing.T) {
 	rom := make([]byte, TOSROMSize)

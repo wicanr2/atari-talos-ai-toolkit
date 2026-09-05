@@ -163,6 +163,10 @@
   EmuTOS 第 12 條／380 clocks 與 Hatari 同狀態。逐條向後比對後，第 14 條
   RAM write 首次出現 Hatari 26／Atari Talos 24 clocks；這是依全機當下週期
   變動的 Shifter bus arbitration 缺口，不是該 MOVE opcode 的固定 timing。
+- cycle-aware Bus 首個 runtime 切片已接線：machine 將 64-bit 全機 epoch 傳入 CPU，
+  `TimedBus` 在 access 前收到絕對 clock 並回傳 wait；NOP／MOVEQ／SWAP／EXT 共用的
+  4-clock prefetch 已遷移。NOP 2,500 筆完整 phase timeline 全同，synthetic 2-clock
+  wait 與 machine epoch 整合測試通過；其他指令尚未遷移，Shifter 仲裁仍未實作。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、

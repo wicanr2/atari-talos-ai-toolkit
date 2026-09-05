@@ -37,6 +37,56 @@ type wordReadFaultBus struct {
 	faultAddress uint32
 }
 
+type timedRecordingBus struct {
+	SparseMemory
+	accesses []BusAccess
+	wait     uint32
+}
+
+func (b *timedRecordingBus) ReadByteAt(address uint32, access BusAccess) (byte, uint32, error) {
+	b.accesses = append(b.accesses, access)
+	value, err := b.ReadByte(address, access.FunctionCode)
+	return value, b.wait, err
+}
+
+func (b *timedRecordingBus) ReadWordAt(address uint32, access BusAccess) (uint16, uint32, error) {
+	b.accesses = append(b.accesses, access)
+	value, err := b.ReadWord(address, access.FunctionCode)
+	return value, b.wait, err
+}
+
+func (b *timedRecordingBus) WriteByteAt(address uint32, value byte, access BusAccess) (uint32, error) {
+	b.accesses = append(b.accesses, access)
+	return b.wait, b.WriteByte(address, value, access.FunctionCode)
+}
+
+func (b *timedRecordingBus) WriteWordAt(address uint32, value uint16, access BusAccess) (uint32, error) {
+	b.accesses = append(b.accesses, access)
+	return b.wait, b.WriteWord(address, value, access.FunctionCode)
+}
+
+func TestStepAtPassesEpochAndAppliesPrefetchWait(t *testing.T) {
+	bus := &timedRecordingBus{SparseMemory: SparseMemory{0x104: 0x12, 0x105: 0x34}, wait: 2}
+	cpu := CPU{Bus: bus, State: State{SR: supervisor, PC: 0x104, Prefetch: [2]uint16{0x4e71, 0xabcd}}}
+	result, err := cpu.StepAt(390)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(bus.accesses, []BusAccess{{Clock: 390, FunctionCode: 6}}) {
+		t.Fatalf("timed accesses=%+v", bus.accesses)
+	}
+	if result.Clocks != 6 || cpu.State.PC != 0x106 || cpu.State.Prefetch != [2]uint16{0xabcd, 0x1234} {
+		t.Fatalf("result=%+v state=%+v", result, cpu.State)
+	}
+	wantTransaction := Transaction{Kind: "r", Cycle: 4, FC: 6, Address: 0x104, Size: 2,
+		Data: 0x1234, UDS: true, LDS: true}
+	wantTimeline := []BusPhase{{Cycles: 2}, {Offset: 2, Cycles: 4, Transaction: &wantTransaction}}
+	if !reflect.DeepEqual(result.Transactions, []Transaction{wantTransaction}) ||
+		!reflect.DeepEqual(result.Timeline, wantTimeline) {
+		t.Fatalf("result=%+v want transaction=%+v timeline=%+v", result, wantTransaction, wantTimeline)
+	}
+}
+
 func (b *wordReadFaultBus) ReadWord(address uint32, fc uint8) (uint16, error) {
 	if address == b.faultAddress {
 		return 0, typedWordReadFault{address: address, fc: fc}

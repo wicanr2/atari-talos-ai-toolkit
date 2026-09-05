@@ -30,7 +30,7 @@ func (m *Machine) Reset() error {
 }
 
 func (m *Machine) Step() (m68k.StepResult, error) {
-	result, err := m.CPU.Step()
+	result, err := m.CPU.StepAt(m.Clocks)
 	if err != nil {
 		return result, err
 	}

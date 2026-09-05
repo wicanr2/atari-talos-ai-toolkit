@@ -173,3 +173,8 @@
   傳入 machine epoch＋instruction offset、wait 推移後續 phase，以及未遷移 timed path
   失敗即關閉。新增 `BusPhase`，讓固定 MC68000 語料不再丟棄 idle phase，並在每筆載入時
   驗證完整 timeline duration 等於 instruction clocks；227,500 筆回歸、靜態檢查與建置通過。
+- 完成 cycle-aware runtime 首切片：新增 `BusAccess`／`TimedBus`／`CPU.StepAt`，由
+  machine 傳入當前 64-bit epoch，並遷移 NOP／MOVEQ／SWAP／EXT 共用 prefetch。
+  synthetic 2-clock wait 驗證 access 前 clock、idle＋active timeline 與總 clocks；
+  NOP 2,500 筆完整 phase、全 227,500 筆舊驗收、固定 EmuTOS 12 條／380 clocks、
+  靜態檢查及建置均通過。其餘指令與 Shifter 仲裁未冒稱完成。

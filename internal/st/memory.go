@@ -1,6 +1,10 @@
 package st
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
+)
 
 const (
 	AddressMask   = 0x00ff_ffff
@@ -88,6 +92,11 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	}
 }
 
+func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
+	value, err := m.ReadByte(address, access.FunctionCode)
+	return value, 0, err
+}
+
 func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 	address &= AddressMask
 	if address&1 != 0 {
@@ -102,6 +111,11 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 		return 0, resizeFault(err, address, 2)
 	}
 	return uint16(hi)<<8 | uint16(lo), nil
+}
+
+func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint32, error) {
+	value, err := m.ReadWord(address, access.FunctionCode)
+	return value, 0, err
 }
 
 func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error {
@@ -125,6 +139,10 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	return nil
 }
 
+func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
+	return 0, m.WriteByte(address, value, access.FunctionCode)
+}
+
 func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) error {
 	address &= AddressMask
 	if address&1 != 0 {
@@ -142,6 +160,10 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 	m.ram[hi] = byte(value >> 8)
 	m.ram[lo] = byte(value)
 	return nil
+}
+
+func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess) (uint32, error) {
+	return 0, m.WriteWord(address, value, access.FunctionCode)
 }
 
 func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uint8) (uint32, *BusFault) {
