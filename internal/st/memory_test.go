@@ -2054,6 +2054,67 @@ func TestIKBDACIAClockResponseUsesMFPChannelSix(t *testing.T) {
 	}
 }
 
+func TestIKBDACIASetClockBuffersSevenFrames(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.ikbdACIAConfigured = true
+	memory.ikbdACIAStatus = 2
+	memory.ikbdClockResponseComplete = true
+	clock := uint64(1000)
+	if err := memory.WriteByte(IKBDACIAData, 0x1a, 5); err == nil {
+		t.Fatal("wrong set-clock command unexpectedly accepted")
+	}
+	for index, value := range ikbdSetClockPacket {
+		if wait, err := memory.WriteByteAt(IKBDACIAData, value,
+			m68k.BusAccess{Clock: clock, FunctionCode: 5}); err != nil || wait != 4 {
+			t.Fatalf("write %d value=%02x wait=%d err=%v", index, value, wait, err)
+		}
+		if memory.ikbdSetClockWriteCount != uint8(index+1) || memory.ikbdACIAStatus&2 != 0 {
+			t.Fatalf("write %d count/status=%d/%02x", index,
+				memory.ikbdSetClockWriteCount, memory.ikbdACIAStatus)
+		}
+		if index == 0 {
+			clock += 1024
+			memory.advanceIKBDACIAClock(clock)
+			if memory.ikbdACIATXShift != value || memory.ikbdACIATXShiftTicks != 10 ||
+				memory.ikbdACIAStatus&2 == 0 {
+				t.Fatalf("first shift byte/ticks/status=%02x/%d/%02x",
+					memory.ikbdACIATXShift, memory.ikbdACIATXShiftTicks, memory.ikbdACIAStatus)
+			}
+			continue
+		}
+		for tick := 0; tick < 10; tick++ {
+			clock += 1024
+			memory.advanceIKBDACIAClock(clock)
+		}
+	}
+	for tick := 0; tick < 10; tick++ {
+		clock += 1024
+		memory.advanceIKBDACIAClock(clock)
+	}
+	if !memory.ikbdSetClockComplete || memory.ikbdSetClockCompleteCount != 7 ||
+		memory.ikbdSetClockWrites != ikbdSetClockPacket ||
+		memory.ikbdSetClockCompletions != ikbdSetClockPacket ||
+		memory.ikbdSetClockCompletionClocks != [7]uint64{12264, 22504, 32744, 42984, 53224, 63464, 73704} {
+		t.Fatalf("set-clock complete/count/writes/completions/clocks=%v/%d/%v/%v/%v",
+			memory.ikbdSetClockComplete, memory.ikbdSetClockCompleteCount,
+			memory.ikbdSetClockWrites, memory.ikbdSetClockCompletions,
+			memory.ikbdSetClockCompletionClocks)
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0, 5); err == nil {
+		t.Fatal("eighth set-clock byte unexpectedly accepted")
+	}
+	memory.ColdReset()
+	if memory.ikbdACIATXShift != 0 || memory.ikbdSetClockWriteCount != 0 ||
+		memory.ikbdSetClockCompleteCount != 0 || memory.ikbdSetClockComplete ||
+		memory.ikbdSetClockWrites != [7]byte{} || memory.ikbdSetClockCompletions != [7]byte{} ||
+		memory.ikbdSetClockCompletionClocks != [7]uint64{} {
+		t.Fatal("cold reset retained set-clock state")
+	}
+}
+
 func TestMFPTimerDataStoppedLoad(t *testing.T) {
 	for _, test := range []struct {
 		name     string

@@ -98,108 +98,115 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 }
 
 type Memory struct {
-	ram                         []byte
-	rom                         []byte
-	mmuConfig                   byte
-	videoBaseHigh               byte
-	videoBaseMiddle             byte
-	activeVideoBase             uint32
-	videoSyncMode               byte
-	videoSync50Transition       bool
-	shifterPalette              [16]uint16
-	shifterResolution           byte
-	psgRegisterSelect           byte
-	psgRegisters                [16]byte
-	psgDriveStage               uint8
-	dmaMode                     uint16
-	dmaAddress                  uint32
-	dmaAddressWriteStage        uint8
-	dmaSectorCount              uint8
-	dmaResetCount               uint8
-	dmaInitStage                uint8
-	acsiStage                   uint8
-	acsiTarget                  int8
-	acsiCommand                 byte
-	acsiAttemptMask             byte
-	acsiCommandReceipts         [8]byte
-	acsiTimeoutReturnClock      uint64
-	acsiTimeoutReturnClocks     [8]uint64
-	fdcCommand                  byte
-	fdcStatus                   byte
-	fdcStatusTypeI              bool
-	fdcIRQ                      bool
-	fdcInitStage                uint8
-	fdcProbeDrive               int8
-	fdcRestorePending           bool
-	fdcRestoreStartClock        uint64
-	fdcRestoreInactivePolls     uint8
-	fdcRestoreIRQObserved       bool
-	fdcStatusReadClock          uint64
-	fdcData                     byte
-	fdcSeekPending              bool
-	fdcSeekStartClock           uint64
-	fdcSeekInactivePolls        uint8
-	fdcSeekIRQObserved          bool
-	fdcSeekStatusReadClock      uint64
-	ikbdACIAControl             byte
-	ikbdACIAStatus              byte
-	ikbdACIAConfigured          bool
-	ikbdACIATDR                 byte
-	ikbdACIATXPending           bool
-	ikbdACIATXShiftTicks        uint8
-	ikbdResetCommandDone        bool
-	ikbdResetCommandHandled     bool
-	ikbdClockRequestDone        bool
-	ikbdClockRequestHandled     bool
-	ikbdACIARDR                 byte
-	ikbdClockResponseActive     bool
-	ikbdClockResponseDelivered  uint8
-	ikbdClockResponseReadCount  uint8
-	ikbdClockResponseReads      [7]byte
-	ikbdClockResponseReadClocks [7]uint64
-	ikbdClockResponseComplete   bool
-	ikbdResetResponseRead       bool
-	ikbdStaleRDRReads           uint8
-	midiACIAControl             byte
-	midiACIAStatus              byte
-	midiACIAConfigured          bool
-	mfpACIAEnableStage          uint8
-	mfpTimerDSystemStage        uint8
-	mfpTimerDStopStage          uint8
-	mfpUSARTReconfigStage       uint8
-	mfpGPIP                     byte
-	mfpGPIPIn                   byte
-	mfpAER                      byte
-	mfpDDR                      byte
-	mfpIERA                     byte
-	mfpIERB                     byte
-	mfpIPRA                     byte
-	mfpIPRB                     byte
-	mfpISRA                     byte
-	mfpISRB                     byte
-	mfpIMRA                     byte
-	mfpIMRB                     byte
-	mfpVR                       byte
-	mfpTACR                     byte
-	mfpTBCR                     byte
-	mfpTCDCR                    byte
-	mfpTimerCStart              bool
-	mfpTimerCStartClock         uint64
-	mfpTimerDStart              bool
-	mfpTimerDStartClock         uint64
-	mfpTADR                     byte
-	mfpTBDR                     byte
-	mfpTCDR                     byte
-	mfpTDDR                     byte
-	mfpTAMain                   byte
-	mfpTBMain                   byte
-	mfpTCMain                   byte
-	mfpTDMain                   byte
-	mfpSCR                      byte
-	mfpUCR                      byte
-	mfpRSR                      byte
-	mfpTSR                      byte
-	mfpTSRSet                   bool
+	ram                          []byte
+	rom                          []byte
+	mmuConfig                    byte
+	videoBaseHigh                byte
+	videoBaseMiddle              byte
+	activeVideoBase              uint32
+	videoSyncMode                byte
+	videoSync50Transition        bool
+	shifterPalette               [16]uint16
+	shifterResolution            byte
+	psgRegisterSelect            byte
+	psgRegisters                 [16]byte
+	psgDriveStage                uint8
+	dmaMode                      uint16
+	dmaAddress                   uint32
+	dmaAddressWriteStage         uint8
+	dmaSectorCount               uint8
+	dmaResetCount                uint8
+	dmaInitStage                 uint8
+	acsiStage                    uint8
+	acsiTarget                   int8
+	acsiCommand                  byte
+	acsiAttemptMask              byte
+	acsiCommandReceipts          [8]byte
+	acsiTimeoutReturnClock       uint64
+	acsiTimeoutReturnClocks      [8]uint64
+	fdcCommand                   byte
+	fdcStatus                    byte
+	fdcStatusTypeI               bool
+	fdcIRQ                       bool
+	fdcInitStage                 uint8
+	fdcProbeDrive                int8
+	fdcRestorePending            bool
+	fdcRestoreStartClock         uint64
+	fdcRestoreInactivePolls      uint8
+	fdcRestoreIRQObserved        bool
+	fdcStatusReadClock           uint64
+	fdcData                      byte
+	fdcSeekPending               bool
+	fdcSeekStartClock            uint64
+	fdcSeekInactivePolls         uint8
+	fdcSeekIRQObserved           bool
+	fdcSeekStatusReadClock       uint64
+	ikbdACIAControl              byte
+	ikbdACIAStatus               byte
+	ikbdACIAConfigured           bool
+	ikbdACIATDR                  byte
+	ikbdACIATXShift              byte
+	ikbdACIATXPending            bool
+	ikbdACIATXShiftTicks         uint8
+	ikbdResetCommandDone         bool
+	ikbdResetCommandHandled      bool
+	ikbdClockRequestDone         bool
+	ikbdClockRequestHandled      bool
+	ikbdACIARDR                  byte
+	ikbdClockResponseActive      bool
+	ikbdClockResponseDelivered   uint8
+	ikbdClockResponseReadCount   uint8
+	ikbdClockResponseReads       [7]byte
+	ikbdClockResponseReadClocks  [7]uint64
+	ikbdClockResponseComplete    bool
+	ikbdSetClockWrites           [7]byte
+	ikbdSetClockWriteCount       uint8
+	ikbdSetClockCompletions      [7]byte
+	ikbdSetClockCompleteCount    uint8
+	ikbdSetClockCompletionClocks [7]uint64
+	ikbdSetClockComplete         bool
+	ikbdResetResponseRead        bool
+	ikbdStaleRDRReads            uint8
+	midiACIAControl              byte
+	midiACIAStatus               byte
+	midiACIAConfigured           bool
+	mfpACIAEnableStage           uint8
+	mfpTimerDSystemStage         uint8
+	mfpTimerDStopStage           uint8
+	mfpUSARTReconfigStage        uint8
+	mfpGPIP                      byte
+	mfpGPIPIn                    byte
+	mfpAER                       byte
+	mfpDDR                       byte
+	mfpIERA                      byte
+	mfpIERB                      byte
+	mfpIPRA                      byte
+	mfpIPRB                      byte
+	mfpISRA                      byte
+	mfpISRB                      byte
+	mfpIMRA                      byte
+	mfpIMRB                      byte
+	mfpVR                        byte
+	mfpTACR                      byte
+	mfpTBCR                      byte
+	mfpTCDCR                     byte
+	mfpTimerCStart               bool
+	mfpTimerCStartClock          uint64
+	mfpTimerDStart               bool
+	mfpTimerDStartClock          uint64
+	mfpTADR                      byte
+	mfpTBDR                      byte
+	mfpTCDR                      byte
+	mfpTDDR                      byte
+	mfpTAMain                    byte
+	mfpTBMain                    byte
+	mfpTCMain                    byte
+	mfpTDMain                    byte
+	mfpSCR                       byte
+	mfpUCR                       byte
+	mfpRSR                       byte
+	mfpTSR                       byte
+	mfpTSRSet                    bool
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -643,11 +650,18 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		validClockRequest := value == 0x1c && m.ikbdACIATDR == 1 &&
 			m.ikbdACIATXShiftTicks == 0 && m.psgDriveStage == 9 && m.acsiStage == 5 &&
 			m.ikbdResetResponseRead && m.ikbdStaleRDRReads == 0 && !m.ikbdClockRequestHandled
+		validSetClock := m.ikbdClockResponseComplete && !m.ikbdSetClockComplete &&
+			int(m.ikbdSetClockWriteCount) < len(ikbdSetClockPacket) &&
+			value == ikbdSetClockPacket[m.ikbdSetClockWriteCount]
 		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
-			(validFirst || validSecond || validClockRequest) {
+			(validFirst || validSecond || validClockRequest || validSetClock) {
 			m.ikbdACIATDR = value
 			m.ikbdACIATXPending = true
 			m.ikbdACIAStatus &^= 2
+			if validSetClock {
+				m.ikbdSetClockWrites[m.ikbdSetClockWriteCount] = value
+				m.ikbdSetClockWriteCount++
+			}
 			return nil
 		}
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
@@ -1300,6 +1314,7 @@ func (m *Memory) ColdReset() {
 	m.ikbdACIAStatus = 0
 	m.ikbdACIAConfigured = false
 	m.ikbdACIATDR = 0
+	m.ikbdACIATXShift = 0
 	m.ikbdACIATXPending = false
 	m.ikbdACIATXShiftTicks = 0
 	m.ikbdResetCommandDone = false
@@ -1313,6 +1328,12 @@ func (m *Memory) ColdReset() {
 	m.ikbdClockResponseReads = [7]byte{}
 	m.ikbdClockResponseReadClocks = [7]uint64{}
 	m.ikbdClockResponseComplete = false
+	m.ikbdSetClockWrites = [7]byte{}
+	m.ikbdSetClockWriteCount = 0
+	m.ikbdSetClockCompletions = [7]byte{}
+	m.ikbdSetClockCompleteCount = 0
+	m.ikbdSetClockCompletionClocks = [7]uint64{}
+	m.ikbdSetClockComplete = false
 	m.ikbdResetResponseRead = false
 	m.ikbdStaleRDRReads = 0
 	m.midiACIAControl = 0
@@ -1390,20 +1411,38 @@ func (m *Memory) acknowledgeMFPB(channel uint8) {
 	}
 }
 
-func (m *Memory) advanceIKBDACIAClock() {
-	if m.ikbdACIATXShiftTicks != 0 {
+func (m *Memory) advanceIKBDACIAClock(clocks ...uint64) {
+	hadShift := m.ikbdACIATXShiftTicks != 0
+	if hadShift {
 		m.ikbdACIATXShiftTicks--
 	}
+	if hadShift && m.ikbdACIATXShiftTicks == 0 {
+		completed := m.ikbdACIATXShift
+		if completed == 1 && !m.ikbdResetCommandHandled {
+			m.ikbdResetCommandDone = true
+			m.ikbdResetCommandHandled = true
+		} else if completed == 0x1c && !m.ikbdClockRequestHandled {
+			m.ikbdClockRequestDone = true
+			m.ikbdClockRequestHandled = true
+		} else if m.ikbdClockResponseComplete &&
+			m.ikbdSetClockCompleteCount < m.ikbdSetClockWriteCount &&
+			completed == m.ikbdSetClockWrites[m.ikbdSetClockCompleteCount] {
+			index := m.ikbdSetClockCompleteCount
+			m.ikbdSetClockCompletions[index] = completed
+			if len(clocks) != 0 {
+				m.ikbdSetClockCompletionClocks[index] = clocks[0]
+			}
+			m.ikbdSetClockCompleteCount++
+			if m.ikbdSetClockCompleteCount == uint8(len(m.ikbdSetClockCompletions)) {
+				m.ikbdSetClockComplete = true
+			}
+		}
+	}
 	if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATXPending {
+		m.ikbdACIATXShift = m.ikbdACIATDR
 		m.ikbdACIATXPending = false
 		m.ikbdACIAStatus |= 2
 		m.ikbdACIATXShiftTicks = 10
-	} else if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATDR == 1 && !m.ikbdResetCommandHandled {
-		m.ikbdResetCommandDone = true
-		m.ikbdResetCommandHandled = true
-	} else if m.ikbdACIATXShiftTicks == 0 && m.ikbdACIATDR == 0x1c && !m.ikbdClockRequestHandled {
-		m.ikbdClockRequestDone = true
-		m.ikbdClockRequestHandled = true
 	}
 }
 

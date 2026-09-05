@@ -528,3 +528,8 @@
   七筆於874,579 instructions／471 interrupts／11,688,070 clocks收齊，下一gate為
   874,900／11,691,528的set-clock `$FFFC02=$1B`。完整240,000筆corpus、固定ROM、
   全測試、vet與build通過，規格116升CONFORMED。
+- 建立IKBD set-clock規格117並接入七筆TDR／shift-register typed state。固定ROM已寫
+  `$1B,$24,$03,$17,$00,$00,$00`，前六筆frame completion clocks鎖定；第七筆尚餘
+  10 ticks時，guest即於881,554 instructions／11,753,400 clocks嘗試buffer下一個
+  `$1C`。因此117保持READY，跨packet TDR buffering另立下一規格，不把write receipt
+  冒充完整firmware consumption。

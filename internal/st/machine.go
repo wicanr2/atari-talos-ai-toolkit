@@ -8,6 +8,7 @@ const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 var ikbdClockResponse = [7]byte{0xfc, 0, 0, 0, 0, 0, 1}
+var ikbdSetClockPacket = [7]byte{0x1b, 0x24, 0x03, 0x17, 0, 0, 0}
 
 type Machine struct {
 	CPU                             m68k.CPU
@@ -280,7 +281,7 @@ func (m *Machine) advanceDueACIAClocks() {
 	for m.aciaClockStarted && m.nextACIABitClock != 0 && m.Clocks >= m.nextACIABitClock {
 		secondPending := m.Memory.ikbdACIATDR == 1 && m.Memory.ikbdACIATXPending
 		clockRequestDone := m.Memory.ikbdClockRequestDone
-		m.Memory.advanceIKBDACIAClock()
+		m.Memory.advanceIKBDACIAClock(m.nextACIABitClock)
 		if secondPending && !m.Memory.ikbdACIATXPending {
 			m.ikbdSecondTXClock = m.nextACIABitClock
 		}

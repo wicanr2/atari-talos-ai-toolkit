@@ -1824,15 +1824,24 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		_, nextGate = machine.Step()
 	}
 	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
-		machine.Instructions != 874900 || machine.Interrupts != 471 || machine.Clocks != 11691528 ||
-		machine.Memory.ikbdACIATDR != 0x1c || machine.Memory.ikbdACIATXPending ||
-		machine.CPU.State.D != [8]uint32{0xffffffff, 0, 0x1b, 0, 0x00080000, 0x00140000, 0x24, 1} ||
-		machine.CPU.State.A != [7]uint32{0x2b30, 0x2b26, 0x00fc5132, 0x00fc5142, 0, 0x00fc01f4, 0x00000ffc} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f4c ||
+		machine.Memory.ikbdSetClockComplete || machine.Memory.ikbdSetClockWriteCount != 7 ||
+		machine.Memory.ikbdSetClockCompleteCount != 6 || machine.Memory.ikbdSetClockWrites != ikbdSetClockPacket ||
+		machine.Memory.ikbdSetClockCompletions != ikbdSetClockPacket ||
+		machine.Memory.ikbdSetClockCompletionClocks != [7]uint64{11702110, 11712350, 11722590, 11732830, 11743070, 11753310, 0} ||
+		machine.Instructions != 881554 || machine.Interrupts != 473 || machine.Clocks != 11753400 ||
+		machine.Memory.ikbdACIATXShift != 0 || machine.Memory.ikbdACIATXShiftTicks != 10 ||
+		machine.Memory.ikbdACIATDR != 0 || machine.Memory.ikbdACIATXPending ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0x5c, 0x1c, 0, 0x00080000, 0x00100000, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc261e, 0x23b2, 0x00fc5132, 0x00fc5142, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f18 ||
 		machine.CPU.State.SR != 0x2308 || machine.CPU.State.PC != 0x00fc515a ||
 		machine.CPU.State.Prefetch != [2]uint16{0xfc02, 0x241f} {
-		t.Fatalf("post-clock gate instructions=%d interrupts=%d clocks=%d state=%+v TDR=%02x pending=%v err=%v",
+		t.Fatalf("set-clock gate complete=%v count=%d/%d writes=%v completions=%v clocks=%v instructions=%d interrupts=%d clocks=%d state=%+v shift/ticks/TDR/pending=%02x/%d/%02x/%v err=%v",
+			machine.Memory.ikbdSetClockComplete, machine.Memory.ikbdSetClockWriteCount,
+			machine.Memory.ikbdSetClockCompleteCount, machine.Memory.ikbdSetClockWrites,
+			machine.Memory.ikbdSetClockCompletions, machine.Memory.ikbdSetClockCompletionClocks,
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.ikbdACIATXShift, machine.Memory.ikbdACIATXShiftTicks,
 			machine.Memory.ikbdACIATDR, machine.Memory.ikbdACIATXPending, nextGate)
 	}
 }
@@ -1845,6 +1854,7 @@ func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
 	memory.ikbdACIAConfigured = true
 	memory.ikbdACIAStatus = 2
 	memory.ikbdACIATDR = 1
+	memory.ikbdACIATXShift = 1
 	memory.ikbdACIATXShiftTicks = 1
 	machine := &Machine{Memory: memory, Clocks: 1000, aciaClockStarted: true, nextACIABitClock: 1000}
 	machine.advanceClockedDevices()
@@ -1875,6 +1885,7 @@ func TestMachineSchedulesIKBDClockResponseAfterRequestFrame(t *testing.T) {
 	memory.ikbdACIAConfigured = true
 	memory.ikbdACIAStatus = 2
 	memory.ikbdACIATDR = 0x1c
+	memory.ikbdACIATXShift = 0x1c
 	memory.ikbdACIATXShiftTicks = 1
 	machine := &Machine{Memory: memory, Clocks: 1000, aciaClockStarted: true, nextACIABitClock: 1000}
 	machine.advanceClockedDevices()
