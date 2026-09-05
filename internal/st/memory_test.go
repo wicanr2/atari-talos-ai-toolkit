@@ -1230,6 +1230,42 @@ func TestMFPBAcknowledgeUsesVectorAndSoftwareEOI(t *testing.T) {
 	}
 }
 
+func TestMFPTimerDStopAndChannelClear(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpTimerDSystemStage = 8
+	memory.mfpIERB, memory.mfpIMRB = 0x70, 0x70
+	memory.mfpTCDCR, memory.mfpTimerDStart = 0x52, true
+	for _, step := range []struct {
+		address uint32
+		value   byte
+		stage   uint8
+	}{
+		{MFPIERB, 0x60, 1},
+		{MFPIMRB, 0x60, 2},
+		{MFPTCDCR, 0x50, 3},
+		{MFPIMRB, 0x60, 4},
+		{MFPIERB, 0x60, 5},
+		{MFPIPRB, 0xef, 6},
+		{MFPISRB, 0xef, 7},
+	} {
+		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+			t.Fatalf("write %06x=%02x: %v", step.address, step.value, err)
+		}
+		if memory.mfpTimerDStopStage != step.stage {
+			t.Fatalf("write %06x=%02x stage=%d want %d", step.address, step.value,
+				memory.mfpTimerDStopStage, step.stage)
+		}
+	}
+	if memory.mfpIERB != 0x60 || memory.mfpIMRB != 0x60 || memory.mfpTCDCR != 0x50 ||
+		memory.mfpTimerDStart {
+		t.Fatalf("IERB/IMRB/TCDCR/start=%02x/%02x/%02x/%v",
+			memory.mfpIERB, memory.mfpIMRB, memory.mfpTCDCR, memory.mfpTimerDStart)
+	}
+}
+
 func TestIKBDACIAFirstTransmitData(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

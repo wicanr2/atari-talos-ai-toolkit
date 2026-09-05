@@ -56,9 +56,10 @@
 | ST IKBD ACIA second TX／reset RX | `$01` TDR buffer、10-tick frame、513,024-clock response、RDRF／IRQ status與read-clear | MC6850契約；Hatari 16-VBL trace；固定EmuTOS ROM | 通過；128,378條／21 IRQ／1,509,022 clocks讀取`$F1`，之後完成MIDI ACIA |
 | ST MIDI ACIA control／MFP channel 6 | `$03→$95`、IKBD stale RDR、IPRB/ISRB clear、IERB/IMRB=`$60` staged enable | MC6850／MC68901契約；Hatari MIDI/I/O trace；固定EmuTOS ROM | 通過；136,236條／23 IRQ／1,580,634 clocks抵達Timer D重設 |
 | ST MFP Timer D system-clock start／IRQ | `$EF` clear、`$51→$50→$52`、TDDR=256、有理數 recurrence、IPRB/ISRB、level 6 vector 68 | MC68901契約；Hatari MFP start／exception／IACK trace；固定EmuTOS ROM | 通過；136,285條啟動，137,213條／24 IRQ／1,589,660 clocks進`$FC7884`並由guest清ISRB |
+| ST MFP Timer D正常停止 | IERB／IMRB bit4 disable、TCDCR stop、scheduler清除、vector `$110`、channel clear、Timer C pending保留 | MC68901契約；Hatari `$FC7862–$FC61AC` CPU／MFP trace；固定EmuTOS ROM | 通過；289,256條／234 IRQ／2,978,730 clocks，下一gate UCR同值`$88` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至137,213條／1,589,660 clocks的Timer D handler，續跑找下一個typed gate |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至289,256條／2,978,730 clocks完成Timer D stop，下一gate是UCR `$88→$88` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

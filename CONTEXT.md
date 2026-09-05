@@ -330,6 +330,12 @@
   5 interrupts、1,003,004 clocks自然進入vector 69／`$FC04DE`，pending轉入software-EOI
   in-service，guest由`$FC050A`寫`$DF`清除。B-bank仲裁在Timer C／D同時pending時選
   較高的channel 5，且不越過相同或更高的in-service channel。
+- MFP Timer D正常停止與channel 4清除已CONFORMED：固定EmuTOS依序將IERB／IMRB
+  `$70→$60`、TCDCR `$52→$50`，更新vector 68 table為`$00FC03EA`，再由共用
+  `mfpint`做IMRB／IERB同值`$60`與IPRB／ISRB `$EF` clear。Talos在289,256
+  instructions／234 interrupts／2,978,730 clocks完成；Timer D running、phase、scheduler
+  與deadline均清除，Timer C pending可跨同值mask write保留。下一gate是289,332／
+  2,979,596的UCR `$88→$88`。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -339,6 +345,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，從最新正常路徑繼續找下一個typed gate；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理 `$FC6B38` 的 UCR `$88→$88`
+   與後續USART設定；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

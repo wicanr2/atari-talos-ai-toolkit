@@ -1341,6 +1341,52 @@ func TestMachineEmuTOSEntersTimerDHandler(t *testing.T) {
 	}
 }
 
+func TestMachineEmuTOSStopsTimerD(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for machine.Instructions < 400_000 && machine.Memory.mfpTimerDStopStage < 7 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("Timer D stop instructions=%d interrupts=%d clocks=%d PC=%08x prefetch=%04x,%04x A0=%08x D0=%08x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1], machine.CPU.State.A[0],
+				machine.CPU.State.D[0], err)
+		}
+	}
+	if machine.Instructions != 289256 || machine.Interrupts != 234 || machine.Clocks != 2978730 ||
+		machine.CPU.State.PC != 0x00fc61b4 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x302f} ||
+		machine.Memory.mfpTimerDStopStage != 7 || machine.Memory.mfpTimerDStart ||
+		machine.timerDClockStarted || machine.nextTimerDClock != 0 || machine.Memory.mfpIERB != 0x60 ||
+		machine.Memory.mfpIMRB != 0x60 || machine.Memory.mfpTCDCR != 0x50 {
+		t.Fatalf("stop boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/start/scheduler/next/IERB/IMRB/TCDCR=%d/%v/%v/%d/%02x/%02x/%02x",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.mfpTimerDStopStage, machine.Memory.mfpTimerDStart,
+			machine.timerDClockStarted, machine.nextTimerDClock, machine.Memory.mfpIERB,
+			machine.Memory.mfpIMRB, machine.Memory.mfpTCDCR)
+	}
+	high, err := machine.Memory.ReadWord(0x110, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	low, err := machine.Memory.ReadWord(0x112, 5)
+	if err != nil || uint32(high)<<16|uint32(low) != 0x00fc03ea {
+		t.Fatalf("vector 68=%04x%04x err=%v want 00fc03ea", high, low, err)
+	}
+}
+
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

@@ -120,6 +120,11 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 }
 
 func (m *Machine) advanceClockedDevices() {
+	if m.timerDClockStarted && m.Memory != nil && !m.Memory.mfpTimerDStart {
+		m.timerDClockStarted = false
+		m.timerDPeriods = 0
+		m.nextTimerDClock = 0
+	}
 	if !m.timerCClockStarted && m.Memory != nil && m.Memory.mfpTimerCStartClock != 0 {
 		m.timerCClockStarted = true
 		m.timerCPeriods = 1
@@ -136,7 +141,8 @@ func (m *Machine) advanceClockedDevices() {
 		m.timerCPeriods++
 		m.nextTimerCClock = timerCDeadline(m.Memory.mfpTimerCStartClock, m.timerCPeriods)
 	}
-	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDStartClock != 0 {
+	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDStart &&
+		m.Memory.mfpTimerDStartClock != 0 {
 		m.timerDClockStarted = true
 		m.timerDPeriods = 1
 		m.nextTimerDClock = timerDDeadline(m.Memory.mfpTimerDStartClock, m.timerDPeriods)

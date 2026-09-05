@@ -418,3 +418,11 @@
   舊路徑漏掉200 Hz tick：IKBD `$F1`、MIDI、MFP channel 6、Timer D啟動與handler
   的現行收據已在CONTEXT／spec／矩陣訂正；歷史舊數字保留於本檔供追溯。完整
   240,000筆corpus、固定ROM、全測試、vet與CLI build通過，規格099升CONFORMED。
+- 完成MFP Timer D正常停止與channel 4清除：Hatari完整CPU trace證實`$FC7862`
+  `BCLR #4`將IERB `$70→$60`、`$FC786A`將IMRB `$70→$60`、`$FC7872`
+  將TCDCR `$52→$50`；後續更新vector `$110=$FC03EA`並以共用`mfpint`做`$EF`
+  clear。Talos新增七段stop stage，machine在stop transition清除running phase／period／
+  deadline；另依正常路徑證實，Timer C bit5 pending時仍允許IMRB同值`$60`且保留pending，
+  未放寬其他mask改寫。固定ROM在289,256 instructions／234 interrupts／2,978,730 clocks
+  完成，下一gate為289,332／2,979,596的UCR `$88→$88`。完整240,000筆corpus、固定ROM、
+  全測試、vet與CLI build通過，規格100升CONFORMED。
