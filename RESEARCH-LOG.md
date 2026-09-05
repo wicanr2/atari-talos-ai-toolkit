@@ -263,3 +263,8 @@
   為 1 時等待 `4-phase`。因此第 14 條差異應收窄為 ST 共用 memory bus slot alignment，
   而非已證實的即時 Shifter 搶占。固定 MOVE.L 語料沒有 opcode `$21FC`，其 access
   offset 與地址分類仍缺證據，先建立 DRAFT 規格 056，不進 production timing。
+- `$21FC` phase 探針以 12-clock `JMP`／10-clock `BRA.W` 到同一 `$FC0040`，保持
+  CPU state、prefetch、operand 與 destination 相同；Hatari cycle-exact 分別得到
+  24／26 clocks。MAME microcoded 語料內相同 immediate source＋單一 destination
+  extension 的 `$2B7C`／`$257C` 為六個連續 4-clock phases，與 phase 0 的 24 clocks
+  共同確認 `$21FC` offsets 0／4／8／12／16／20。規格 056 升 READY。

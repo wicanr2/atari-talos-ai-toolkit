@@ -162,8 +162,9 @@
 - 空 cartridge `$FA0000–$FBFFFF` 已建立為 128 KiB `$FF` read-only window；
   EmuTOS 第 12 條／380 clocks 與 Hatari 同狀態。逐條向後比對後，第 14 條
   RAM write 首次出現 Hatari 26／Atari Talos 24 clocks。Hatari 固定原始碼將差異
-  收窄為依全機與指令內 clock 對齊四 clock 的 ST shared-memory bus slot，而非已證實的
-  即時 Shifter 搶占；它仍不是該 MOVE opcode 的固定 timing，詳見 DRAFT 規格 056。
+  收窄為依全機與指令內 clock 對齊四 clock 的 ST CPU external bus slot，而非已證實的
+  即時 Shifter 搶占；它仍不是該 MOVE opcode 的固定 timing。phase 0／2 相鄰探針已
+  確認 24／26 clocks，規格 056 已升 READY。
 - cycle-aware Bus 首個 runtime 切片已接線：machine 將 64-bit 全機 epoch 傳入 CPU，
   `TimedBus` 在 access 前收到絕對 clock 並回傳 wait；NOP／MOVEQ／SWAP／EXT 共用的
   4-clock prefetch 已遷移。NOP 2,500 筆完整 phase timeline 全同，synthetic 2-clock
@@ -182,5 +183,5 @@
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 依 READY 規格 055 建立 CPU／machine／bus runtime cycle-aware access，實作 ST RAM／
-   shared-RAM bus slot alignment 的動態 wait state；恢復第 14 條同 clocks 後，再處理
+   ST CPU external bus slot alignment 的動態 wait state；恢復第 14 條同 clocks 後，再處理
    `$FC00BE` line-F vector 11 與後續開機。

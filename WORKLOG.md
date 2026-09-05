@@ -183,3 +183,8 @@
   收窄為 shared-memory bus slot alignment。建立 DRAFT 規格 056 並記錄三份來源檔
   SHA-256；因 `$21FC` 未出現在固定 MOVE.L 語料，access offsets、phase 0／2 探針與
   地址分類仍未完成，故未升 READY、未加入 production wait。
+- 建立 `$21FC` phase 0／2 成對 Hatari probe：相同目標 PC／state／operand／destination，
+  只以 12-clock `JMP` 與 10-clock `BRA.W` 改變起始 phase，實測為 24／26 clocks。
+  結合 MAME microcoded `$2B7C`／`$257C` 六個連續 bus phases，確認 `$21FC` offsets
+  0／4／8／12／16／20；並確認對齊位於 CPU external access 外層，不是 RAM 位址特例。
+  規格 056 升 READY，production 實作留待下一切片。

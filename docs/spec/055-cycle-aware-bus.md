@@ -21,8 +21,8 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
   `MOVE.L #$FC00B2,$0010` 時，Hatari 由 390 到 416 clocks，Atari Talos 由
   390 到 414；前 13 條的 CPU state、prefetch 與總 clocks 相同。
 - **強證據**：相同 opcode shape 在較早全機時相為 24 clocks，因此差異不是
-  `MOVE.L` 固定成本；固定 Hatari 原始碼進一步將它收窄為 ST shared-memory
-  四 clock bus slot alignment，詳見 DRAFT 規格 056。
+  `MOVE.L` 固定成本；固定 Hatari 原始碼與 phase 0／2 探針進一步將它收窄為
+  ST CPU external 四 clock bus slot alignment，詳見 READY 規格 056。
 
 ## typed 契約
 
@@ -52,7 +52,7 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
    active transaction，非零 wait 時在實際 access 前插入 idle phase 並推高總 clocks。
    未建立 exact mode 前，尚未遷移的指令仍使用 legacy Bus；不得據此宣稱全 CPU timed。
 3. 以語料時間軸逐族遷移 CPU access；每族同時比對 phase 序列，禁止只比總 clocks。
-4. 規格 056 升為 READY 後，接入 ST RAM shared-bus alignment，對拍 EmuTOS 第 14 條的
+4. 依 READY 規格 056 接入 ST CPU external bus alignment，對拍 EmuTOS 第 14 條的
    動態 wait；再前進 line-F／vector 11。
 
 ## 驗收與停止線

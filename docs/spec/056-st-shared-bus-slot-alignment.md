@@ -1,17 +1,17 @@
-# 056 — Atari ST 共用記憶體 bus slot 對齊
+# 056 — Atari ST CPU 外部 bus slot 對齊
 
-狀態：**DRAFT**（對齊公式有強證據；第 14 條各 access offset 尚未確認）。
+狀態：**READY**。
 
 ## 問題與範圍
 
 固定 EmuTOS 1.3 UK ROM 的第 14 條
 `MOVE.L #$FC00B2,$0010` 從全機 clock 390 開始。Hatari 用 26 clocks 完成，
 Atari Talos 的固定 MC68000 timing 為 24 clocks。先前暫稱此差異為 Shifter
-arbitration；Hatari cycle-exact 原始碼顯示更精確的機制是 CPU memory access
-必須對齊 ST 的四 clock 共用 bus slot，Shifter 是共享該 RAM bus 的裝置背景，
-不是目前已證實的即時搶占事件。
+arbitration；Hatari cycle-exact 原始碼與相鄰 phase 探針顯示，更精確的機制是
+CPU external memory access 必須對齊 ST 的四 clock bus slot。它不是 destination RAM
+位址特例，也不是目前已證實的即時 Shifter 搶占事件。
 
-本切片只處理 ST／STF 8 MHz 共用 RAM bus 的 slot 對齊。Blitter ownership、
+本切片只處理 ST／STF 8 MHz CPU external bus 的 slot 對齊。Blitter ownership、
 video fetch 排程、STE／TT fast RAM、MFP E-clock 與個別 I/O register wait state
 均不在本規格。
 
@@ -22,6 +22,13 @@ video fetch 排程、STE／TT fast RAM、MFP E-clock 與個別 I/O register wait
   EmuTOS ROM SHA-256
   `ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135`。
   第 13 條後兩邊皆為 390 clocks；第 14 條後 Hatari=416、Talos=414。
+- **已確認（相鄰 phase 外部探針）**：以同一 EmuTOS 基底只替換 reset 後測試區；
+  phase 0 ROM SHA-256 `b834e233034c9db71c93cd0252bc4dcbe37595b18d8eabefdc829ba3b4496d89`，
+  以 12-clock `JMP` 到 `$FC0040`；phase 2 ROM SHA-256
+  `2cd11eb308696b4f03b6d2af272bee291fdeb921226aeb23caaf2cc71306a71f`，
+  以 10-clock `BRA.W` 到同址。兩案進入 `$21FC #$FC00B2,$0010` 時 D／A／SR、PC、
+  prefetch、operand 與 destination 相同；Hatari cycle-exact 分別為 12→36（24）與
+  10→36（26）clocks。額外等待只由起始 phase 決定。
 - **強證據（Hatari v2.4.1 固定原始碼）**：官方 GitHub mirror commit
   `4371dcd647fc85d31c0629400adaeaa4212040d9`，`src/cpu/custom.c` SHA-256
   `0cae1a5afd0548bcf63ca5f4f20d795a95f62fb882a0b270c6a0aba65d47da45`。
@@ -42,9 +49,9 @@ video fetch 排程、STE／TT fast RAM、MFP E-clock 與個別 I/O register wait
 
 Hatari 為 GPL 外部 oracle；本專案只記錄可觀測契約與證據定位，不複製其程式碼。
 
-## 候選 typed 規則（尚未 READY）
+## typed 規則
 
-對一個準備在絕對 clock `t` 開始的 ST shared-RAM access：
+對一個準備在絕對 clock `t` 開始的 ST CPU external bus access：
 
 ```text
 phase = t mod 4
@@ -52,17 +59,24 @@ wait  = 4 - phase   if phase bit 1 is set
         0           otherwise
 ```
 
-在目前只出現偶數 CPU clocks 的路徑，候選輸出為 phase 0→0、2→2；phase 1／3
-仍須由完整 clock-domain 契約決定是否可達，不先從 Hatari 整數運算照抄。
+MC68000 本切片只接受偶數 clock，因此輸出為 phase 0→0、2→2；若 phase 1／3 出現，
+視為上游 clock-domain 違約並失敗即關閉，不從 Hatari 整數運算猜補。
 wait 必須在 read／write 前插入，並推移同指令所有後續 access。
 
-## READY 前缺口與驗收
+`$21FC` 有六個連續 4-clock external phases：兩次 immediate pipeline fetch、一次
+absolute-short extension fetch、兩次 destination word write、一次 sequential prefetch。
+固定 MAME microcoded MOVE.L 語料未抽到 `$21FC`，但相同 immediate source 加單一
+destination extension 的 `$2B7C`／`$257C` 皆為
+`r4,r4,r4,w4,w4,r4`、總計 24 且無 idle；Hatari phase 0 探針的 24 clocks 封閉了
+額外 internal phase 的空間。因此第一個 access offset=0，其餘依序為 4、8、12、16、20；
+phase 2 的 2-clock wait 插在第一個 access 前，後續 offsets 連帶成 6、10、14、18、22。
 
-1. 取得第 14 條每個 immediate fetch、destination write 與 prefetch 的 instruction-local
-   offset；固定 MOVE.L 語料未抽到 opcode `$21FC`，不可用另一 addressing mode 代填。
-2. 用至少 phase 0 與 phase 2 的同一指令外部探針驗證：同 state／operand／address，
-   只改前置時相；預期差異分別為 0 與 2 clocks。
-3. 確認對齊適用的地址分類：shared RAM、ROM、cartridge 與 I/O 不可因共用 Memory
-   backend 而套用同一 wait。
-4. 證據完成後才可升 READY，遷移 `$21FC` 的全部 access、加入 phase 表格測試，並
-   以固定 EmuTOS 重現 390→416；不得寫 `$0010`、opcode `$21FC` 或 clock 390 特例。
+## 實作與驗收
+
+1. 對齊屬 CPU external bus access，應由 ST timed Bus 一致處理 program ROM、RAM、
+   cartridge 與 I/O 前的共同 slot；個別 I/O 額外 wait 仍由其後續裝置規格疊加。
+2. 先遷移 `MOVE.L immediate→absolute-short` 的六個 phases；phase 0／2 synthetic 測試
+   分別須為 24／26 clocks，transaction data／FC／address 與 final state 相同。
+3. 固定 EmuTOS 必須重現第 14 條 390→416，且 RAM `$10..$13=$00FC00B2`、next prefetch
+   與 Hatari 相同；不得寫 `$0010`、opcode `$21FC` 或 clock 390 的 wait 特例。
+4. 本切片通過只能升該 addressing form 為 CONFORMED；其他 MOVE／CPU 指令仍逐族遷移。

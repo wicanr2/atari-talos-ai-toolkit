@@ -54,7 +54,7 @@
 | MC68000 `RESET` | **CONFORMED** | privilege、external hook、132 clocks；EmuTOS 第 11 條／352 clocks 同狀態 |
 | ST 空 cartridge `$FA0000–$FBFFFF` | **CONFORMED** | 128 KiB `$FF` read-only window；EmuTOS 第 12 條／380 clocks 同狀態 |
 | CPU／machine cycle-aware bus 契約 | **READY／進行中** | timeline、machine epoch、TimedBus 與首個 4-clock prefetch 已接線；NOP 2,500 筆 phase 全同，其餘指令待逐族遷移 |
-| ST shared-RAM bus slot alignment | **DRAFT** | Hatari CE 對齊公式已定位；補齊 `$21FC` access offsets、phase 0／2 探針與地址分類後才升 READY |
+| ST CPU external bus slot alignment | **READY** | Hatari CE 公式、`$21FC` 六 phases 與 phase 0／2 探針已確認；下一步接入 timed Bus 並重現 EmuTOS 390→416 |
 | MC68000 line-F／vector 11 | 待規格 | `$FC00BE` `$F010`；Hatari vector=`$FC00D4`、exception 36 clocks，但須先修正前置總時鐘 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
