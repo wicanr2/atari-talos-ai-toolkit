@@ -59,4 +59,4 @@
 | UCSD p-System 直譯器真實碼驗收 | **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |
 | UCSD p-System 分派迴圈與序列執行 | **CONFORMED** | `$00DE` 的 fetch-execute 循環與分派表全形狀（107 支常式、45 個無效 opcode）；短常數、混合族、存取往返、區域變數位址與 NOP 序列全部通過，六組負對照確認會失敗；六組 p-code 與 laanwj/sundog 的獨立 C 直譯器逐字相同 |
 | UCSD p-System 算術、分支與真實邏輯 | **CONFORMED** | `ldcb`／`ldci`／`adi`／`sbi`／`dvi`／`modi`／`equi`／`leqi`／`dup1`／`swap`；並以原版 `check_exit` 的格座標換算驗收——數值取自原版執行時的除錯器讀值，算出的欄 11／列 7 與當時讀到的格座標一致 |
-| Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |
+| Hatari 外部 oracle | **可重跑** | `tools/hatari-oracle/`：Dockerfile 釘住上游 tarball 的 SHA-256（`2a5da193…`），`trace.sh` 用 `--run-vbls` 加 `--trace-file` 無人值守取 CPU trace，`cycles.sh` 挑出指定位址第一次執行的 cycle 數。以已 CONFORMED 的 `$FC0070`／`$FC0074`（92／128 cycles）做過正對照。`--parse` 那條互動路不可用——中斷點觸發後 Hatari 停在提示等 stdin，容器裡既不結束也拿不到輸出。截圖收據與公開契約載體仍待定案 |
