@@ -29,7 +29,7 @@ vector不在範圍。
 ## 驗收收據
 
 - synthetic測試確認五段stage與禁止跳過clear直接寫`$60`。
-- 固定ROM完成IERB/IMRB=`$60/$60`，在136,182 instructions、8 interrupts、
-  1,578,882 clocks抵達下一個IERB同值`$60` gate；D0=`$FFFFFFEF`與Hatari trace確認
+- 固定ROM完成IERB/IMRB=`$60/$60`，在136,236 instructions、23 interrupts、
+  1,580,634 clocks抵達下一個IERB同值`$60` gate；D0=`$FFFFFFEF`與Hatari trace確認
   下一切片為channel 4／Timer D重新設定。
 - 完整corpus、全測試、`go vet`與建置結果記錄於專案驗證矩陣。

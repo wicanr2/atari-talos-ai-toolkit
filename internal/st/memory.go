@@ -138,6 +138,7 @@ type Memory struct {
 	mfpTBCR                 byte
 	mfpTCDCR                byte
 	mfpTimerCStart          bool
+	mfpTimerCStartClock     uint64
 	mfpTimerDStart          bool
 	mfpTimerDStartClock     uint64
 	mfpTADR                 byte
@@ -707,8 +708,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
+		wasTimerC := m.mfpTimerCStart
 		wasSystemTimerD := m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart
 		err := m.WriteByte(address, value, access.FunctionCode)
+		if err == nil && !wasTimerC && m.mfpTimerCStart {
+			m.mfpTimerCStartClock = access.Clock
+		}
 		if err == nil && !wasSystemTimerD && m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart {
 			m.mfpTimerDStartClock = access.Clock
 		}
@@ -824,6 +829,7 @@ func (m *Memory) ColdReset() {
 	m.mfpTBCR = 0
 	m.mfpTCDCR = 0
 	m.mfpTimerCStart = false
+	m.mfpTimerCStartClock = 0
 	m.mfpTimerDStart = false
 	m.mfpTimerDStartClock = 0
 	m.mfpTADR = 0
@@ -841,14 +847,15 @@ func (m *Memory) ColdReset() {
 	m.mfpTSRSet = false
 }
 
-func (m *Memory) mfpTimerDVector() uint8 {
-	return m.mfpVR&0xf0 | 4
+func (m *Memory) mfpVector(channel uint8) uint8 {
+	return m.mfpVR&0xf0 | channel
 }
 
-func (m *Memory) acknowledgeMFPTimerD() {
-	m.mfpIPRB &^= 0x10
+func (m *Memory) acknowledgeMFPB(channel uint8) {
+	bit := byte(1 << channel)
+	m.mfpIPRB &^= bit
 	if m.mfpVR&0x08 != 0 {
-		m.mfpISRB |= 0x10
+		m.mfpISRB |= bit
 	}
 }
 

@@ -14,8 +14,8 @@ reset `$03` 與 configuration `$95`。MIDI data `$FFFC06`、外部clock、TX/RX 
   `ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135`；16-VBL
   `acia,midi,midi_raw,io_write,io_read` trace在VBL10/HBL196由PC `$FC6416`寫
   `$FFFC04=$03`，再由PC `$FC641A`寫 `$FFFC04=$95`。
-- **已確認（固定Talos正常路徑）**：規格093後在136,048 instructions、8 interrupts、
-  1,577,208 clocks抵達第一筆 `$FFFC04` byte write，D1 low byte=`$03`。
+- **已確認（固定Talos正常路徑）**：規格099接入Timer C後，在136,125 instructions、
+  23 interrupts、1,579,268 clocks完成 `$FFFC04` 的 `$03→$95` sequence。
 
 ## typed行為與驗收
 

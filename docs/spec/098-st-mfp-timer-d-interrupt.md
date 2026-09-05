@@ -22,8 +22,9 @@
   第一次 timeout 在下一個可接受 instruction boundary 進 level 6 exception。Hatari 先記錄
   autovector 30 的表位址 `$78`，MFP IACK 再改為 vector 68、表位址 `$110`、handler
   `$FC7884`。handler 於 `$FC788A` 寫 ISRB=`$EF` 清 channel 4，Timer D 同時 reload。
-- **已確認（固定 Talos 正常路徑）**：規格 097 在 136,210 instructions、8 interrupts、
-  1,579,228 clocks 完成 TCDCR=`$52`，VR=`$48`、IERB/IMRB=`$70`。
+- **已確認（固定 Talos 正常路徑）**：規格 099 接入 Timer C 後，規格 097 在
+  136,285 instructions、23 interrupts、1,581,256 clocks 完成 TCDCR=`$52`，
+  VR=`$48`、IERB/IMRB=`$70`。
 
 ## typed 行為
 
@@ -53,9 +54,9 @@
 
 ## 驗收收據
 
-- 固定 Talos 正常路徑以 1,579,228 clocks 的 instruction boundary 作明示近似 anchor；
-  第一個 deadline 為 1,587,583，CPU 在下一個 instruction boundary 接受請求。
-- 137,138 instructions、9 interrupts、1,587,632 clocks 自然進入 `$FC7884`；入口
+- 固定 Talos 正常路徑以 1,581,256 clocks 的 instruction boundary 作明示近似 anchor；
+  第一個 deadline 為 1,589,611，CPU 在下一個 instruction boundary 接受請求。
+- 137,213 instructions、24 interrupts、1,589,660 clocks 自然進入 `$FC7884`；入口
   SR mask=6、prefetch=`$52B9,$0000`、IPRB bit 4=0、ISRB bit 4=1，guest 隨後由
   `$FC788A` 寫 `$EF` 清除 in-service，未由 host 直接改狀態。
 - 完整目前 240,000 筆 CPU corpus、固定 ROM、全測試、`go vet -stdmethods=false ./...`

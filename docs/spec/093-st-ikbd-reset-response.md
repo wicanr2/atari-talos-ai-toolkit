@@ -35,10 +35,10 @@ overrun、MFP interrupt routing 與 MIDI ACIA不在範圍。
 
 - synthetic test確認513,024-clock deadline前不提早置位，deadline時RDR=`$F1`、
   status=`$83`；讀取後status=`$02`，重讀失敗即關閉。
-- 固定 ROM正常路徑在128,313 instructions、8 interrupts、1,507,268 clocks讀取 `$F1`；
+- 固定 ROM正常路徑在128,378 instructions、21 interrupts、1,509,022 clocks讀取 `$F1`；
   Talos裝置deadline為1,503,070 clocks；D0 low byte、D1 status、PC／prefetch、ACIA state
   與response deadline均固定回歸。
-- 讀取後正常路徑繼續至136,048 instructions、8 interrupts、1,577,208 clocks，下一個
-  typed gate是MIDI ACIA control `$FFFC04` 的reset write。
+- 讀取後正常路徑繼續至136,125 instructions、23 interrupts、1,579,268 clocks完成
+  MIDI ACIA control `$03→$95`；規格 099 接入的 Timer C ticks 已取代先前漏中斷收據。
 - 本切片沒有接MFP ACIA IRQ，也沒有產生一般鍵盤／滑鼠事件。
 - 完整corpus、全測試、`go vet`與建置結果記錄於專案驗證矩陣。

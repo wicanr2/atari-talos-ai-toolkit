@@ -410,3 +410,11 @@
   隨後自行寫 `$EF` 清除。固定路徑的 `MOVE.B` 尚未供應 timed access，故 start phase
   明列為 instruction-boundary hardware-spec approximation。完整 240,000 筆 corpus、
   固定 ROM、全測試、vet 與 CLI build 通過，規格 098 升 CONFORMED。
+- 完成MFP Timer C recurrence與channel 5向量中斷：timed TCDCR start access提供
+  phase 962,844，以累積有理數`12288*8021248/2457600`排程；第一個deadline
+  1,002,950後，Talos在72,342 instructions／5 interrupts／1,003,004 clocks進入
+  vector 69／`$FC04DE`，guest於`$FC050A`寫ISRB=`$DF`清除。B-bank仲裁共用
+  channel 5／4，選較高pending且尊重software-EOI in-service priority。此接線證實
+  舊路徑漏掉200 Hz tick：IKBD `$F1`、MIDI、MFP channel 6、Timer D啟動與handler
+  的現行收據已在CONTEXT／spec／矩陣訂正；歷史舊數字保留於本檔供追溯。完整
+  240,000筆corpus、固定ROM、全測試、vet與CLI build通過，規格099升CONFORMED。

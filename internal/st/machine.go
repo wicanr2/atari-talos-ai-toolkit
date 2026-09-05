@@ -21,6 +21,9 @@ type Machine struct {
 	ikbdResetRXDeadline uint64
 	ikbdResetRXClock    uint64
 	ikbdSecondTXClock   uint64
+	timerCClockStarted  bool
+	timerCPeriods       uint64
+	nextTimerCClock     uint64
 	timerDClockStarted  bool
 	timerDPeriods       uint64
 	nextTimerDClock     uint64
@@ -52,6 +55,9 @@ func (m *Machine) Reset() error {
 	m.ikbdResetRXDeadline = 0
 	m.ikbdResetRXClock = 0
 	m.ikbdSecondTXClock = 0
+	m.timerCClockStarted = false
+	m.timerCPeriods = 0
+	m.nextTimerCClock = 0
 	m.timerDClockStarted = false
 	m.timerDPeriods = 0
 	m.nextTimerDClock = 0
@@ -64,14 +70,14 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 		idle = m.nextVBLClock - m.Clocks
 		m.raiseVBL()
 	}
-	if m.mfpTimerDInterruptPending() {
-		result, accepted, err := m.CPU.AcceptVectoredInterruptAt(6, m.Memory.mfpTimerDVector(), m.Clocks+idle)
+	if channel, pending := m.mfpBInterruptChannel(); pending {
+		result, accepted, err := m.CPU.AcceptVectoredInterruptAt(6, m.Memory.mfpVector(channel), m.Clocks+idle)
 		if err != nil {
 			return result, err
 		}
 		if accepted {
 			result = prependIdle(result, uint32(idle))
-			m.Memory.acknowledgeMFPTimerD()
+			m.Memory.acknowledgeMFPB(channel)
 			m.Interrupts++
 			m.Clocks += uint64(result.Clocks)
 			m.advanceClockedDevices()
@@ -114,6 +120,22 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 }
 
 func (m *Machine) advanceClockedDevices() {
+	if !m.timerCClockStarted && m.Memory != nil && m.Memory.mfpTimerCStartClock != 0 {
+		m.timerCClockStarted = true
+		m.timerCPeriods = 1
+		m.nextTimerCClock = timerCDeadline(m.Memory.mfpTimerCStartClock, m.timerCPeriods)
+	}
+	if !m.timerCClockStarted && m.Memory != nil && m.Memory.mfpTimerCStart {
+		m.Memory.mfpTimerCStartClock = m.Clocks
+		m.timerCClockStarted = true
+		m.timerCPeriods = 1
+		m.nextTimerCClock = timerCDeadline(m.Memory.mfpTimerCStartClock, m.timerCPeriods)
+	}
+	for m.timerCClockStarted && m.Clocks >= m.nextTimerCClock {
+		m.Memory.mfpIPRB |= 0x20
+		m.timerCPeriods++
+		m.nextTimerCClock = timerCDeadline(m.Memory.mfpTimerCStartClock, m.timerCPeriods)
+	}
 	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDStartClock != 0 {
 		m.timerDClockStarted = true
 		m.timerDPeriods = 1
@@ -145,8 +167,27 @@ func (m *Machine) advanceClockedDevices() {
 	}
 }
 
-func (m *Machine) mfpTimerDInterruptPending() bool {
-	return m.Memory != nil && m.Memory.mfpIPRB&m.Memory.mfpIERB&m.Memory.mfpIMRB&0x10 != 0
+func (m *Machine) mfpBInterruptChannel() (uint8, bool) {
+	if m.Memory == nil {
+		return 0, false
+	}
+	requests := m.Memory.mfpIPRB & m.Memory.mfpIERB & m.Memory.mfpIMRB & 0x30
+	for channel := uint8(5); ; channel-- {
+		bit := byte(1 << channel)
+		if requests&bit != 0 && m.Memory.mfpISRB&^(bit-1) == 0 {
+			return channel, true
+		}
+		if channel == 4 {
+			break
+		}
+	}
+	return 0, false
+}
+
+func timerCDeadline(start, periods uint64) uint64 {
+	const numerator uint64 = 12288 * 8021248
+	const denominator uint64 = 2457600
+	return start + periods*numerator/denominator
 }
 
 func timerDDeadline(start, periods uint64) uint64 {

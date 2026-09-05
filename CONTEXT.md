@@ -260,19 +260,19 @@
   969,640 clocks，下一 gate 是第二個 IKBD command byte `$01` 寫入 `$FFFC02`。
 - IKBD第二 TX buffer與warm-reset response已CONFORMED：`$01`等待前一個8N1 frame的
   10個serial ticks後，於device clock 979,806移入shift stage；完整第二 frame後依固定
-  color-ST profile的513,024-clock reset delay送回RDR=`$F1`。guest在128,313 instructions／
-  1,507,268 clocks讀取status `$83`與RDR，read後status回 `$02`；正常路徑再前進至
-  136,048 instructions／1,577,208 clocks，下一gate是MIDI ACIA `$FFFC04`。
+  color-ST profile的513,024-clock reset delay送回RDR=`$F1`。接入Timer C後guest在
+  128,378 instructions／21 interrupts／1,509,022 clocks讀取status `$83`與RDR，read後
+  status回 `$02`；正常路徑在136,125／23／1,579,268完成MIDI ACIA `$03→$95`。
 - MIDI ACIA control、IKBD stale RDR與MFP ACIA channel 6已CONFORMED：Hatari確認
   `$FFFC04`固定序列為`$03→$95`；IKBD RDRF清除後，`$FC06CE`仍讀到一次保留值`$F1`
   而不產生新RX。MFP依序保留IERB/IMRB=`$20`、以`$BF`清IPRB/ISRB bit6，再升為
-  `$60/$60`。正常路徑抵達136,182 instructions、8 interrupts、1,578,882 clocks，
+  `$60/$60`。正常路徑抵達136,236 instructions、23 interrupts、1,580,634 clocks，
   下一gate是channel 4／Timer D序列的IERB同值`$60`。
 - MFP Timer D系統時鐘重設已CONFORMED：channel 4序列以`$EF`清IPRB/ISRB，停止
   TCDCR `$51→$50`，把TDDR/main由`$02`重載為`$00`（typed語意256），IERB/IMRB升至
-  `$70/$70`後以TCDCR=`$52`啟動control 2（÷10）。正常路徑在136,210 instructions、
-  8 interrupts、1,579,228 clocks抵達啟動邊界；2560 MFP ticks recurrence、pending、
-  MFP IACK與CPU handler尚未接線，故不宣稱系統時鐘已運作。
+  `$70/$70`後以TCDCR=`$52`啟動control 2（÷10）。接入Timer C後正常路徑在
+  136,285 instructions、23 interrupts、1,581,256 clocks抵達啟動邊界；Timer D
+  recurrence與MFP IACK已由規格098接線。
 - MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset write 已
   CONFORMED：依 NXP 手冊保留 TSR 硬體 reset 未定的事實，只接受固定 EmuTOS 的
   軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
@@ -322,9 +322,14 @@
 - MFP Timer D 系統時鐘週期與 channel 4 向量中斷已 CONFORMED：依 MC68901 固定
   2,560 MFP clocks，自動 reload 並設定 IPRB bit 4；IERB／IMRB 仲裁後以 level 6、
   vector 68 進 `$FC7884`，承認時 pending 轉入 software-EOI in-service。固定 EmuTOS
-  在 137,138 instructions／9 interrupts／1,587,632 clocks 抵達 handler，guest 自行
+  接入Timer C後在137,213 instructions／24 interrupts／1,589,660 clocks抵達handler，guest自行
   寫 ISRB=`$EF` 清除。因該 `MOVE.B` path 尚未供應 timed access，啟動 phase 暫採
   instruction boundary 的 hardware-spec approximation，未宣稱逐 cycle parity。
+- MFP Timer C 200 Hz週期與channel 5向量中斷已CONFORMED：timed start phase=962,844，
+  12,288 MFP clocks的第一個deadline=1,002,950；Talos在72,342 instructions、
+  5 interrupts、1,003,004 clocks自然進入vector 69／`$FC04DE`，pending轉入software-EOI
+  in-service，guest由`$FC050A`寫`$DF`清除。B-bank仲裁在Timer C／D同時pending時選
+  較高的channel 5，且不越過相同或更高的in-service channel。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -334,6 +339,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步補 Timer C countdown／timeout／IRQ；RGB／PNG
-   色階契約與正常 50 Hz HBL310 提前重載仍須各自 READY，不得由 palette index或
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，從最新正常路徑繼續找下一個typed gate；RGB／PNG
+   色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

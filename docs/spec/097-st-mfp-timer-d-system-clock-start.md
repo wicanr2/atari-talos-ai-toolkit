@@ -16,8 +16,8 @@ pending／IACK與CPU handler不在範圍。
   trace依序為IMRB=`$60`、IERB=`$60`、IPRB=`$EF`、ISRB=`$EF`、TCDCR `$51→$50`、
   TDDR `$02→$00`、IERB `$60→$70`、IMRB `$60→$70`、TCDCR `$50→$52`；最後
   Hatari記錄`data=256 ctrl=2 timer_cyc=2560 first=true`。
-- **已確認（固定Talos正常路徑）**：規格096後在136,182 instructions、8 interrupts、
-  1,578,882 clocks抵達IERB同值`$60`，D0=`$FFFFFFEF`。
+- **已確認（固定Talos正常路徑）**：規格096後在136,236 instructions、23 interrupts、
+  1,580,634 clocks抵達IERB同值`$60`，D0=`$FFFFFFEF`。
 
 ## typed行為與驗收
 
@@ -33,7 +33,7 @@ pending／IACK與CPU handler不在範圍。
 ## 驗收收據
 
 - synthetic測試確認八段stage、`$00` data latch、`$52` start與禁止跳過clear。
-- 固定ROM在136,210 instructions、8 interrupts、1,579,228 clocks完成TCDCR=`$52`；
+- 固定ROM在136,285 instructions、23 interrupts、1,581,256 clocks完成TCDCR=`$52`；
   完整CPU state／prefetch與IERB/IMRB/TCDCR/TDDR/main均固定回歸。
 - 啟動後沒有新的I/O fault，而是等待尚未建模的Timer D timeout；下一規格入口是
   2560 MFP ticks recurrence、channel 4 pending與MFP interrupt acknowledge。

@@ -1073,6 +1073,8 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 	}
 	sawSecondTransfer := false
 	sawResetResponse := false
+	sawMIDIConfigured := false
+	sawMFPACIAEnabled := false
 	for machine.Instructions < 200000 {
 		if _, err := machine.Step(); err != nil {
 			if sawResetResponse {
@@ -1125,7 +1127,7 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 			wantD = [8]uint32{0xffff_00f1, 0xffff_ff83, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
 			wantA = [7]uint32{0x12c, 0x3216, 0x00fc_48a2, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
 			if !sawSecondTransfer || machine.ikbdSecondTXClock != 979806 ||
-				machine.Instructions != 128313 || machine.Interrupts != 8 || machine.Clocks != 1507268 ||
+				machine.Instructions != 128378 || machine.Interrupts != 21 || machine.Clocks != 1509022 ||
 				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f82 ||
 				state.SR != 0x2308 || state.PC != 0x00fc48bc ||
 				state.Prefetch != [2]uint16{0x4e75, 0x2239} || machine.Memory.ikbdACIAStatus != 2 ||
@@ -1138,11 +1140,25 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 			}
 			sawResetResponse = true
 		}
+		if machine.Memory.midiACIAConfigured && !sawMIDIConfigured {
+			if machine.Instructions != 136125 || machine.Interrupts != 23 || machine.Clocks != 1579268 {
+				t.Fatalf("MIDI configured receipt instructions=%d interrupts=%d clocks=%d",
+					machine.Instructions, machine.Interrupts, machine.Clocks)
+			}
+			sawMIDIConfigured = true
+		}
+		if machine.Memory.mfpACIAEnableStage == 5 && !sawMFPACIAEnabled {
+			if machine.Instructions != 136236 || machine.Interrupts != 23 || machine.Clocks != 1580634 {
+				t.Fatalf("MFP ACIA enabled receipt instructions=%d interrupts=%d clocks=%d",
+					machine.Instructions, machine.Interrupts, machine.Clocks)
+			}
+			sawMFPACIAEnabled = true
+		}
 		if machine.Memory.mfpTimerDSystemStage == 8 {
 			state = machine.CPU.State
 			wantD = [8]uint32{0x2f8, 0x11d00, 0x128e0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
 			wantA = [7]uint32{0xffff_fa1d, 0x00fc_03ea, 0, 0x00fc_615e, 0, 0x00fc_01f4, 0x0000_0ffc}
-			if machine.Instructions != 136210 || machine.Interrupts != 8 || machine.Clocks != 1579228 ||
+			if machine.Instructions != 136285 || machine.Interrupts != 23 || machine.Clocks != 1581256 ||
 				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f76 ||
 				state.SR != 0x2300 || state.PC != 0x00fc7848 ||
 				state.Prefetch != [2]uint16{0x202f, 4} || machine.Memory.mfpIERB != 0x70 ||
@@ -1202,6 +1218,79 @@ func TestTimerDDeadlineKeepsRationalPhase(t *testing.T) {
 	}
 }
 
+func TestTimerCDeadlineKeepsRationalPhase(t *testing.T) {
+	const start = uint64(1000)
+	if got := timerCDeadline(start, 1); got != 41106 {
+		t.Fatalf("first deadline=%d want 41106", got)
+	}
+	if timerCDeadline(start, 5)-timerCDeadline(start, 4) != 40107 {
+		t.Fatalf("fifth period did not carry the rational remainder")
+	}
+}
+
+func TestMFPBInterruptPriorityAndInService(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpIERB, memory.mfpIMRB, memory.mfpIPRB = 0x30, 0x30, 0x30
+	machine := &Machine{Memory: memory}
+	if channel, ok := machine.mfpBInterruptChannel(); !ok || channel != 5 {
+		t.Fatalf("channel/ok=%d/%v want 5/true", channel, ok)
+	}
+	memory.mfpISRB = 0x20
+	if channel, ok := machine.mfpBInterruptChannel(); ok {
+		t.Fatalf("in-service channel 5 allowed channel %d", channel)
+	}
+	memory.mfpISRB = 0x10
+	if channel, ok := machine.mfpBInterruptChannel(); !ok || channel != 5 {
+		t.Fatalf("lower in-service channel/ok=%d/%v want 5/true", channel, ok)
+	}
+}
+
+func TestMachineEmuTOSEntersTimerCHandler(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for machine.Interrupts < 5 && machine.Instructions < 100000 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step instructions=%d interrupts=%d clocks=%d PC=%08x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC, err)
+		}
+	}
+	state := machine.CPU.State
+	if machine.Instructions != 72342 || machine.Interrupts != 5 || machine.Clocks != 1003004 ||
+		machine.Memory.mfpTimerCStartClock != 962844 || machine.nextTimerCClock != 1043056 ||
+		state.PC != 0x00fc04e2 ||
+		state.Prefetch != [2]uint16{0x52b8, 0x04ba} || state.SR>>8&7 != 6 ||
+		machine.Memory.mfpIPRB&0x20 != 0 || machine.Memory.mfpISRB&0x20 == 0 {
+		t.Fatalf("Timer C handler boundary instructions=%d interrupts=%d clocks=%d state=%+v IPRB/ISRB=%02x/%02x start/next=%d/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.mfpIPRB, machine.Memory.mfpISRB,
+			machine.Memory.mfpTimerCStartClock, machine.nextTimerCClock)
+	}
+	for i := 0; i < 32 && machine.Memory.mfpISRB&0x20 != 0; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if machine.Memory.mfpISRB&0x20 != 0 {
+		t.Fatalf("guest did not clear Timer C in-service: ISRB=%02x", machine.Memory.mfpISRB)
+	}
+}
+
 func TestMachineEmuTOSEntersTimerDHandler(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {
@@ -1222,14 +1311,19 @@ func TestMachineEmuTOSEntersTimerDHandler(t *testing.T) {
 	if err := machine.Reset(); err != nil {
 		t.Fatal(err)
 	}
-	for machine.Interrupts < 9 && machine.Instructions < 150000 {
+	for machine.Instructions < 160000 {
 		if _, err := machine.Step(); err != nil {
 			t.Fatalf("step instructions=%d interrupts=%d clocks=%d PC=%08x: %v",
 				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC, err)
 		}
+		if machine.CPU.State.PC == 0x00fc7888 && machine.Memory.mfpISRB&0x10 != 0 {
+			break
+		}
 	}
 	state := machine.CPU.State
-	if machine.Interrupts != 9 || state.PC != 0x00fc7888 ||
+	if machine.Instructions != 137213 || machine.Interrupts != 24 || machine.Clocks != 1589660 ||
+		machine.Memory.mfpTimerDStartClock != 1581256 || machine.nextTimerDClock != 1597966 ||
+		state.PC != 0x00fc7888 ||
 		state.Prefetch != [2]uint16{0x52b9, 0x0000} || state.SR>>8&7 != 6 ||
 		machine.Memory.mfpIPRB&0x10 != 0 || machine.Memory.mfpISRB&0x10 == 0 {
 		t.Fatalf("Timer D handler boundary instructions=%d interrupts=%d clocks=%d state=%+v IPRB/ISRB=%02x/%02x start/next=%d/%d",

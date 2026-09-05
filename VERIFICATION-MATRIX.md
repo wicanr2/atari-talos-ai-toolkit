@@ -49,16 +49,16 @@
 | ST Shifter 程式化 framebuffer 基址 | `$FF8201/$FF8203` reset／byte R/W、`$3F` high mask、組址、alias／權限／寬度／timed wait | Hatari／EmuTOS `$FC67FA/$FC6800` 完整 state、register 與 active base 分離 | 通過；Talos 403,900→403,948 得 `$0F8000`，Hatari 403,924→403,972 |
 | ST Shifter 第四幀 active framebuffer 基址重載 | programmed／active 分離、VBL 原子提交、running crossing、STOP 快轉、reset | Hatari `video_hbl` trace；535,524→535,532 前後 `info video` 0→`$0F8000` | 通過；共同 deadline 535,528，Talos 可觀察邊界 535,520→535,530 |
 | ST low-res 4-plane 索引畫面 | 16 indices、plane／bit／group／line／frame 邊界、DMA RAM、fault、snapshot isolation | Hatari／EmuTOS VBL7 32,000-byte dump；raw／decoded SHA-256、histogram、首非零座標 | 通過；320×200 indices，Talos VBL4 正常路徑全黑 snapshot亦通過 |
-| ST MFP Timer C 啟動／channel enable | `$C0` main、TCDCR `$00→$50`、IERB bit 5、IMRB latch、fail-closed 邊界 | NXP MC68901 manual；EmuTOS `xbtimer`；Hatari `mfp_start/mfp_write` trace | 部分通過；start 與 enable 已接，countdown／timeout／IRQ 待補 |
+| ST MFP Timer C 啟動／channel 5 IRQ | `$C0` main、TCDCR `$00→$50`、12,288-MFP-clock recurrence、IPRB/ISRB、B-bank priority、vector 69 | NXP MC68901 manual；EmuTOS `xbtimer`；Hatari start／exception／IACK trace | 通過；timed phase 962,844，72,342條／1,003,004 clocks進`$FC04DE`並由guest清ISRB |
 | ST MFP Timer D／USART boot init | TCDCR `$51/$52`、2,560-MFP-clock recurrence、channel 4 pending／level 6 vector 68／software EOI、UCR／RSR／TSR | NXP MC68901 manual；EmuTOS `rsconf1/mfpint`；Hatari MFP exception／IACK trace | 部分通過；Timer D 至 guest `$FC788A` clear 已接，USART data/IRQ 待補；start phase 暫為 instruction-boundary approximation |
 | ST YM2149 boot ports | select/data序列、reset、權限、寬度與 fail-closed | Atari hardware map；Hatari `psg_write` trace；固定 EmuTOS ROM | 通過；音訊合成與 port side effects待補 |
 | ST IKBD ACIA control／first TX | `$03→$96`、TDRE、TDR=`$80`、1024-clock deadline、fail-closed | MC6850 契約；Hatari `acia,ikbd_acia` trace；固定 EmuTOS ROM | 通過；68,645 instructions／969,640 clocks 抵達第二 byte `$01`，完整 serial／RX／IRQ 待補 |
-| ST IKBD ACIA second TX／reset RX | `$01` TDR buffer、10-tick frame、513,024-clock response、RDRF／IRQ status與read-clear | MC6850契約；Hatari 16-VBL trace；固定EmuTOS ROM | 通過；guest讀 `$F1` 後前進至136,048 instructions／1,577,208 clocks的MIDI ACIA gate |
-| ST MIDI ACIA control／MFP channel 6 | `$03→$95`、IKBD stale RDR、IPRB/ISRB clear、IERB/IMRB=`$60` staged enable | MC6850／MC68901契約；Hatari MIDI/I/O trace；固定EmuTOS ROM | 通過；136,182 instructions／1,578,882 clocks抵達channel 4／Timer D重設 |
-| ST MFP Timer D system-clock start／IRQ | `$EF` clear、`$51→$50→$52`、TDDR=256、有理數 recurrence、IPRB/ISRB、level 6 vector 68 | MC68901契約；Hatari MFP start／exception／IACK trace；固定EmuTOS ROM | 通過；136,210條啟動，137,138條／1,587,632 clocks 進 `$FC7884` 並由 guest 清 ISRB |
+| ST IKBD ACIA second TX／reset RX | `$01` TDR buffer、10-tick frame、513,024-clock response、RDRF／IRQ status與read-clear | MC6850契約；Hatari 16-VBL trace；固定EmuTOS ROM | 通過；128,378條／21 IRQ／1,509,022 clocks讀取`$F1`，之後完成MIDI ACIA |
+| ST MIDI ACIA control／MFP channel 6 | `$03→$95`、IKBD stale RDR、IPRB/ISRB clear、IERB/IMRB=`$60` staged enable | MC6850／MC68901契約；Hatari MIDI/I/O trace；固定EmuTOS ROM | 通過；136,236條／23 IRQ／1,580,634 clocks抵達Timer D重設 |
+| ST MFP Timer D system-clock start／IRQ | `$EF` clear、`$51→$50→$52`、TDDR=256、有理數 recurrence、IPRB/ISRB、level 6 vector 68 | MC68901契約；Hatari MFP start／exception／IACK trace；固定EmuTOS ROM | 通過；136,285條啟動，137,213條／24 IRQ／1,589,660 clocks進`$FC7884`並由guest清ISRB |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、部分 MFP／PSG／ACIA 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；正常路徑至137,138 instructions／1,587,632 clocks 的 Timer D handler，下一缺口是後續 Timer C timeout／IRQ |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至137,213條／1,589,660 clocks的Timer D handler，續跑找下一個typed gate |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |
