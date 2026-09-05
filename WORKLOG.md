@@ -488,3 +488,10 @@
   20 clocks。下一gate為291,343 instructions／3,002,130 clocks的
   `$FF8606=$0190` DMA reset。完整240,000筆corpus、固定ROM、全測試、
   vet與build通過，規格110升CONFORMED。
+- 完成ST DMA direction-toggle reset與sector-count zero序列：固定EmuTOS寫
+  `$0190→$0090`，兩次切換bit 8皆依Hatari `FDC_ResetDMA()`契約清sector
+  count，再以mode bit 4將`$FF8604=$0000`路由為sector-count write。
+  Talos於291,376 instructions／3,002,468 clocks完成，mode=`$0090`、count=0、
+  reset count=2。下一gate為291,386 instructions／3,002,576 clocks的
+  `$FF8606=$0088` ACSI mode。完整240,000筆corpus、固定ROM、全測試、
+  vet與build通過，規格111升CONFORMED。

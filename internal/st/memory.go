@@ -114,6 +114,9 @@ type Memory struct {
 	dmaMode                 uint16
 	dmaAddress              uint32
 	dmaAddressWriteStage    uint8
+	dmaSectorCount          uint8
+	dmaResetCount           uint8
+	dmaInitStage            uint8
 	fdcCommand              byte
 	fdcStatus               byte
 	fdcStatusTypeI          bool
@@ -977,6 +980,28 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
 			return fault
 		}
+		if address == STDMAControl && m.fdcProbeDrive == 1 && m.fdcInitStage == 14 &&
+			m.dmaAddressWriteStage == 3 && m.dmaInitStage == 0 && m.dmaMode == 0x0080 && value == 0x0190 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.dmaResetCount = 1
+			m.dmaInitStage = 1
+			return nil
+		}
+		if address == STDMAControl && m.fdcProbeDrive == 1 && m.fdcInitStage == 14 &&
+			m.dmaAddressWriteStage == 3 && m.dmaInitStage == 1 && m.dmaMode == 0x0190 && value == 0x0090 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.dmaResetCount = 2
+			m.dmaInitStage = 2
+			return nil
+		}
+		if address == STDiskController && m.fdcProbeDrive == 1 && m.fdcInitStage == 14 &&
+			m.dmaAddressWriteStage == 3 && m.dmaInitStage == 2 && m.dmaMode&0x0010 != 0 && value == 0 {
+			m.dmaSectorCount = byte(value)
+			m.dmaInitStage = 3
+			return nil
+		}
 		if address == STDMAControl && m.fdcInitStage == 2 && m.dmaMode == 0x0080 && value == 0x0080 {
 			m.fdcInitStage = 3
 			return nil
@@ -1145,6 +1170,9 @@ func (m *Memory) ColdReset() {
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0
+	m.dmaSectorCount = 0
+	m.dmaResetCount = 0
+	m.dmaInitStage = 0
 	m.fdcCommand = 0
 	m.fdcStatus = 0
 	m.fdcStatusTypeI = false

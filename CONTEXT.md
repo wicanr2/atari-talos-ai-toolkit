@@ -373,6 +373,10 @@
   依low→middle→high寫成`$001004`，Talos於291,294 instructions／
   3,001,576 clocks完成。下一gate是291,343 instructions／3,002,130 clocks的
   `$FF8606=$0190`；固定Hatari trace顯示它會reset DMA。
+- ST DMA toggle reset與sector-count zero已CONFORMED：固定EmuTOS依次寫
+  `$0190→$0090→$FF8604=$0000`；Talos依bit 8兩次toggle清sector count並保存
+  reset收據，於291,376 instructions／3,002,468 clocks完成。下一gate是
+  291,386 instructions／3,002,576 clocks的`$FF8606=$0088` ACSI command mode。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -383,7 +387,6 @@
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步依固定Hatari／EmuTOS
-   證據建模`$FF8606=$0190→$0090`的DMA reset／mode切換與後續sector-count
-   寫入；RGB／PNG
+   證據建模`$FF8606=$0088`後的ACSI command 0與空裝置回應；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

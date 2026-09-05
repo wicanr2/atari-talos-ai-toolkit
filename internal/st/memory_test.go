@@ -1337,6 +1337,71 @@ func TestSTFloppyDMAAddressRegisters(t *testing.T) {
 	}
 }
 
+func TestSTDMAResetToggleAndZeroSectorCount(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.fdcProbeDrive = 1
+	memory.fdcInitStage = 14
+	memory.dmaAddressWriteStage = 3
+	memory.dmaAddress = 0x1004
+	memory.dmaMode = 0x0080
+	memory.dmaSectorCount = 7
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil ||
+		memory.dmaMode != 0x0080 || memory.dmaSectorCount != 7 || memory.dmaInitStage != 0 {
+		t.Fatal("sector count write before DMA reset unexpectedly accepted or mutated state")
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0090, 5); err == nil ||
+		memory.dmaMode != 0x0080 || memory.dmaSectorCount != 7 || memory.dmaResetCount != 0 {
+		t.Fatal("wrong first DMA mode unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0190,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.dmaMode != 0x0190 || memory.dmaSectorCount != 0 ||
+		memory.dmaResetCount != 1 || memory.dmaInitStage != 1 {
+		t.Fatalf("first reset wait/err/mode/count/resets/stage=%d/%v/%04x/%d/%d/%d", wait, err,
+			memory.dmaMode, memory.dmaSectorCount, memory.dmaResetCount, memory.dmaInitStage)
+	}
+	memory.dmaSectorCount = 9
+	if err := memory.WriteWord(STDMAControl, 0x0080, 5); err == nil ||
+		memory.dmaMode != 0x0190 || memory.dmaSectorCount != 9 ||
+		memory.dmaResetCount != 1 || memory.dmaInitStage != 1 {
+		t.Fatal("wrong second DMA mode unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0090,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.dmaMode != 0x0090 || memory.dmaSectorCount != 0 ||
+		memory.dmaResetCount != 2 || memory.dmaInitStage != 2 {
+		t.Fatalf("second reset wait/err/mode/count/resets/stage=%d/%v/%04x/%d/%d/%d", wait, err,
+			memory.dmaMode, memory.dmaSectorCount, memory.dmaResetCount, memory.dmaInitStage)
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err == nil ||
+		memory.dmaSectorCount != 0 || memory.dmaInitStage != 2 {
+		t.Fatal("wrong sector count unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.dmaSectorCount != 0 || memory.dmaResetCount != 2 || memory.dmaInitStage != 3 {
+		t.Fatalf("sector count wait/err/count/resets/stage=%d/%v/%d/%d/%d", wait, err,
+			memory.dmaSectorCount, memory.dmaResetCount, memory.dmaInitStage)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0190, 1); err == nil {
+		t.Fatal("user DMA reset unexpectedly accepted")
+	}
+	if err := memory.WriteByte(STDMAControl, 0x90, 5); err == nil {
+		t.Fatal("byte DMA reset unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.dmaMode != 0 || memory.dmaSectorCount != 0 || memory.dmaResetCount != 0 ||
+		memory.dmaInitStage != 0 {
+		t.Fatalf("reset mode/count/resets/stage=%04x/%d/%d/%d", memory.dmaMode,
+			memory.dmaSectorCount, memory.dmaResetCount, memory.dmaInitStage)
+	}
+}
+
 func TestIKBDACIAControlInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {
