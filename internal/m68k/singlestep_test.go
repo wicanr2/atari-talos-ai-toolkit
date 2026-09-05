@@ -356,6 +356,12 @@ func TestSingleStepMOVEUSP(t *testing.T) {
 	}
 }
 
+func TestSingleStepMOVEToStatus(t *testing.T) {
+	for _, name := range []string{"MOVEtoCCR.json.bin", "MOVEtoSR.json.bin"} {
+		t.Run(name, func(t *testing.T) { testSingleStepCorpus(t, name) })
+	}
+}
+
 func TestSingleStepMULS(t *testing.T) {
 	testSingleStepCorpus(t, "MULS.json.bin")
 }

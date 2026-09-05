@@ -69,6 +69,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepDBcc(opcode)
 	case opcode&0xf0c0 == 0x50c0:
 		return c.stepScc(opcode)
+	case opcode&0xffc0 == 0x44c0:
+		return c.stepMOVEToStatus(opcode, false)
+	case opcode&0xffc0 == 0x46c0:
+		return c.stepMOVEToStatus(opcode, true)
 	case opcode&0xff00 == 0x4600 && opcode>>6&3 <= 2:
 		return c.stepUnaryModify(opcode, false)
 	case opcode&0xff00 == 0x4400 && opcode>>6&3 <= 2:
@@ -278,6 +282,41 @@ func (c *CPU) stepMOVEFromUSP(opcode uint16) (StepResult, error) {
 	}
 	c.setAddressRegister(uint8(opcode&7), c.State.USP)
 	return c.refillSequential(controlEA{returnPC: c.State.PC}, 4)
+}
+
+func (c *CPU) stepMOVEToStatus(opcode uint16, statusRegister bool) (StepResult, error) {
+	if statusRegister && c.State.SR&supervisor == 0 {
+		return c.enterStandardException(8, c.State.PC-4, nil, 34)
+	}
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	source, cost, _, fault, err := step.readWordSource(uint8(opcode>>3&7), uint8(opcode&7))
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	if statusRegister {
+		c.State.SR = source & 0xa71f
+		step.programFC = c.programFunctionCode()
+	} else {
+		c.State.SR = c.State.SR&0xff00 | source&0x001f
+	}
+	step.programFC = c.programFunctionCode()
+	pipelineAddress := (c.State.PC - 2) & addressMask
+	pipelineWord, err := c.Bus.ReadWord(pipelineAddress, step.programFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	step.transactions = append(step.transactions, readTransaction(pipelineAddress, step.programFC, pipelineWord))
+	if err := step.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 12 + cost, Transactions: step.transactions}, nil
 }
 
 func (c *CPU) stepBit(opcode uint16, immediate bool) (StepResult, error) {

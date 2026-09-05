@@ -128,6 +128,9 @@
 - 完成 `MOVE An,USP` 與 `MOVE USP,An`；固定語料 5,000 筆涵蓋正常 supervisor、
   user privilege vector 8、A7／SSP bank、指令起始 saved PC、frame 與 bus，
   全數通過後累計外部單步驗收 217,500 筆。
+- 完成 `MOVE <ea>,CCR` 與 `MOVE <ea>,SR`；固定語料 5,000 筆涵蓋 masks、word data EA、
+  vector 3、user privilege vector 8、S bit 切換後 program FC 與 `PC-2` 管線重讀，
+  全數通過後累計外部單步驗收 222,500 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

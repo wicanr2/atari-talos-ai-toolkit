@@ -126,6 +126,9 @@
 - `MOVE An,USP`／`MOVE USP,An` 共 5,000 筆全部通過；正常 supervisor 2,567 筆，
   user privilege vector 8 共 2,433 筆，涵蓋 A7 的 SSP bank、USP、指令起始 saved PC、
   format-0 frame 與完整 bus 次序。CPU 累計外部單步驗收 217,500 筆。
+- `MOVE <ea>,CCR`／`MOVE <ea>,SR` 共 5,000 筆全部通過；涵蓋 CCR／SR mask、
+  全部 word data EA、1,440 筆 vector 3、1,290 筆 user privilege vector 8、
+  新 program FC 與 `PC-2` 管線重讀。CPU 累計外部單步驗收 222,500 筆。
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
   read-only 與 typed bus fault 均有測試。

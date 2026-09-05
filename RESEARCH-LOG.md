@@ -192,6 +192,9 @@
 - `MOVEtoUSP`／`MOVEfromUSP` 固定語料共 5,000 筆，其中 supervisor 正常 2,567、
   user privilege 2,433；確認 A7 使用目前 SSP bank、正常 4 clocks，以及 user mode
   以指令起始 PC 建立 34-clock vector-8 format-0 frame。
+- `MOVEtoCCR`／`MOVEtoSR` 固定語料共 5,000 筆，確認 CCR 低五位、SR `0xa71f` mask、
+  word data EA、1,440 筆 vector 3、1,290 筆 user privilege vector 8；正常路徑在狀態
+  載入後以新 program FC 重讀 `PC-2`，再預取 `PC`，總 clocks 不額外增加。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁
