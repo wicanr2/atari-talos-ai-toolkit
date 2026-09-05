@@ -498,3 +498,105 @@ func TestUCSDInterpNoOpOpcodeAdvancesOnly(t *testing.T) {
 		t.Fatalf("堆疊頂是 %d，want 5", got)
 	}
 }
+
+// TestUCSDInterpArithmeticAndComparison 驗收算術、比較與堆疊操作族。
+//
+// 這些 opcode 讓 p-code 序列能表達實際的運算式，而不只是搬移資料。每一列的期望值都由
+// laanwj/sundog 的獨立 C 直譯器跑同一段 p-code 確認過。
+func TestUCSDInterpArithmeticAndComparison(t *testing.T) {
+	image := loadInterp(t)
+	cases := []struct {
+		name   string
+		pcode  []byte
+		ops    int
+		stack  []uint16 // 由堆疊頂往下
+		ipcAdd uint32
+	}{
+		{"ldcb 40", []byte{0x80, 0x28}, 1, []uint16{40}, 2},
+		{"ldci 480", []byte{0x81, 0xe0, 0x01}, 1, []uint16{480}, 3},
+		{"5 + 3", []byte{0x05, 0x03, 0xa2}, 3, []uint16{8}, 3},
+		{"5 − 3（tos1 減 tos0）", []byte{0x05, 0x03, 0xa3}, 3, []uint16{2}, 3},
+		{"31 ÷ 7", []byte{0x1f, 0x07, 0x8d}, 3, []uint16{4}, 3},
+		{"31 mod 7", []byte{0x1f, 0x07, 0x8f}, 3, []uint16{3}, 3},
+		{"5 = 5", []byte{0x05, 0x05, 0xb0}, 3, []uint16{1}, 3},
+		{"3 ≤ 5", []byte{0x03, 0x05, 0xb2}, 3, []uint16{1}, 3},
+		{"5 ≤ 3", []byte{0x05, 0x03, 0xb2}, 3, []uint16{0}, 3},
+		{"dup1", []byte{0x07, 0xe2}, 2, []uint16{7, 7}, 2},
+		{"swap", []byte{0x03, 0x05, 0xbd}, 3, []uint16{3, 5}, 3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			h.startDispatch(tc.pcode, operandStream)
+			h.runPCode(tc.ops, 128)
+
+			wantSP := uint32(stackTop - 2*len(tc.stack))
+			if got := h.cpu.State.SSP; got != wantSP {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x", got, wantSP)
+			}
+			for i, want := range tc.stack {
+				if got := h.peek(h.cpu.State.SSP + uint32(i)*2); got != want {
+					t.Fatalf("堆疊第 %d 個 word 是 %d，want %d", i, got, want)
+				}
+			}
+			if got := h.cpu.State.A[4]; got != operandStream+tc.ipcAdd {
+				t.Fatalf("a4 前進 %d，want %d", got-operandStream, tc.ipcAdd)
+			}
+		})
+	}
+}
+
+// TestUCSDInterpGroundGridArithmetic 用 p-code 重現原版的地面圖座標換算。
+//
+// SunDog 的 check_exit 把走路人的 sprite 座標換算成 40×24 的格座標，再用它索引地面圖：
+//
+//	欄 = (捲動x + sprite.x / 步距) mod 40
+//	列 = (捲動y + sprite.y / 步距) mod 24
+//	那一格 = 地面圖基底 + 列 × 20 words × 2
+//
+// 這裡的數值不是編出來的：捲動 (7,4)、sprite (175,120)、步距 40 都是在原版執行時用除錯器
+// 讀出來的，而換算結果（欄 11、列 7）與同一刻讀到的格座標一致。所以這個測試是拿原版的
+// 直譯器、跑原版的算式、餵原版的數值。
+func TestUCSDInterpGroundGridArithmetic(t *testing.T) {
+	image := loadInterp(t)
+	cases := []struct {
+		name  string
+		pcode []byte
+		ops   int
+		want  uint16
+	}{
+		{
+			"欄 = (7 + 175/40) mod 40",
+			// sldc7 / ldcb 175 / ldcb 40 / dvi / adi / ldcb 40 / modi
+			[]byte{0x07, 0x80, 0xaf, 0x80, 0x28, 0x8d, 0xa2, 0x80, 0x28, 0x8f}, 7, 11,
+		},
+		{
+			"列 = (4 + 120/40) mod 24",
+			// sldc4 / ldcb 120 / ldcb 40 / dvi / adi / sldc24 / modi
+			[]byte{0x04, 0x80, 0x78, 0x80, 0x28, 0x8d, 0xa2, 0x18, 0x8f}, 7, 7,
+		},
+		{
+			"地面圖第 7 列的位址",
+			// ldci $1000 / 列的算式 / ixa 20
+			[]byte{0x81, 0x00, 0x10, 0x04, 0x80, 0x78, 0x80, 0x28, 0x8d, 0xa2, 0x18, 0x8f, 0xd7, 0x14},
+			9, 0x1118,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			h.startDispatch(tc.pcode, operandStream)
+			h.runPCode(tc.ops, 256)
+
+			if got := h.cpu.State.SSP; got != stackTop-2 {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x（該只剩一個結果）", got, stackTop-2)
+			}
+			if got := h.peek(h.cpu.State.SSP); got != tc.want {
+				t.Fatalf("結果是 %d (0x%04x)，want %d (0x%04x)", got, got, tc.want, tc.want)
+			}
+			if got := h.cpu.State.A[4]; got != operandStream+uint32(len(tc.pcode)) {
+				t.Fatalf("a4 前進 %d，want %d", got-operandStream, len(tc.pcode))
+			}
+		})
+	}
+}

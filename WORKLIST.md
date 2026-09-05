@@ -56,4 +56,5 @@
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
 | UCSD p-System 直譯器真實碼驗收 | **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |
 | UCSD p-System 分派迴圈與序列執行 | **CONFORMED** | `$00DE` 的 fetch-execute 循環與分派表全形狀（107 支常式、45 個無效 opcode）；短常數、混合族、存取往返、區域變數位址與 NOP 序列全部通過，六組負對照確認會失敗；六組 p-code 與 laanwj/sundog 的獨立 C 直譯器逐字相同 |
+| UCSD p-System 算術族與真實運算式 | **CONFORMED** | `ldcb`／`ldci`／`adi`／`sbi`／`dvi`／`modi`／`equi`／`leqi`／`dup1`／`swap`；並以原版 `check_exit` 的格座標換算驗收——數值取自原版執行時的除錯器讀值，算出的欄 11／列 7 與當時讀到的格座標一致 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |
