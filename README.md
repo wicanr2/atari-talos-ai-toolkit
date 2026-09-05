@@ -62,9 +62,10 @@ TALOS_UCSD_INTERP=workplace/sundog tools/go.sh test ./internal/m68k -run UCSD
 ```
 
 合成語料逐條窮舉單一指令的狀態空間；`TALOS_UCSD_INTERP` 那組跑的則是一段有目的的
-程式——opcode 分派、短常數、區域變數與陣列索引，指令彼此有真實的資料相依。兩者互補。
-原版素材不進 repository，檔案雜湊在測試裡釘死；未設定環境變數時該組測試跳過。
-契約見 [`docs/spec/054-ucsd-psystem-interpreter-execution.md`](docs/spec/054-ucsd-psystem-interpreter-execution.md)。
+程式——opcode 分派、短常數、區域變數、陣列索引、算術與布林運算，指令彼此有真實的資料
+相依。兩者互補。原版素材不進 repository，檔案雜湊在測試裡釘死；未設定環境變數時該組
+測試跳過。契約見 [`docs/spec/054-ucsd-psystem-interpreter-execution.md`](docs/spec/054-ucsd-psystem-interpreter-execution.md)
+起的四份規格（054 執行、055 分派迴圈、056 算術、058 布林）。
 
 ## 里程碑
 

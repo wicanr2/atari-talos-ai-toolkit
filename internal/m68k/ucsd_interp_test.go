@@ -43,6 +43,9 @@ const (
 	interpFJP      = 0x0d22 // 假時跳躍（opcode $D4）
 	interpTJP      = 0x0d18 // 真時跳躍（opcode $F1）
 	interpLDB      = 0x08a8 // 取 byte（opcode $A7）
+	interpLAND     = 0x0a02 // 布林 and（opcode $A1）
+	interpLOR      = 0x0a08 // 布林 or（opcode $A0）
+	interpBNOT     = 0x0a12 // 布林 not（opcode $9F）
 
 	// 測試選的記憶體佈局。直譯器實際載入位址由 p-system 決定，這裡挑一個非零基底，
 	// 若某個切片其實依賴絕對位址或 PC-relative，測試會失敗而不是碰巧通過。
@@ -712,6 +715,195 @@ func TestUCSDInterpGroundCodeNormalisation(t *testing.T) {
 			}
 			if got := h.peek(h.cpu.State.SSP); got != tc.want {
 				t.Fatalf("碼 %d 正規化成 %d，want %d", tc.code, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestUCSDInterpDispatchTableBooleanRoutines 先確認這三個 opcode 指到哪裡。
+//
+// 這一條不執行任何指令，也不看常式做什麼：它把「$A1 走 $0A02、$A0 走 $0A08、
+// $9F 走 $0A12」這個定位直接讀出表來。少了它，下面那些執行測試等於同時假設定位與
+// 語意都對，兩邊一起錯就看不出來。
+func TestUCSDInterpDispatchTableBooleanRoutines(t *testing.T) {
+	image := loadInterp(t)
+	entry := func(opcode int) uint16 {
+		at := interpDispatch + opcode*2
+		return uint16(image[at])<<8 | uint16(image[at+1])
+	}
+	for _, tc := range []struct {
+		opcode int
+		want   uint16
+		name   string
+	}{
+		{0xa1, interpLAND, "land"},
+		{0xa0, interpLOR, "lor"},
+		{0x9f, interpBNOT, "bnot"},
+		{0xd4, interpFJP, "fjp"},
+		{0xf1, interpTJP, "tjp"},
+	} {
+		if got := entry(tc.opcode); got != tc.want {
+			t.Fatalf("dispatch[0x%02x]（%s）= 0x%04x，want 0x%04x", tc.opcode, tc.name, got, tc.want)
+		}
+	}
+	// 三支常式各自獨立，不是同一支的別名。
+	if interpLAND == interpLOR || interpLOR == interpBNOT {
+		t.Fatal("三個布林 opcode 指到同一支常式")
+	}
+}
+
+// TestUCSDInterpBooleanOperatorsAreBitwise 驗收 land／lor／bnot 三支常式。
+//
+// 這三個 opcode 的名字看起來像邏輯運算，實際上不是：分派表指到的 68000 常式是
+// `and.w` 與 `or.w`，也就是位元運算；bnot 是 `not.w` 之後 `andi.w #1`，只翻最低位元。
+// 配上 fjp／tjp 的 `btst #0`（見 TestUCSDInterpBooleanTruthLivesInBitZero），
+// p-system 的真假整套住在 **bit 0**。
+//
+// 為什麼值得單獨驗收：SunDog 的新遊戲初始損壞（XSTARTUP:0x31）用
+// `(欄 = 0) or random()` 決定壞法，而 random() 的值域是 0–8191。把 lor 當成邏輯或、
+// 把 fjp 當成「整個 word 為零才跳」來讀，那個條件會幾乎永遠成立，與實測的分布矛盾。
+// 讀成位元運算加 bit 0 之後矛盾消失——這裡用真實直譯器把那個讀法跑出來。
+func TestUCSDInterpBooleanOperatorsAreBitwise(t *testing.T) {
+	image := loadInterp(t)
+	cases := []struct {
+		name  string
+		pcode []byte
+		ops   int
+		stack []uint16
+	}{
+		// 1 and 1 = 1；0 and 1 = 0。當成邏輯運算時這兩個也對，所以還不夠。
+		{"1 and 1", []byte{0x01, 0x01, 0xa1}, 3, []uint16{1}},
+		{"0 and 1", []byte{0x00, 0x01, 0xa1}, 3, []uint16{0}},
+		// 這一組把位元與邏輯分開：2 和 1 都非零，邏輯 and 會給 1，位元 and 給 0。
+		{"2 and 1 是位元運算", []byte{0x02, 0x01, 0xa1}, 3, []uint16{0}},
+		{"3 and 6 是位元運算", []byte{0x03, 0x06, 0xa1}, 3, []uint16{2}},
+		{"1 or 0", []byte{0x01, 0x00, 0xa0}, 3, []uint16{1}},
+		// 邏輯 or 會給 1，位元 or 給 6。
+		{"2 or 4 是位元運算", []byte{0x02, 0x04, 0xa0}, 3, []uint16{6}},
+		{"8 or 4 的 bit 0 是 0", []byte{0x08, 0x04, 0xa0}, 3, []uint16{12}},
+		// bnot 只翻 bit 0，不是整個 word 取補數。
+		{"not 0", []byte{0x00, 0x9f}, 2, []uint16{1}},
+		{"not 1", []byte{0x01, 0x9f}, 2, []uint16{0}},
+		{"not 2 只看 bit 0", []byte{0x02, 0x9f}, 2, []uint16{1}},
+		{"not 7 只看 bit 0", []byte{0x07, 0x9f}, 2, []uint16{0}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			h.startDispatch(tc.pcode, operandStream)
+			h.runPCode(tc.ops, 128)
+			wantSP := uint32(stackTop - 2*len(tc.stack))
+			if got := h.cpu.State.SSP; got != wantSP {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x", got, wantSP)
+			}
+			for i, want := range tc.stack {
+				if got := h.peek(h.cpu.State.SSP + uint32(i)*2); got != want {
+					t.Fatalf("堆疊第 %d 個 word 是 %d，want %d", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestUCSDInterpBooleanTruthLivesInBitZero：fjp 與 tjp 看的是 bit 0，不是整個 word。
+//
+// 分派表指到的常式是 `move.w (a7)+,d0` / `btst #0,d0` / `beq`（fjp）或 `bne`（tjp）。
+// 所以偶數是假、奇數是真，與「非零即真」不同——8 是假，9 是真。
+func TestUCSDInterpBooleanTruthLivesInBitZero(t *testing.T) {
+	image := loadInterp(t)
+	cases := []struct {
+		name  string
+		pcode []byte
+		ops   int
+		stack []uint16
+	}{
+		// ldcb 8 / fjp +1 / sldc3 / sldc7：8 的 bit 0 是 0 → 跳過 sldc3。
+		{"fjp 把 8 當成假", []byte{0x80, 0x08, 0xd4, 0x01, 0x03, 0x07}, 3, []uint16{7}},
+		// 9 的 bit 0 是 1 → 不跳。
+		{"fjp 把 9 當成真", []byte{0x80, 0x09, 0xd4, 0x01, 0x03, 0x07}, 4, []uint16{7, 3}},
+		{"tjp 把 8 當成假", []byte{0x80, 0x08, 0xf1, 0x01, 0x03, 0x07}, 4, []uint16{7, 3}},
+		{"tjp 把 9 當成真", []byte{0x80, 0x09, 0xf1, 0x01, 0x03, 0x07}, 3, []uint16{7}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			h.startDispatch(tc.pcode, operandStream)
+			h.runPCode(tc.ops, 128)
+			wantSP := uint32(stackTop - 2*len(tc.stack))
+			if got := h.cpu.State.SSP; got != wantSP {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x", got, wantSP)
+			}
+			for i, want := range tc.stack {
+				if got := h.peek(h.cpu.State.SSP + uint32(i)*2); got != want {
+					t.Fatalf("堆疊第 %d 個 word 是 %d，want %d", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestUCSDInterpNewGameDamageBranch 用原版的那一段條件式與原版的數值驗收。
+//
+// SunDog 的 XSTARTUP:0x31（段內 0x1acb）決定新遊戲初始損壞長什麼樣：
+//
+//	sldl4 / sldc0 / equi      ; 壞掉的欄 == 0
+//	sldc0 / scxg4 0xb / lor   ; 位元或上一次 random()
+//	fjp 0x1ae3                ; 結果的 bit 0 為 0 → 寫替代零件、列狀態 3
+//
+// 這裡把 random() 的呼叫換成一個常數（呼叫本身是跨段呼叫，不在這個切片的範圍），
+// 其餘照原樣跑：欄號與那個常數是輸入，跳不跳是輸出。四種組合涵蓋整張真值表。
+//
+// p-code 序列（欄號與 random 值由 ldcb 給）：
+//
+//	ldcb 欄 / sldc0 / equi / ldcb 亂數 / lor / fjp +1 / sldc3 / sldc7
+//
+// 跳過 sldc3 表示走了「列狀態 3」那條路（fjp 為假時跳）。
+func TestUCSDInterpNewGameDamageBranch(t *testing.T) {
+	image := loadInterp(t)
+	cases := []struct {
+		name    string
+		column  byte
+		random  byte
+		status3 bool
+	}{
+		// 欄 0 的 control node 不吃分流器，所以 equi 給 1，條件恆真。
+		{"欄 0、亂數偶數：條件真", 0, 8, false},
+		{"欄 0、亂數奇數：條件真", 0, 9, false},
+		// 欄非 0 時整個判斷落在亂數的最低位元上。
+		{"欄 2、亂數奇數：條件真", 2, 4097 & 0xff, false},
+		{"欄 2、亂數偶數：條件假 → 列狀態 3", 2, 8, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			pcode := []byte{
+				0x80, tc.column, // ldcb 欄
+				0x00,       // sldc0
+				0xb0,       // equi
+				0x80, tc.random, // ldcb 亂數
+				0xa0,       // lor
+				0xd4, 0x01, // fjp +1
+				0x03, // sldc3（條件真才執行）
+				0x07, // sldc7（哨兵，兩條路都會到）
+			}
+			ops := 8
+			if tc.status3 {
+				ops = 7 // 跳過 sldc3 就少一條
+			}
+			h.startDispatch(pcode, operandStream)
+			h.runPCode(ops, 256)
+			want := []uint16{7, 3}
+			if tc.status3 {
+				want = []uint16{7}
+			}
+			wantSP := uint32(stackTop - 2*len(want))
+			if got := h.cpu.State.SSP; got != wantSP {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x（堆疊深度不同表示走了另一條路）", got, wantSP)
+			}
+			for i, w := range want {
+				if got := h.peek(h.cpu.State.SSP + uint32(i)*2); got != w {
+					t.Fatalf("堆疊第 %d 個 word 是 %d，want %d", i, got, w)
+				}
 			}
 		})
 	}

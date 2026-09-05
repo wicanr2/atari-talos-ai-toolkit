@@ -39,6 +39,7 @@
 | 68000 `MOVEC` illegal／vector 4 | `$4E7A/$4E7B`、saved opcode PC、format-0 frame、FC／bus、36 clocks | synthetic 雙方向／user／supervisor；Hatari／EmuTOS 同 ROM | 通過；第 8 條／128 clocks 到 `$FC0074` state／frame 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | reset、MMU、`MOVEC`→vector 4、vector 2 fault address 與 `RESET` 已建立；cartridge 區與 I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；`$FC0074` 完全對拍（8 條／128 clocks），`$FC0080` 的 bus-error frame 與 Hatari 同值（`$FFFF8006`），`$FC0088` 的 `RESET` 已執行（11 條／352 clocks）；cartridge port 沒插卡的 `$FF` 亦與 Hatari 相同（`$FC0094` 380／`$FC00A0` 390）；下一個停止點是 `$FC00C2` 的 line-F `$F010`（18 條／494 clocks）|
+| UCSD p-System 布林運算 | `land`／`lor`／`bnot` 的分派定位與位元語意、`fjp`／`tjp` 的 `btst #0`、SunDog `XSTARTUP:0x31` 初始損壞判斷式的整張真值表 | `SYSTEM.INTERP`（SHA-256 `a344edfb…`）真實出貨程式碼；負對照兩條確認會失敗 | 通過；解掉 remake 專案「`(欄 = 0) or random()` 幾乎永遠成立」與實測分布的矛盾 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |
