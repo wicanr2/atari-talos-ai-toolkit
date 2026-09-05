@@ -56,6 +56,8 @@
 | CPU／machine cycle-aware bus 契約 | **READY／進行中** | timeline、machine epoch、TimedBus 與首個 4-clock prefetch 已接線；NOP 2,500 筆 phase 全同，其餘指令待逐族遷移 |
 | ST CPU external bus slot alignment | **CONFORMED（首切片）** | `$21FC` 正常偶數 destination 六 phases、phase 0／2=24／26、EmuTOS 390→416；其他指令逐族遷移 |
 | MC68000 line-F／vector 11 | **CONFORMED** | `$Fxxx` 2,500 筆全同；核心 34／ST 36 clocks，EmuTOS 第 19 條／532 clocks 的 frame／state／prefetch 對上 Hatari |
+| ST Ricoh `$FF860F` void byte read | **CONFORMED** | read `$FF`、8-clock `TST.B`；EmuTOS 第 6,851 條 state／prefetch 對上 Hatari |
+| ST 無 Mega-RTC `$FFFC21–$FFFC3F` | **CONFORMED** | byte read `$FF`／write discard；EmuTOS 第 6,879 條 state／prefetch 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；下一停點為 EmuTOS 第 6,851 條嘗試讀 `$FF860F`，需先確認其實際裝置／保留位址行為 |
+| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區已接；下一停點為 EmuTOS 第 6,917 條 `$FF8A3C` Blitter 探測，需補 `TST.B` vector 2 而非映射假裝置 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

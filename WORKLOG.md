@@ -198,3 +198,10 @@
   slot wait。固定 EmuTOS 第 19 條累計 532 clocks 進 `$FC00D4`，6-byte frame、
   SSP／SR／PC／prefetch 全部通過；CPU 外部語料累計 230,000 筆。向後有界探測至
   第 6,851 條才停在 `$FF860F` 保留 I/O 讀取，作為下一個規格切片。
+- 依固定 Hatari／EmuTOS 原始碼與 tracepoint，完成普通 ST／Ricoh `$FF860F`
+  void byte read：回 `$FF`、不產生 bus error；固定 EmuTOS 第 6,851 條 `TST.B`
+  為 8 clocks 且全狀態對拍。規格 058 升 CONFORMED。
+- 完成普通 ST 無 Mega-RTC 的 `$FFFC21–$FFFC3F` void byte range：read `$FF`、
+  byte write discard，且明確不接主機 wall-clock。固定 EmuTOS 第 6,879 條對拍通過，
+  後續推進到 6,916 條；新停點為 `$FF8A3C` Blitter 探測 bus fault。規格 059 升
+  CONFORMED。

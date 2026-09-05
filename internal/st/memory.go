@@ -18,6 +18,9 @@ const (
 	CartridgeSize = 128 * 1024
 	IOBase        = 0x00ff_0000
 	MMUConfig     = 0x00ff_8001
+	STVoidDMAByte = 0x00ff_860f
+	STVoidRTCBase = 0x00ff_fc21
+	STVoidRTCEnd  = 0x00ff_fc3f
 )
 
 type FaultReason string
@@ -76,6 +79,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	switch {
 	case address == MMUConfig:
 		return m.mmuConfig, nil
+	case address == STVoidDMAByte:
+		return 0xff, nil
+	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
+		return 0xff, nil
 	case address < 8:
 		return m.rom[address], nil
 	case address < 0x0040_0000:
@@ -106,6 +113,9 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 	if address&1 != 0 {
 		return 0, m.fault(address, functionCode, false, 2, FaultOddWordAddress)
 	}
+	if address <= STVoidRTCEnd && address+1 >= STVoidRTCBase {
+		return 0, m.fault(address, functionCode, false, 2, m.unmappedReason(address))
+	}
 	hi, err := m.ReadByte(address, functionCode)
 	if err != nil {
 		return 0, resizeFault(err, address, 2)
@@ -133,6 +143,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	}
 	if address == MMUConfig {
 		m.mmuConfig = value
+		return nil
+	}
+	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
 	if address < 8 || address >= CartridgeBase && address <= CartridgeEnd ||

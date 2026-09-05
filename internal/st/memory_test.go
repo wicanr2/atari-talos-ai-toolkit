@@ -243,6 +243,96 @@ func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
 	}
 }
 
+func TestSTRicohVoidDMAByteRead(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{STVoidDMAByte, 0xffff860f} {
+		got, readErr := memory.ReadByte(address, 5)
+		if readErr != nil || got != 0xff {
+			t.Fatalf("ReadByte(%08x)=%02x/%v want ff", address, got, readErr)
+		}
+	}
+	for _, test := range []struct {
+		name    string
+		address uint32
+		fc      uint8
+		write   bool
+		reason  FaultReason
+	}{
+		{name: "user protection", address: STVoidDMAByte, fc: 1, reason: FaultProtected},
+		{name: "preceding reserved byte", address: STVoidDMAByte - 1, fc: 5, reason: FaultReservedIO},
+		{name: "following reserved byte", address: STVoidDMAByte + 1, fc: 5, reason: FaultReservedIO},
+		{name: "write remains unsupported", address: STVoidDMAByte, fc: 5, write: true, reason: FaultReservedIO},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var accessErr error
+			if test.write {
+				accessErr = memory.WriteByte(test.address, 0x12, test.fc)
+			} else {
+				_, accessErr = memory.ReadByte(test.address, test.fc)
+			}
+			var fault *BusFault
+			if !errors.As(accessErr, &fault) || fault.Reason != test.reason ||
+				fault.Address != test.address&AddressMask || fault.FunctionCode != test.fc ||
+				fault.Write != test.write || fault.Size != 1 {
+				t.Fatalf("fault=%#v err=%v", fault, accessErr)
+			}
+		})
+	}
+}
+
+func TestSTWithoutMegaRTCUsesVoidByteRange(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{STVoidRTCBase, STVoidRTCBase + 0x0f, STVoidRTCEnd, 0xfffffc21} {
+		got, readErr := memory.ReadByte(address, 5)
+		if readErr != nil || got != 0xff {
+			t.Fatalf("ReadByte(%08x)=%02x/%v want ff", address, got, readErr)
+		}
+		if writeErr := memory.WriteByte(address, 0x05, 5); writeErr != nil {
+			t.Fatalf("WriteByte(%08x): %v", address, writeErr)
+		}
+		got, readErr = memory.ReadByte(address, 5)
+		if readErr != nil || got != 0xff {
+			t.Fatalf("ReadByte(%08x) after discarded write=%02x/%v want ff", address, got, readErr)
+		}
+	}
+	for _, test := range []struct {
+		name    string
+		address uint32
+		fc      uint8
+		write   bool
+		reason  FaultReason
+	}{
+		{name: "user read protection", address: STVoidRTCBase, fc: 1, reason: FaultProtected},
+		{name: "user write protection", address: STVoidRTCBase, fc: 1, write: true, reason: FaultProtected},
+		{name: "preceding reserved byte", address: STVoidRTCBase - 1, fc: 5, reason: FaultReservedIO},
+		{name: "following reserved byte", address: STVoidRTCEnd + 1, fc: 5, reason: FaultReservedIO},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var accessErr error
+			if test.write {
+				accessErr = memory.WriteByte(test.address, 0x12, test.fc)
+			} else {
+				_, accessErr = memory.ReadByte(test.address, test.fc)
+			}
+			var fault *BusFault
+			if !errors.As(accessErr, &fault) || fault.Reason != test.reason ||
+				fault.Address != test.address || fault.FunctionCode != test.fc ||
+				fault.Write != test.write || fault.Size != 1 {
+				t.Fatalf("fault=%#v err=%v", fault, accessErr)
+			}
+		})
+	}
+	if _, err := memory.ReadWord(STVoidRTCBase+1, 5); err == nil {
+		t.Fatal("word access into void RTC range unexpectedly accepted")
+	}
+}
+
 func TestMMUAbsentSecondPhysicalBankFaults(t *testing.T) {
 	memory, err := NewMemory(RAM512K, testROM())
 	if err != nil {

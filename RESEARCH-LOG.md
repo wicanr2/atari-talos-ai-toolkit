@@ -268,3 +268,18 @@
   24／26 clocks。MAME microcoded 語料內相同 immediate source＋單一 destination
   extension 的 `$2B7C`／`$257C` 為六個連續 4-clock phases，與 phase 0 的 24 clocks
   共同確認 `$21FC` offsets 0／4／8／12／16／20。規格 056 升 READY。
+- 新第一停點 `$FF860F` 不是一般 ST 的 DMA register：固定 EmuTOS 1.3
+  `bios/machine.c:87-93 detect_modectl` 以 `check_read_byte()` 探測 `dma.h` 標示僅
+  Falcon 存在的 `modectl`。固定 Hatari 2.4.1 `src/ioMem.c:139-148,315-322,867-881`
+  對普通 ST／Ricoh chipset 將該位址設為不產生 bus error、read 回 `$FF`。
+- Hatari tracepoint 在 `$FC0636` 記錄 `TST.B (A0)` 前 A0=`$FFFF860F`、SR=`$2704`、
+  prefetch=`$4A10,$4E71`、FrameCycles=34720；到 `$FC0638` 為 34728、SR=`$2708`、
+  prefetch=`$4E71,$7001`，確認 8 clocks 且沒有 vector 2。這是 ST chipset 的 void
+  byte read 特例，不可擴張成 Falcon register 或整區 I/O fallback。
+- 下一停點 `$FFFC21` 是 Mega-ST RP5C15 RTC 的 seconds-units 位址，但固定 Hatari
+  `src/ioMem.c:360-371` 在普通 ST／STE 將 `$FFFC21–$FFFC3F` 整段改成 read `$FF`、
+  write discard 的 void handlers。固定 EmuTOS `bios/clock.c:642-665 detect_megartc`
+  會用多個 byte read／write 驗證 RTC，不可只放行第一個探針位址。
+- Hatari tracepoint 以 A0=`$FFFFFC21` 捕捉同一 `$FC0636` `TST.B (A0)`；
+  FrameCycles 35088→35096，SR `$2704→$2708`、prefetch `$4A10,$4E71→$4E71,$7001`，
+  確認普通 ST 讀得 `$FF` 且 8 clocks，不取用主機 wall-clock。

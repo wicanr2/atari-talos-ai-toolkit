@@ -174,8 +174,11 @@
   `$FC00BE` line-F／vector 11 已完成：MC68000 核心 34 clocks，ST bus phase 加 2 clocks，
   第 19 條累計 532 clocks 進 `$FC00D4`；frame、SSP、SR 與 prefetch 對上 Hatari。
 - line-F 外部語料 `ILLEGAL_LINEF.json.bin` 2,500 筆 state／RAM／clocks／bus transaction
-  全同，CPU 累計外部單步驗收 230,000 筆。固定 EmuTOS 後續可成功執行 6,850 條，
-  新第一停點是讀取 `$FF860F` 時的保留 I/O bus fault。
+  全同，CPU 累計外部單步驗收 230,000 筆。
+- 普通 ST／Ricoh `$FF860F` void byte read 與無 Mega-RTC 的 `$FFFC21–$FFFC3F`
+  void byte range已依固定 Hatari／EmuTOS 原始碼與 tracepoint CONFORMED；read 回 `$FF`，
+  RTC range byte write discard，且不取用主機 wall-clock。固定 EmuTOS 可成功完成
+  6,916 條，新第一停點是第 6,917 條 `$FF8A3C` Blitter 探測的 `TST.B` bus fault。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -189,5 +192,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 依 READY 規格 055 逐族遷移 cycle-aware access；下一個整機切片先查證並規格化
-   EmuTOS 讀取 `$FF860F` 所需的 ST I/O 行為，再繼續固定 ROM 開機對拍。
+4. 下一個整機切片規格化 `TST.B` memory source 的 typed bus fault／vector 2；以
+   EmuTOS 第 6,917 條 `$FF8A3C` Blitter 探測對拍，再繼續固定 ROM 開機。
