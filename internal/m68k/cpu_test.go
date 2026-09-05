@@ -43,6 +43,8 @@ type timedRecordingBus struct {
 	wait     uint32
 }
 
+func (b *timedRecordingBus) HasExactByteWriteTiming(uint32) bool { return true }
+
 func (b *timedRecordingBus) ReadByteAt(address uint32, access BusAccess) (byte, uint32, error) {
 	b.accesses = append(b.accesses, access)
 	value, err := b.ReadByte(address, access.FunctionCode)
@@ -84,6 +86,39 @@ func TestStepAtPassesEpochAndAppliesPrefetchWait(t *testing.T) {
 	if !reflect.DeepEqual(result.Transactions, []Transaction{wantTransaction}) ||
 		!reflect.DeepEqual(result.Timeline, wantTimeline) {
 		t.Fatalf("result=%+v want transaction=%+v timeline=%+v", result, wantTransaction, wantTimeline)
+	}
+}
+
+func TestMOVEByteImmediateToAddressIndirectAppliesTimedWriteWait(t *testing.T) {
+	bus := &timedRecordingBus{SparseMemory: SparseMemory{
+		0x104: 0x54, 0x105: 0x88, 0x106: 0xb0, 0x107: 0xfc,
+	}, wait: 4}
+	cpu := CPU{Bus: bus, State: State{
+		A: [7]uint32{0x200}, SR: 0x2719, PC: 0x104,
+		Prefetch: [2]uint16{0x10bc, 0x0000},
+	}}
+	result, err := cpu.StepAt(44122)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(bus.accesses, []BusAccess{{Clock: 44126, FunctionCode: 5}}) {
+		t.Fatalf("timed accesses=%+v", bus.accesses)
+	}
+	if result.Clocks != 16 || cpu.State.PC != 0x108 ||
+		cpu.State.Prefetch != [2]uint16{0x5488, 0xb0fc} || cpu.State.SR != 0x2714 ||
+		bus.SparseMemory[0x200] != 0 {
+		t.Fatalf("result=%+v state=%+v memory=%+v", result, cpu.State, bus.SparseMemory)
+	}
+	if len(result.Timeline) != 4 || result.Timeline[0].Offset != 0 ||
+		result.Timeline[0].Cycles != 4 || result.Timeline[1] != (BusPhase{Offset: 4, Cycles: 4}) ||
+		result.Timeline[2].Offset != 8 || result.Timeline[2].Cycles != 4 ||
+		result.Timeline[3].Offset != 12 || result.Timeline[3].Cycles != 4 {
+		t.Fatalf("timeline=%+v", result.Timeline)
+	}
+	if len(result.Transactions) != 3 || result.Transactions[1].Kind != "w" ||
+		result.Transactions[1].Address != 0x200 || result.Transactions[1].FC != 5 ||
+		result.Transactions[1].Size != 1 || !result.Transactions[1].UDS || result.Transactions[1].LDS {
+		t.Fatalf("transactions=%+v", result.Transactions)
 	}
 }
 

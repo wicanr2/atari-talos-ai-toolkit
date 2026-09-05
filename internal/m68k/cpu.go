@@ -70,6 +70,13 @@ type TimedBus interface {
 	WriteWordAt(address uint32, value uint16, access BusAccess) (wait uint32, err error)
 }
 
+// ExactByteWriteBus identifies addresses whose byte-write phase has been
+// migrated to TimedBus. Unverified addresses keep the legacy instruction path.
+type ExactByteWriteBus interface {
+	TimedBus
+	HasExactByteWriteTiming(address uint32) bool
+}
+
 // BusFault exposes the information the MC68000 places in a bus-error frame.
 // Backends may implement it without importing this package.
 type BusFault interface {
@@ -3093,6 +3100,12 @@ func (c *CPU) stepMOVEByte(opcode uint16) (StepResult, error) {
 	if c.State.SR&supervisor != 0 {
 		step.dataFC = 5
 	}
+	destinationAddress := c.addressRegister(uint8(opcode>>9&7)) & addressMask
+	timed, exact := c.Bus.(ExactByteWriteBus)
+	if exact && timed.HasExactByteWriteTiming(destinationAddress) &&
+		opcode&0x003f == 0x003c && opcode>>6&7 == 2 {
+		return c.stepMOVEByteImmediateAddressIndirect(opcode, step)
+	}
 	sourceMode := uint8(opcode >> 3 & 7)
 	sourceReg := uint8(opcode & 7)
 	destinationMode := uint8(opcode >> 6 & 7)
@@ -3111,6 +3124,49 @@ func (c *CPU) stepMOVEByte(opcode uint16) (StepResult, error) {
 	}
 	c.setLogicalFlags(uint32(value), 8)
 	return StepResult{Clocks: 4 + sourceCost + destinationCost, Transactions: step.transactions}, nil
+}
+
+func (c *CPU) stepMOVEByteImmediateAddressIndirect(opcode uint16, step moveByteStep) (StepResult, error) {
+	value := byte(c.State.Prefetch[1])
+	extensionAddress := c.State.PC & addressMask
+	extension, err := c.Bus.ReadWord(extensionAddress, step.programFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	c.State.Prefetch = [2]uint16{c.State.Prefetch[1], extension}
+	c.State.PC += 2
+
+	transactions := []Transaction{readTransaction(extensionAddress, step.programFC, extension)}
+	timeline := []BusPhase{{Cycles: 4, Transaction: &transactions[0]}}
+	address := c.addressRegister(uint8(opcode>>9&7)) & addressMask
+	wait, err := c.Bus.(TimedBus).WriteByteAt(address, value,
+		BusAccess{Clock: c.epoch + 4, FunctionCode: step.dataFC})
+	if err != nil {
+		return StepResult{}, err
+	}
+	offset := uint32(4)
+	if wait != 0 {
+		timeline = append(timeline, BusPhase{Offset: offset, Cycles: wait})
+		offset += wait
+	}
+	write := writeByteTransaction(address, step.dataFC, value)
+	transactions = append(transactions, write)
+	timeline = append(timeline, BusPhase{Offset: offset, Cycles: 4, Transaction: &transactions[1]})
+	offset += 4
+
+	refillAddress := c.State.PC & addressMask
+	refill, err := c.Bus.ReadWord(refillAddress, step.programFC)
+	if err != nil {
+		return StepResult{}, err
+	}
+	c.State.Prefetch = [2]uint16{c.State.Prefetch[1], refill}
+	c.State.PC += 2
+	refillTransaction := readTransaction(refillAddress, step.programFC, refill)
+	transactions = append(transactions, refillTransaction)
+	timeline = append(timeline, BusPhase{Offset: offset, Cycles: 4, Transaction: &transactions[2]})
+	offset += 4
+	c.setLogicalFlags(uint32(value), 8)
+	return StepResult{Clocks: offset, Transactions: transactions, Timeline: timeline}, nil
 }
 
 func (s *moveByteStep) readSource(mode, reg uint8) (byte, uint32, bool, error) {

@@ -177,6 +177,46 @@ func TestM68KResetClearsMMUConfigurationWithoutClearingRAM(t *testing.T) {
 	}
 }
 
+func TestMFPGPIPResetStateByteAccess(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpGPIP = 0xa5
+	memory.mfpDDR = 0x0f
+	if err := memory.WriteByte(MFPGPIP, 0x3c, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(0xfffffa01, 5); err != nil || got != 0xac {
+		t.Fatalf("masked GPIP=%02x/%v want ac", got, err)
+	}
+	memory.ColdReset()
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got != 0 {
+		t.Fatalf("cold GPIP=%02x/%v", got, err)
+	}
+	if err := memory.WriteByte(MFPGPIP, 0xff, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := memory.ReadByte(MFPGPIP, 5); got != 0 {
+		t.Fatalf("DDR=0 write changed GPIP to %02x", got)
+	}
+	if wait, err := memory.WriteByteAt(MFPGPIP, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("timed GPIP write wait=%d err=%v", wait, err)
+	}
+	if _, err := memory.ReadByte(MFPGPIP, 1); err == nil {
+		t.Fatal("user GPIP read unexpectedly succeeded")
+	}
+	if err := memory.WriteByte(MFPGPIP, 0, 1); err == nil {
+		t.Fatal("user GPIP write unexpectedly succeeded")
+	}
+	if _, err := memory.ReadWord(MFPGPIP, 5); err == nil {
+		t.Fatal("odd GPIP word read unexpectedly succeeded")
+	}
+	if _, err := memory.ReadByte(MFPGPIP+2, 5); err == nil {
+		t.Fatal("neighboring AER unexpectedly mapped")
+	}
+}
+
 func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

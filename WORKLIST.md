@@ -59,6 +59,7 @@
 | ST Ricoh `$FF860F` void byte read | **CONFORMED** | read `$FF`、8-clock `TST.B`；EmuTOS 第 6,851 條 state／prefetch 對上 Hatari |
 | ST 無 Mega-RTC `$FFFC21–$FFFC3F` | **CONFORMED** | byte read `$FF`／write discard；EmuTOS 第 6,879 條 state／prefetch 對上 Hatari |
 | 68000 `TST.B (An)` bus error／vector 2 | **CONFORMED** | `$FF8A3C` Blitter probe 64 clocks；byte lane、14-byte frame、state／prefetch 對上 Hatari |
+| ST MFP GPIP `$FFFA01` reset write | **CONFORMED** | DDR=0 masking、4 wait clocks；EmuTOS 第 7,475 條／176,638 clocks 對拍，下一停點 `$FFFA03` |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區已接；下一停點是 `$FFFA01` MFP GPIP byte write，需先規格化真實 register 行為 |
+| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區與 MFP GPIP reset write 已接；下一停點 `$FFFA03` AER byte write 需先規格化 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

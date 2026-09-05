@@ -18,6 +18,7 @@ const (
 	CartridgeSize = 128 * 1024
 	IOBase        = 0x00ff_0000
 	MMUConfig     = 0x00ff_8001
+	MFPGPIP       = 0x00ff_fa01
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -59,6 +60,12 @@ type Memory struct {
 	ram       []byte
 	rom       []byte
 	mmuConfig byte
+	mfpGPIP   byte
+	mfpDDR    byte
+}
+
+func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
+	return address&AddressMask == MFPGPIP
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -79,6 +86,8 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	switch {
 	case address == MMUConfig:
 		return m.mmuConfig, nil
+	case address == MFPGPIP:
+		return m.mfpGPIP, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -100,6 +109,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 }
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
+	if address&AddressMask == MFPGPIP {
+		value, err := m.ReadByte(address, access.FunctionCode)
+		return value, 4, err
+	}
 	wait, err := busSlotWait(access.Clock)
 	if err != nil {
 		return 0, 0, err
@@ -145,6 +158,10 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mmuConfig = value
 		return nil
 	}
+	if address == MFPGPIP {
+		m.mfpGPIP = m.mfpGPIP&^m.mfpDDR | value&m.mfpDDR
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -161,6 +178,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 }
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
+	if address&AddressMask == MFPGPIP {
+		return 4, m.WriteByte(address, value, access.FunctionCode)
+	}
 	wait, err := busSlotWait(access.Clock)
 	if err != nil {
 		return 0, err
@@ -223,6 +243,8 @@ func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uin
 
 func (m *Memory) ColdReset() {
 	m.mmuConfig = 0
+	m.mfpGPIP = 0
+	m.mfpDDR = 0
 }
 
 func (m *Memory) M68KReset() error {

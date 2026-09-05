@@ -291,3 +291,13 @@
   35588、SSP=`$0F76`、prefetch=`$21C9,$0008`。14-byte frame words 是
   `$4A15,$FFFF,$8A3C,$4A10,$2704,$00FC,$0638`，確認 64 clocks、byte read SSW
   與 next-instruction saved PC。
+- NXP 官方 MC68901 user manual（PDF SHA-256
+  `b24db5d20694016364b83dfe7ff444ca37b42dca560e4d98fd217e4e2e3a85a0`）確認 GPIP
+  的 DDR=0 為 input／high impedance、DDR=1 為 push-pull output，GPIP write 只改
+  output bits。固定 Hatari `mfp.c` reset GPIP／DDR 為 0，write 採 DDR mask 並加
+  4 wait clocks；`ioMemTabST.c` 將 `$FFFA01` 映至該 byte handler。
+- 固定 M68000 corpus 的同形 `MOVE.B #imm,(An)` 是 extension read、byte write、
+  refill 三個 4-clock phases，共 12 clocks。Hatari 固定 EmuTOS tracepoint 實測
+  `$FC614A→$FC614E` 為 FrameCycles `44122→44138`，加上 MFP wait 後共 16 clocks；
+  GPIP／DDR 皆維持 `$00`，SR condition codes 由 N=1/Z=0/V=0/C=1 變為
+  N=0/Z=1/V=0/C=0。

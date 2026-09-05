@@ -209,3 +209,9 @@
   確認 64 clocks 與 frame `$4A15,$FFFF,$8A3C,$4A10,$2704,$00FC,$0638`；synthetic
   ST memory 與固定 EmuTOS 第 6,917 條的 registers、frame、handler prefetch 全同。
   後續推進到 7,474 條，新停點為 `$FFFA01` MFP byte write；規格 060 升 CONFORMED。
+- 完成 MFP GPIP `$FFFA01` reset-state byte write：先由 NXP MC68901 manual、固定
+  Hatari／EmuTOS 原始碼、M68000 corpus 與 Hatari trace 收斂規格 061，再實作 GPIP／DDR
+  reset state、DDR-masked write 及 `MOVE.B #imm,(An)` timed MFP phase。固定 EmuTOS
+  第 7,475 條為 176,638 clocks，state／prefetch／GPIP 對拍；下一停止點為
+  `$FFFA03` AER。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build 通過，
+  規格 061 升 CONFORMED。

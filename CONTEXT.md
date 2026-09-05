@@ -183,6 +183,11 @@
   CONFORMED：64 clocks、byte UDS lane、SSW `$4A15`、fault address `$FFFF8A3C`、
   saved PC `$FC0638`、完整 frame 與 handler state 對上 Hatari。固定 EmuTOS 可成功
   完成 7,474 條，新第一停點是對 `$FFFA01` 的 MFP byte write。
+- MFP GPIP `$FFFA01` reset-state byte write 已 CONFORMED：MC68901 一手規格確認
+  DDR=0 為 input／high impedance，寫入只改 DDR=1 的 output bits；固定 Hatari trace
+  確認 EmuTOS `$FC614A` 的 `MOVE.B #$00,(A0)` 為 16 clocks，GPIP／DDR 前後均為 `$00`。
+  Atari Talos 現可完成 7,475 條／176,638 clocks，flags、prefetch、GPIP 與 Hatari
+  一致；再三條後，第 7,479 條嘗試停在 `$FFFA03` AER write，未泛化其餘 MFP bank。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -196,5 +201,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 `$FFFA01` MFP GPIP byte write 的 reset state、
-   writable bits、副作用與 clocks，再繼續固定 ROM 開機對拍。
+4. 下一個整機切片先查證並規格化 `$FFFA03` MFP AER byte write 的 reset state、
+   edge polarity、副作用與 clocks，再繼續固定 ROM 開機對拍。
