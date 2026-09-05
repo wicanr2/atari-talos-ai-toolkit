@@ -62,6 +62,11 @@ func TestMC68000AutovectorTimedBus(t *testing.T) {
 		result.Timeline[0] != (BusPhase{Cycles: 16}) || bus.accesses[0].Clock != 116 {
 		t.Fatalf("unexpected timed result=%+v accesses=%+v", result, bus.accesses)
 	}
+	if bus.SparseMemory[0x0ffc] != 0x00 || bus.SparseMemory[0x0ffd] != 0x00 ||
+		bus.SparseMemory[0x0ffe] != 0x2f || bus.SparseMemory[0x0fff] != 0xfc {
+		t.Fatalf("running interrupt saved PC bytes=%02x%02x%02x%02x want 00002ffc",
+			bus.SparseMemory[0x0ffc], bus.SparseMemory[0x0ffd], bus.SparseMemory[0x0ffe], bus.SparseMemory[0x0fff])
+	}
 }
 
 func TestMC68000STOPStateAndReset(t *testing.T) {

@@ -70,9 +70,10 @@
 | ST MFP timer control reset-stop | **CONFORMED** | TACR／TBCR／TCDCR `$00→$00`、非零 fail-closed、4 wait clocks；第 7,531 條／177,254 clocks 對拍 |
 | ST MFP timer data stopped-load | **CONFORMED** | TADR／TBDR／TCDR／TDDR 停止時同步 data/main counter、active fail-closed；第 7,547 條／177,430 clocks 對拍 |
 | ST MFP USART reset writes | **CONFORMED** | SCR／UCR／RSR／TSR 軟體清零、TSR 硬體 reset 未定、非零與 UDR fail-closed；第 7,563 條／177,606 clocks 對拍 |
-| MC68000 `STOP` | **CONFORMED** | privilege、immediate SR、stopped latch、Reset 清除；2,500 筆語料通過，EmuTOS 第 7,599 條／178,096 clocks 進入停機 |
-| MC68000 level 4 autovector 接受 | **CONFORMED** | mask 仲裁、44 clocks、6-byte frame、STOP 喚醒與 `$70→$FC0446` 對上固定 Hatari；GLUE VBL 排程另待規格化 |
+| MC68000 `STOP` | **CONFORMED** | privilege、immediate SR、stopped latch、Reset 清除；2,500 筆語料通過，接入第一 VBL 後 EmuTOS 第 7,604 條／178,228 clocks 進入停機 |
+| MC68000 level 4 autovector 接受 | **CONFORMED** | mask 仲裁、44 clocks、6-byte frame、running／STOP saved PC 與 `$70→$FC0446` 對上固定 Hatari |
+| ST reset frame 第一個 GLUE VBL | **CONFORMED** | 133,668-clock pending、mask 保留、同 profile handler entry 全狀態、guest `$466:0→1`；recurring VBL 尚未接 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | MFP reset bank 與固定 GPIP input sample 已接；UDR 仍未映射，下一開機閘門是 VBL interrupt 喚醒 |
+| ST／STF I/O memory map | 進行中 | MFP reset bank、固定 GPIP input 與第一 GLUE VBL 已接；UDR 仍未映射，下一開機閘門是 recurring VBL／stopped clock 推進 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

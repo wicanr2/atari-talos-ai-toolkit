@@ -28,8 +28,10 @@ MFP 向量中斷及第 7 級不可遮罩語意不在本切片。
 
 1. API 只接受 level 1–6；其餘值失敗即關閉。若 `level <= (SR>>8)&7`，回報未接受、
    0 clocks、無 transaction，CPU state 與 stopped latch 均不變。
-2. 接受時以目前 pipeline PC 作 saved PC。這使 STOP 後保存其下一指令，而一般指令
-   邊界也保存下一個待執行位置。
+2. 接受時保存下一個尚未執行的 architectural PC：stopped latch 為真時，`State.PC`
+   已是 STOP 後下一指令；一般 instruction boundary 的目前預取 opcode 位於
+   `State.PC-4`，故保存 `State.PC-4`。固定第一 VBL 的 `$FC6904` frame 證實兩者不可
+   混用。
 3. 以原 SR 建立 MC68000 6-byte frame（SR、PC high、PC low），切 supervisor、清 trace，
    並把 SR interrupt mask 設為 level；從 `(24+level)*4` 讀 handler 並預取兩 words。
 4. 成功接受後才清 stopped latch，回報 44 clocks。現有 transaction 契約只描述記憶體

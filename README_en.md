@@ -7,11 +7,11 @@ reliably, producing deterministic input, frame stepping, state capture, and mach
 evidence for more accurate retro-game remakes.
 
 The project is at M2. The versioned JSON Lines control protocol and CLI exist; the MC68000 core
-passes 232,500 external corpus cases, and the incremental ST/STF machine core executes 7,599
-instructions of a fixed EmuTOS 1.3 ROM before correctly entering the MC68000 stopped state. The
-MFP USART reset-write boundary is in parity with Hatari; interrupt wake-up and peripheral IRQs are
-the next boot gate. The fixed color profile now samples MFP GPIP as `$A1`, matching EmuTOS monitor
-detection; the remaining D3 difference at STOP is the not-yet-produced VBL `frclock` value.
+passes 232,500 external corpus cases. The incremental ST/STF core now raises its first GLUE VBL,
+accepts the level-4 autovector, and executes the real EmuTOS handler that increments `$466 frclock`
+to 1. It then reaches the second VBL wait after 7,604 guest instructions and 178,228 machine clocks.
+The fixed color profile samples MFP GPIP as `$A1`, matching EmuTOS monitor detection; recurring VBL
+scheduling and stopped-clock advancement are the next boot gate.
 Video, input, disk, and a complete TOS boot are not
 implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.

@@ -16,9 +16,10 @@ Atari ST 遊戲。它將提供可重現輸入、逐幀執行、狀態擷取與�
 232,500 筆外部語料，且已保留語料中的 idle／active bus 時間軸；machine epoch、
 timed Bus 與首個 4-clock prefetch 路徑已接線。ST／STF memory map
 、固定 color profile 的 MFP GPIP input sample，與固定 EmuTOS ROM 的早期啟動及
-機型探測已逐狀態對上 Hatari，目前可連續完成
-7,599 條指令並正確進入 MC68000 stopped state；下一個開機閘門是 interrupt／trace／
-external reset 喚醒與對應周邊 IRQ。畫面、輸入、磁碟與完整 TOS
+機型探測已逐狀態對上 Hatari；第一個 GLUE VBL 會經 level-4 autovector 進入真正的
+EmuTOS handler，將 `$466 frclock` 從 0 增至 1。目前可完成 7,604 條指令與一次中斷，
+再進入 MC68000 stopped state；下一個開機閘門是 recurring VBL、stopped-clock 推進與
+對應周邊 IRQ。畫面、輸入、磁碟與完整 TOS
 開機仍未完成，因此目前**還不是可啟動遊戲的模擬器**；
 未具備的控制命令持續明確失敗，不會假裝成功。
 
@@ -70,7 +71,7 @@ TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE／STOP／line-F，共 232,500 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）** |
-| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP control／timer-data／USART reset／固定 GPIP input sample 與首個 external bus slot 已 CONFORMED；固定 EmuTOS 可走 7,599 條並停機，下一閘門為 VBL interrupt 喚醒** |
+| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP reset bank、固定 GPIP input、首個 external bus slot、level-4 autovector 與第一個 GLUE VBL 已 CONFORMED；固定 EmuTOS 由 guest handler 將 `$466 frclock` 增至 1，並於第 7,604 條／178,228 clocks 進入第二次 VBL 等待** |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
 | M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |

@@ -103,7 +103,8 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	machine.CPU.State.D[0] = 0x12345678
 	machine.CPU.State.A[0] = 0x87654321
 	machine.CPU.State.USP = 0x00abcdef
-	machine.Instructions, machine.Clocks = 99, 1234
+	machine.Instructions, machine.Interrupts, machine.Clocks = 99, 3, 1234
+	machine.firstVBLRaised, machine.vblPending = true, true
 	if err := machine.Memory.WriteByte(MMUConfig, 0x0a, 5); err != nil {
 		t.Fatal(err)
 	}
@@ -118,8 +119,10 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	if state.D[0] != 0x12345678 || state.A[0] != 0x87654321 || state.USP != 0x00abcdef {
 		t.Fatalf("reset changed unspecified registers: %+v", state)
 	}
-	if machine.Instructions != 0 || machine.Clocks != 0 {
-		t.Fatalf("reset counters=%d/%d", machine.Instructions, machine.Clocks)
+	if machine.Instructions != 0 || machine.Interrupts != 0 || machine.Clocks != 0 ||
+		machine.firstVBLRaised || machine.vblPending {
+		t.Fatalf("reset counters/events instructions=%d interrupts=%d clocks=%d raised=%v pending=%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.firstVBLRaised, machine.vblPending)
 	}
 	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("machine cold-reset MMU=%02x err=%v", got, err)
@@ -1072,21 +1075,26 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 			t.Fatalf("MFP USART %06x=%02x/%v want 00", address, got, err)
 		}
 	}
-	for machine.Instructions < 7598 {
+	for machine.CPU.State.Prefetch[0] != 0x4e72 {
+		if machine.Instructions > 7650 {
+			t.Fatal("STOP was not reached after first VBL handler")
+		}
 		if _, err := machine.Step(); err != nil {
-			t.Fatalf("post-USART step %d: %v", machine.Instructions+1, err)
+			t.Fatalf("post-USART step %d clocks=%d PC=%08x prefetch=%04x,%04x interrupts=%d: %v",
+				machine.Instructions+1, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1], machine.Interrupts, err)
 		}
 	}
 	stopPreState := machine.CPU.State
-	wantSTOPD := [8]uint32{0x2304, 0x18, 0x2710, 0, 0x00080000, 0x00100000, 5, 1}
+	wantSTOPD := [8]uint32{0x2304, 0x18, 0x2710, 1, 0x00080000, 0x00100000, 5, 1}
 	wantSTOPA := [7]uint32{0xfffffa2f, 0x3156, 0x00fcd074, 0, 0, 0x00fc01f4, 0x00000ffc}
 	if stopPreState.D != wantSTOPD || stopPreState.A != wantSTOPA || stopPreState.USP != 0 ||
 		stopPreState.SSP != 0x0f70 || stopPreState.SR != 0x2300 || stopPreState.PC != 0x00fcd09e ||
 		stopPreState.Prefetch != [2]uint16{0x4e72, 0x2300} {
-		t.Fatalf("STOP pre-state mismatch: %+v", stopPreState)
+		t.Fatalf("STOP pre-state mismatch instructions=%d interrupts=%d clocks=%d: %+v", machine.Instructions, machine.Interrupts, machine.Clocks, stopPreState)
 	}
 	result, err := machine.Step()
-	if err != nil || result.Clocks != 4 || machine.Instructions != 7599 || machine.Clocks != 178096 ||
+	if err != nil || result.Clocks != 4 || machine.Instructions != 7604 || machine.Interrupts != 1 || machine.Clocks != 178228 ||
 		machine.CPU.State.SR != 0x2300 || !machine.CPU.IsStopped() ||
 		machine.CPU.State.PC != 0x00fcd09e || machine.CPU.State.Prefetch != [2]uint16{0x4e72, 0x2300} {
 		t.Fatalf("STOP result=%+v instructions=%d clocks=%d pre=%+v state=%+v err=%v",
@@ -1094,7 +1102,7 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 	}
 	if result, err := machine.Step(); !errors.Is(err, m68k.ErrStopped) || result.Clocks != 0 ||
 		len(result.Transactions) != 0 || len(result.Timeline) != 0 ||
-		machine.Instructions != 7599 || machine.Clocks != 178096 || !machine.CPU.IsStopped() {
+		machine.Instructions != 7604 || machine.Interrupts != 1 || machine.Clocks != 178228 || !machine.CPU.IsStopped() {
 		t.Fatalf("stopped machine result=%+v instructions=%d clocks=%d state=%+v err=%v",
 			result, machine.Instructions, machine.Clocks, machine.CPU.State, err)
 	}

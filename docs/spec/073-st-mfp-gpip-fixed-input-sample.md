@@ -50,10 +50,10 @@ RS-232、blitter、ACIA、FDC transition、edge interrupt 與其他 monitor prof
 
 - memory test 覆蓋 reset 後 `$A1` sample、DDR output/input merge、write preservation、
   24-bit alias、user／word fault與 4 wait clocks。
-- 固定 EmuTOS 應在 STOP 前得到 D2=`$2710`，修正 monitor-detect 分歧；D3 仍因
-  `$466 frclock` 尚無 VBL producer 而為 `$0`，Hatari 為 `$1`。opcode address
-  `$FCD09A`、SR／prefetch與 D3 以外的 D/A／stack 對上固定 Hatari，之後第 7,599 條
-  進入 stopped state。
+- 固定 EmuTOS 應在 STOP 前得到 D2=`$2710`，修正 monitor-detect 分歧。本規格完成時
+  D3 因 `$466 frclock` 尚無 VBL producer；規格 075 已由第一個 VBL guest handler
+  補上，現為雙方 `$1`。opcode `$FCD09A`、SR／prefetch、D/A／stack 對上固定 Hatari，
+  現行 gate 於第 7,604 條進入 stopped state。
 - 完整 232,500 筆 CPU corpus、固定 ROM、Go 測試、靜態檢查與建置均須通過，才可
   將狀態改為 **CONFORMED**。
 

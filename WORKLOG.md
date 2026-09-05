@@ -289,3 +289,11 @@
   44 clocks、format-0 frame 與成功後解除 stopped latch；完整 232,500 筆 corpus、固定
   EmuTOS STOP gate、全測試、vet、build 通過，規格 074 升 CONFORMED。GLUE frame
   phase 尚無 READY 規格，故未猜測 VBL deadline 或直接改 `$466`。
+- 完成 ST reset frame 第一個 GLUE VBL：固定 Hatari source 確認 color ST reset 的
+  263×508+64=133,668 clock deadline與 pending 保留；先以可丟棄探針發現
+  `--fast-boot true` profile 不同，再用 `false` 重拍，第一 `$FC0446` handler 的完整
+  D/A、SSP、SR、saved PC、prefetch 全與 Talos 相同。對拍同時修正 running interrupt
+  saved PC 為 pipeline `State.PC-4`，STOP 路徑仍保存已推進的 `State.PC`。guest handler
+  真正令 `$466` 由 0 變 1，返回後 D3=1；新 STOP gate 為 7,604 instructions、1 interrupt、
+  178,228 clocks。完整 232,500 筆 corpus、固定 ROM、全測試、
+  `go vet -stdmethods=false ./...` 與 CLI build 通過，規格 075 升 CONFORMED。

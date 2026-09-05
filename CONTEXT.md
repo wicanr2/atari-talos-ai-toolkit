@@ -234,24 +234,26 @@
 - MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset write 已
   CONFORMED：依 NXP 手冊保留 TSR 硬體 reset 未定的事實，只接受固定 EmuTOS 的
   軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
-  第 7,563 條／177,606 clocks 的 state／prefetch 對上 Hatari；後續可完成至第 7,598
-  條／178,092 clocks，第 7,599 次嘗試停在 PC `$FCD09E` 的 `STOP` `$4E72`。
+  第 7,563 條／177,606 clocks 的 state／prefetch 對上 Hatari。這是 USART 切片當時的
+  停止點；接入規格 075 的第一 VBL 後，現行後續 gate 改由下列 STOP 項目描述。
 - MC68000 `STOP` 已 CONFORMED：執行前 supervisor 判權、immediate SR `$A71F`
   masking、4 clocks、stopped latch、重複 Step 原子停止與 CPU Reset 清除均已接線；
   2,500 筆固定外部語料全過。固定 EmuTOS 的 opcode 位址是 `$FCD09A`，Talos pipeline
-  PC `$FCD09E` 指向下一指令；第 7,599 條／178,096 clocks 後 SR=`$2300` 並停機。
-  Hatari 同點的 opcode／SR／prefetch 一致。規格 073 已將 D2 修正為雙方 `$2710`；
-  D3 尚因 VBL `frclock` 未接而是 Talos `$0`、Hatari `$1`，故不宣稱這個較晚點已達
-  全暫存器 parity。
+  PC `$FCD09E` 指向下一指令；規格 075 接入第一 VBL 後，第 7,604 條／178,228 clocks
+  再次以 SR=`$2300` 停機。Hatari 同點 opcode／SR／prefetch 一致，D2=`$2710`、
+  D3=`$1` 也已收斂；舊 7,599／178,096 與 D3=0 收據已被規格 075 取代。
 - 固定 color ST profile 的 MFP GPIP input sample 已 CONFORMED：bus read 依 DDR 合併
   `$A1`（color monitor bit 7、FDC idle bit 5、no-printer busy bit 0），修正 `$FC67B8`
-  monitor detection。STOP 前 D2 已由 `$2704` 收斂為 Hatari `$2710`；剩餘 D3 差異
-  已定位到 `$FC6904 MOVE.L $466,D3`，`$466` 是由 VBL handler 增加的 `frclock`。
+  monitor detection。STOP 前 D2 已由 `$2704` 收斂為 Hatari `$2710`。
 - MC68000 level 4 autovector 接受已 CONFORMED：外部仲裁後的 CPU API 依 SR mask 決定
   接受，使用 vector 28、建立 6-byte frame、切 mask 4、44 clocks 並解除 STOP。固定
   Hatari 在第二個 VBL 進 `$FC0446`，frame 為 `$2300,$00FC,$D09E`，與 Talos typed
-  測試一致。GLUE VBL 產生時點仍未規格化，因此尚未接進 `Machine.Step()`，也未直接
-  改寫 `$466`。
+  測試一致。第一個 GLUE VBL 已由規格 075 接線。
+- ST reset frame 第一個 GLUE VBL 已 CONFORMED：cold color ST 在 133,668 clocks
+  raise pending，mask 7 期間保留，於 `$FC6904` 前 mask 3 接受。`--fast-boot false`
+  的 Hatari 與 Talos 在 `$FC0446` handler 入口 D/A、SSP、SR、frame、prefetch 全同；
+  guest opcode 真正令 `$466 frclock` 從 0 變 1，沒有由 host 直接寫記憶體。recurring
+  VBL 與 stopped-clock advancement 尚未接，因此第二個 STOP 是目前真實 gate。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -265,6 +267,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片查證並規格化 GLUE frame phase／VBL 事件排程，再呼叫已完成的 CPU
-   level-4 autovector；驗收須由 `$FC0446` 真正執行令 `$466 frclock` 從 0 到 1，不能
-   直接改記憶體。
+4. 下一個整機切片規格化 recurring color-ST VBL 與 stopped-clock advancement，讓第二個
+   STOP 等到下一 deadline 後再由 `$FC0446` 將 `$466` 從 1 增至 2。

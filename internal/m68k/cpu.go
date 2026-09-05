@@ -123,14 +123,18 @@ func (c *CPU) AcceptAutovectorAt(level uint8, epoch uint64) (StepResult, bool, e
 		return StepResult{}, false, nil
 	}
 	c.epoch = epoch
+	savedPC := c.State.PC - 4
+	if c.stopped {
+		savedPC = c.State.PC
+	}
 	var (
 		result StepResult
 		err    error
 	)
 	if _, ok := c.Bus.(TimedBus); ok {
-		result, err = c.enterTimedStandardException(24+level, c.State.PC, 44)
+		result, err = c.enterTimedStandardException(24+level, savedPC, 44)
 	} else {
-		result, err = c.enterStandardException(24+level, c.State.PC, nil, 44)
+		result, err = c.enterStandardException(24+level, savedPC, nil, 44)
 	}
 	if err != nil {
 		return result, false, err

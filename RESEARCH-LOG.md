@@ -393,3 +393,16 @@
 - Hatari 第二個 VBL handler 入口 FrameCycles=`124`，支援 44-clock autovector exception
   sequence；實體 IACK pin／VPA 波形未由 debugger 觀測，維持未建模。Talos CPU API
   只接受已由外部仲裁的 level 1–6 autovector，第 7 級特殊語意失敗即關閉。
+- 固定 Hatari 若使用 `--fast-boot true`，第一個 `$FC0446` 的 D4／D7／A5 為 0；這不是
+  raw-ROM Talos 的同 profile。改用 `--fast-boot false` 後三者為
+  `$00080000/$1/$00FC01F4`，其餘 D/A、SSP `$F6E`、SR `$2400`、saved PC `$FC6904`
+  及 prefetch `$52B8,$0466` 全與 Talos 一致。後續對拍凡比較 raw ROM 開機狀態，禁止
+  混用 fast-boot patch。
+- Hatari fixed source commit `4371dcd647fc85d31c0629400adaeaa4212040d9` archive
+  SHA-256 `ed3861b10b05283d0a97df0a9070cef5ae71293ddf4c797a82174ae50ea8877c`：
+  color ST reset 將 sync register 清 0，初始 60 Hz 為 263×508 clocks，STF VBL offset
+  64，第一 deadline 133,668；被 SR mask 擋住的 pending 不消失。Talos 依此 raise
+  第一 event，在 `$FC6904` 前接受並由 guest `ADDQ.L #1,$466` 寫出 frclock=1。
+- 同狀態測試另揭露 autovector saved-PC 必須區分 running 與 stopped：running pipeline
+  保存 `State.PC-4`，STOP 已將 PC 推進則保存 `State.PC`。修正後第一 VBL frame
+  `$2300,$00FC,$6904` 與第二 VBL frame `$2300,$00FC,$D09E` 各自成立。
