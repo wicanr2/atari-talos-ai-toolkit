@@ -351,4 +351,16 @@ func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
 		t.Fatalf("VBL4 post-boundary result=%+v machine=%+v programmed=%06x active=%06x before=%+v",
 			result, machine, machine.Memory.ProgrammedVideoBase(), machine.Memory.ActiveVideoBase(), before)
 	}
+	frame, err := machine.Memory.LowResolutionFrame()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Width != 320 || frame.Height != 200 || frame.Palette != wantPalette {
+		t.Fatalf("VBL4 indexed frame metadata=%+v", frame)
+	}
+	for offset, index := range frame.Indices {
+		if index != 0 {
+			t.Fatalf("VBL4 indexed frame pixel %d=%d want 0", offset, index)
+		}
+	}
 }

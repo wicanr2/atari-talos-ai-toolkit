@@ -343,3 +343,9 @@
   STOP 快轉共用 VBL 提交入口。Talos 可觀察邊界為 535,520→535,530，Hatari 為
   535,524→535,532；既有 24-clock 累積差距明列而未冒稱收斂。完整 corpus、固定 ROM、
   全測試、vet 與 build 通過後，規格 081 升 CONFORMED。
+- 完成 ST low-resolution 4-plane indexed frame首切片：新增精確 32,000-byte→64,000-index
+  decoder與 active-base DMA snapshot，輸出 palette copy而不猜 RGB。實作審查抓出 CPU
+  reset ROM shadow不適用 Shifter DMA，改由 MMU RAM topology直接讀取並加 base0回歸測試。
+  Hatari VBL7 外部 fixture 的 raw／decoded SHA-256、histogram與首非零座標全過；Talos
+  正常 VBL4 路徑亦產出全黑 320×200 snapshot。完整 232,500 筆 corpus、固定 ROM、
+  全測試、vet、build通過，規格 082 升 CONFORMED；fixture與 ROM 均未入 Git。

@@ -269,6 +269,10 @@
   Hatari 在 535,524 active仍為 0，跨共同 VBL deadline 535,528 後於 535,532 成為
   `$0F8000`。Talos 既有 24-clock 累積差距使相鄰 guest boundaries 為
   535,520→535,530，但同一 deadline 已提交 programmed→active，差異未被掩飾。
+  規格 082 已接 320×200 low-res 4-plane big-endian decoder與 active-base DMA snapshot；
+  base 0 明確讀 RAM而非 CPU reset ROM shadow。Hatari VBL7 raw dump SHA-256
+  `98dcbfd3…a0570f` 解成 index SHA-256 `6157070b…10444`，分布為 color 0=63,679、
+  color 15=321、第一個非零像素 `(1,0)`；Talos 正常 VBL4 snapshot為全黑且 palette一致。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -282,6 +286,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個影像切片在「正常 50 Hz 幀的 HBL 310 提前重載」與「由 active base、palette
-   及低解析度 planar RAM 產生無頭畫面」間，以第一個實際 consumer 為準；兩者都須先
-   建 READY 規格，且不得把 VBL 保底提交冒稱完整 raster timing。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理 VBL7 前 962,832 clocks 的
+   `$FFFA1D` 非零 timer control gate；RGB／PNG 色階契約與正常 50 Hz HBL310 提前重載
+   仍須各自 READY，不得由 palette index 或 VBL 保底提交外推。

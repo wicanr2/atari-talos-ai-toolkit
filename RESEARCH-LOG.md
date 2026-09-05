@@ -419,3 +419,8 @@
   CycleCounter=535,524、VBL=3、HBL=263 仍讀 active=0；`$FC299E LEA $1C(A7),A4`
   跨 deadline 535,528，535,532／VBL=4 時 active=`$0F8000`。這是 Hatari
   `Video_ClearOnVBL` 的保底重載，不是一般 50 Hz 提前三線時序。
+- Hatari／EmuTOS VBL4、5、6 的 `$0F8000` 32,000-byte screen RAM全零；VBL7／
+  CycleCounter=1,016,352 首次非黑，raw SHA-256 `98dcbfd3…a0570f`、368 bytes非零。
+  依 4 個 big-endian plane words、bit15→左、plane0→index bit0 解碼後 SHA-256
+  `6157070b…10444`；64,000 pixels僅 color0=63,679、color15=321，首非零 `(1,0)`。
+  Shifter DMA 必須繞過 CPU reset ROM shadow；base0 讀 RAM，不能重用 CPU `ReadByte`。
