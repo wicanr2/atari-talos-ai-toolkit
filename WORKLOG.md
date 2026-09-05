@@ -230,3 +230,9 @@
   Hatari 兩次 trace 各 16 clocks；固定 EmuTOS 第 7,491 條／176,814 clocks 全狀態
   對拍，下一停點 `$FFFA0B` IPRA。完整 corpus、固定 ROM、全測試、vet 與 build
   通過，規格 064 升 CONFORMED。
+- 完成 MFP IPRA／IPRB `$FFFA0B/$FFFA0D` write-zero-to-clear：依 NXP manual
+  的 pending bit 契約與固定 Hatari handler，實作 reset/read latch 與
+  `pending &= value`，涵蓋注入 `$A5` 後寫 `$3C` 得 `$24`、write `$FF` 不設 bit、
+  alias、wait、保護與寬度錯誤。Hatari 兩次 trace 各 16 clocks；固定 EmuTOS
+  第 7,499 條／176,902 clocks 全狀態對拍，下一停點 `$FFFA0F` ISRA。完整 corpus、
+  固定 ROM、全測試、vet 與 build 通過，規格 065 升 CONFORMED。

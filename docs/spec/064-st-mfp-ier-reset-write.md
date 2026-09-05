@@ -42,7 +42,8 @@ pending／IRQ、in-service、mask、timer／USART／GPIP interrupt sources 仍�
    `unsupported_device_state`，避免在未建模 sources／pending／IRQ 時假裝 channel
    enable 或 disable side effects 已完整。
 4. 兩位址 byte access各增加 4 wait clocks；已驗證的 `MOVE.B #$00,(An)` 各 16 clocks。
-5. 完成 IERB 後下一次迴圈在 `$FFFA0B` IPRA write 維持 reserved-I/O fault。
+5. 本規格驗收時以 `$FFFA0B` IPRA write 的 reserved-I/O fault 作為停止線；
+   後續規格 065 只取代這條停止線，不改變 IER 契約。
 
 ## 驗收與停止線
 
@@ -60,7 +61,8 @@ pending／IRQ、in-service、mask、timer／USART／GPIP interrupt sources 仍�
 - 固定 EmuTOS 第 7,487 條 IERA 與第 7,491 條 IERB 都為 16 clocks；完成後累計
   176,814 clocks，兩 latch=`$00`，D/A、USP、SSP=`$0F8C`、SR=`$2714`、內部
   prefetch 游標 PC=`$FC6152`、prefetch=`$5488,$B0FC` 均符合 Hatari 邊界。
-- 再完成三條迴圈控制指令後，第 7,495 條嘗試停在 `$FFFA0B` IPRA reserved-I/O
-  write，未泛化 pending register 語意。
+- 本規格驗收時，再完成三條迴圈控制指令後，第 7,495 條嘗試停在 `$FFFA0B`
+  IPRA reserved-I/O write；該停止線其後由規格 065 取代，其他未規格化 register
+  仍未泛化。
 - 完整 230,000 筆 CPU corpus、固定 ROM 全測試、`go vet -stdmethods=false ./...`
   與 `go build ./...` 全部通過。

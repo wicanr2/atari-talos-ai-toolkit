@@ -321,3 +321,9 @@
 - 固定 Hatari IERA trace為 FrameCycles `44254→44270`，IERB 為
   `44298→44314`，各 16 clocks；兩 latch 前後皆 `$00`。固定 EmuTOS 第 7,491 條
   對拍後，下一輪停在 `$FFFA0B` IPRA write。
+- NXP MC68901 manual §4.3.2 確認 IPRA／IPRB reset=`$00`，bit 1/0 表示
+  pending/cleared；固定 Hatari handlers 進一步確認 software write 採
+  `pending &= written`，只能以 0 清除、不能設 pending，且每次 access 加 4 wait clocks。
+- 固定 Hatari IPRA trace為 FrameCycles `44342→44358`，IPRB 為
+  `44386→44402`，各 16 clocks；兩 register 前後皆 `$00`。固定 EmuTOS 第 7,499 條／
+  176,902 clocks 對拍後，下一輪停在 `$FFFA0F` ISRA write。
