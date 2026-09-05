@@ -452,10 +452,72 @@ func TestMFPIMRMaskLatchWithoutPending(t *testing.T) {
 			}
 		})
 	}
-	if memory, err := NewMemory(RAM1M, testROM()); err != nil {
+}
+
+func TestMFPVectorRegister(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
 		t.Fatal(err)
-	} else if _, err := memory.ReadByte(MFPIMRB+2, 5); err == nil {
-		t.Fatal("neighboring Vector Register unexpectedly mapped")
+	}
+	if got, err := memory.ReadByte(MFPVR, 5); err != nil || got != 0 {
+		t.Fatalf("reset VR=%02x/%v want 00", got, err)
+	}
+	if wait, err := memory.WriteByteAt(MFPVR|0xff000000, 0xaf,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("timed VR write wait=%d err=%v", wait, err)
+	}
+	if got, err := memory.ReadByte(MFPVR, 5); err != nil || got != 0xa8 {
+		t.Fatalf("software EOI VR=%02x/%v want a8", got, err)
+	}
+	memory.mfpISRA, memory.mfpISRB = 0xa5, 0x5a
+	if err := memory.WriteByte(MFPVR, 0xa7, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := memory.ReadByte(MFPVR, 5); got != 0xa0 {
+		t.Fatalf("automatic EOI VR=%02x want a0", got)
+	}
+	if memory.mfpISRA != 0 || memory.mfpISRB != 0 {
+		t.Fatalf("automatic EOI left ISR=%02x/%02x", memory.mfpISRA, memory.mfpISRB)
+	}
+	if err := memory.WriteByte(MFPVR, 0x07, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := memory.ReadByte(MFPVR, 5); got != 0 {
+		t.Fatalf("unused VR bits read %02x want 00", got)
+	}
+	if err := memory.WriteByte(MFPVR, 0x58, 5); err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpIPRA, memory.mfpIPRB = 1, 2
+	memory.mfpISRA, memory.mfpISRB = 4, 8
+	if err := memory.WriteByte(MFPVR, 0x50, 5); err == nil {
+		t.Fatal("automatic EOI with pending unexpectedly succeeded")
+	}
+	if memory.mfpVR != 0x58 || memory.mfpIPRA != 1 || memory.mfpIPRB != 2 ||
+		memory.mfpISRA != 4 || memory.mfpISRB != 8 {
+		t.Fatalf("failed VR write changed VR/IPR/ISR=%02x/%02x/%02x/%02x/%02x",
+			memory.mfpVR, memory.mfpIPRA, memory.mfpIPRB, memory.mfpISRA, memory.mfpISRB)
+	}
+	if _, err := memory.ReadByte(MFPVR, 1); err == nil {
+		t.Fatal("user VR read unexpectedly succeeded")
+	}
+	if err := memory.WriteByte(MFPVR, 0, 1); err == nil {
+		t.Fatal("user VR write unexpectedly succeeded")
+	}
+	if _, err := memory.ReadWord(MFPVR, 5); err == nil {
+		t.Fatal("odd VR word read unexpectedly succeeded")
+	}
+	memory.mfpIPRA, memory.mfpIPRB = 0, 0
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := memory.ReadByte(MFPVR, 5); err != nil || got != 0 ||
+		memory.mfpISRA != 0 || memory.mfpISRB != 0 {
+		t.Fatalf("VR/ISR after M68K reset=%02x/%02x/%02x err=%v",
+			got, memory.mfpISRA, memory.mfpISRB, err)
+	}
+	if _, err := memory.ReadByte(MFPVR+2, 5); err == nil {
+		t.Fatal("neighboring TACR unexpectedly mapped")
 	}
 }
 

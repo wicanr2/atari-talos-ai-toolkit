@@ -41,8 +41,8 @@ EmuTOS 初始化的兩次 `$00` write。interrupt source、IRQ output、priority
 4. 若對應 pending latch 非零，mask write 回 `unsupported_device_state`，且 IMR／IPR
    都不得改變。這是暫時的失敗即關閉邊界，不冒充 IRQ 重新評估已完成。
 5. 兩位址 byte access各增加 4 wait clocks；EmuTOS 同形 MOVE各 16 clocks。
-6. 完成 IMRB 後，下一次迴圈在 `$FFFA17` Vector Register write 維持
-   reserved-I/O fault。
+6. 本規格驗收時以 `$FFFA17` Vector Register write 的 reserved-I/O fault 作為
+   停止線；後續規格 068 只取代這條停止線，不改變 IMR 契約。
 
 ## 驗收與停止線
 
@@ -50,7 +50,8 @@ EmuTOS 初始化的兩次 `$00` write。interrupt source、IRQ output、priority
   word access、pending 非零時的原子失敗及 Vector Register 未映射。
 - 固定 EmuTOS 應完成第 7,515 條、累計 177,078 clocks，state、prefetch、
   IMRA／IMRB 對上 Hatari；再三條控制指令後，第 7,519 次嘗試在 `$FFFA17`
-  明確停止，成功完成數維持 7,518。
+  明確停止，成功完成數維持 7,518。該停止線其後由規格 068 取代，其他未規格化
+  register 仍未泛化。
 - 完整 230,000 筆 CPU corpus、固定 ROM、Go 測試、靜態檢查與建置均已通過。
 
 ## 玩家路徑、存檔與權利邊界

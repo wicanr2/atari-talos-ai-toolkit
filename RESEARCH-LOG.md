@@ -341,3 +341,10 @@
 - 固定 Hatari IMRA trace為 FrameCycles `44518→44534`，IMRB 為
   `44562→44578`，各 16 clocks；兩 register 前後皆 `$00`。固定 EmuTOS 第 7,515 條／
   177,078 clocks 對拍後，下一輪停在 `$FFFA17` Vector Register write。
+- NXP MC68901 manual §4.1.3、§4.4.1–§4.4.3 確認 VR reset=`$00`；bits 7–4
+  是 vector base、bit 3 選 EOI mode、bits 2–0 unused 且 read zero。automatic EOI
+  強制 ISR bits 為 0。固定 Hatari write handler 在 software→automatic 時清雙 ISR
+  並重算 IRQ，但會保存 unused bits；Talos 依一手規格採 `$F8` mask，將差異明列。
+- 固定 Hatari VR trace為 FrameCycles `44606→44622`，共 16 clocks；VR、ISRA、
+  ISRB 前後皆 `$00`。固定 EmuTOS 第 7,519 條／177,122 clocks 對拍後，下一輪
+  停在 `$FFFA19` Timer A Control Register write。

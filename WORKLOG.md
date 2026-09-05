@@ -248,3 +248,9 @@
   16 clocks；固定 EmuTOS 第 7,515 條／177,078 clocks 全狀態對拍，下一停點
   `$FFFA17` Vector Register。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與
   build 通過，規格 067 升 CONFORMED。
+- 完成 MFP Vector Register `$FFFA17`：依 NXP manual 實作 `$F8` 有效位元、
+  vector base、software／automatic EOI 與切回 automatic 清雙 ISR；Hatari 會保存
+  unused bits 的差異已明列。pending 非零而需重算 IRQ 的切換維持 typed fail-closed。
+  固定 Hatari trace 為 16 clocks；EmuTOS 第 7,519 條／177,122 clocks 全狀態對拍，
+  下一停點 `$FFFA19` Timer A Control Register。完整 230,000 筆 corpus、固定 ROM、
+  全測試、vet 與 build 通過，規格 068 升 CONFORMED。

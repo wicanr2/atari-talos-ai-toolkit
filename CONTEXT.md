@@ -216,6 +216,11 @@
   非零時的 mask write 明確失敗且不改 state。固定 EmuTOS 現可完成 7,515 條／
   177,078 clocks；再完成三條控制指令後，第 7,519 次嘗試在 `$FFFA17` Vector
   Register 失敗即關閉。
+- MFP Vector Register `$FFFA17` 已 CONFORMED：依 NXP 一手規格只保存 `$F8`
+  mask，bits 2–0 讀回 0；vector base、software／automatic EOI 及切回 automatic
+  清 ISRA／ISRB 已接。pending 非零且切 automatic 時因 IRQ 尚未建模而原子失敗。
+  固定 EmuTOS 現可完成 7,519 條／177,122 clocks；再完成三條控制指令後，
+  第 7,523 次嘗試在 `$FFFA19` Timer A Control Register 失敗即關閉。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -229,5 +234,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 `$FFFA17` MFP Vector Register 的 vector base、
-   automatic／software EOI mode 切換、ISR 清除與 clocks，再繼續固定 ROM 開機對拍。
+4. 下一個整機切片先查證並規格化 `$FFFA19/$FFFA1B/$FFFA1D` MFP Timer A／B／C-D
+   Control Register 的 reset、stop mode、timer state 與 clocks，再繼續固定 ROM 開機對拍。
