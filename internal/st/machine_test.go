@@ -1074,12 +1074,12 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 	for machine.Instructions < 100000 {
 		if _, err := machine.Step(); err != nil {
 			state = machine.CPU.State
-			wantD = [8]uint32{7, 0x10, 0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
-			wantA = [7]uint32{0x94, 0x3216, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
-			if err.Error() != "st: write 1-byte bus fault at 0xfffc00 fc=5: reserved_io" ||
-				machine.Instructions != 68528 || machine.Interrupts != 4 || machine.Clocks != 968510 ||
-				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f88 ||
-				state.SR != 0x2304 || state.PC != 0x00fc51bc || state.Prefetch != [2]uint16{0xfc00, 0x11fc} ||
+			wantD = [8]uint32{0xffff_ffff, 0x10, 1, 0, 0x0008_0000, 0x0010_0000, 5, 1}
+			wantA = [7]uint32{0x94, 0x3216, 0x00fc_5132, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
+			if err.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
+				machine.Instructions != 68645 || machine.Interrupts != 4 || machine.Clocks != 969640 ||
+				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f7a ||
+				state.SR != 0x2308 || state.PC != 0x00fc515a || state.Prefetch != [2]uint16{0xfc02, 0x241f} ||
 				machine.Memory.mfpIERB != 0x20 || machine.Memory.mfpIMRB != 0x20 ||
 				machine.Memory.mfpIERA != 0x14 || machine.Memory.mfpIMRA != 0x14 ||
 				machine.Memory.mfpTCDCR != 0x51 || machine.Memory.mfpTDDR != 2 ||
@@ -1094,6 +1094,32 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 		}
 	}
 	t.Fatal("no typed successor gate before 100000 instructions")
+}
+
+func TestMachineAdvancesIKBDACIAAtFirstDeadline(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []byte{3, 0x96} {
+		if err := memory.WriteByte(IKBDACIAControl, value, 5); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0x80, 5); err != nil {
+		t.Fatal(err)
+	}
+	machine := &Machine{Memory: memory, aciaClockStarted: true, nextACIABitClock: 2024, Clocks: 2023}
+	machine.advanceDueACIAClocks()
+	if !memory.ikbdACIATXPending || memory.ikbdACIAStatus != 0 {
+		t.Fatalf("before deadline pending/status=%v/%02x", memory.ikbdACIATXPending, memory.ikbdACIAStatus)
+	}
+	machine.Clocks = 2024
+	machine.advanceDueACIAClocks()
+	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 || machine.nextACIABitClock != 3048 {
+		t.Fatalf("at deadline pending/status/next=%v/%02x/%d", memory.ikbdACIATXPending,
+			memory.ikbdACIAStatus, machine.nextACIABitClock)
+	}
 }
 
 func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {

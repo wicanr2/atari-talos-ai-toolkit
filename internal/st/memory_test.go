@@ -1013,6 +1013,83 @@ func TestPSGFixedBootPortWrites(t *testing.T) {
 	}
 }
 
+func TestIKBDACIAControlInit(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := memory.ReadByte(IKBDACIAControl, 5); err == nil {
+		t.Fatal("unconfigured ACIA status read unexpectedly accepted")
+	}
+	if err := memory.WriteByte(IKBDACIAControl, 0x96, 5); err == nil {
+		t.Fatal("ACIA config before reset unexpectedly accepted")
+	}
+	for _, value := range []byte{3, 0x96} {
+		if wait, err := memory.WriteByteAt(IKBDACIAControl|0xff00_0000, value,
+			m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+			t.Fatalf("ACIA control %02x wait=%d err=%v", value, wait, err)
+		}
+	}
+	if got, err := memory.ReadByte(0xfffffc00, 5); err != nil || got != 2 ||
+		memory.ikbdACIAControl != 0x96 || !memory.ikbdACIAConfigured {
+		t.Fatalf("ACIA control/status/configured=%02x/%02x/%v err=%v",
+			memory.ikbdACIAControl, got, memory.ikbdACIAConfigured, err)
+	}
+	for _, value := range []byte{0, 3, 0x96, 0xff} {
+		if err := memory.WriteByte(IKBDACIAControl, value, 5); err == nil {
+			t.Fatalf("configured ACIA control %02x unexpectedly accepted", value)
+		}
+	}
+	if _, err := memory.ReadByte(IKBDACIAData, 5); err == nil {
+		t.Fatal("ACIA data read unexpectedly accepted")
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0, 5); err == nil {
+		t.Fatal("ACIA data write unexpectedly accepted")
+	}
+	if _, err := memory.ReadByte(IKBDACIAControl, 1); err == nil {
+		t.Fatal("user ACIA status read unexpectedly accepted")
+	}
+	if err := memory.WriteWord(IKBDACIAControl, 0, 5); err == nil {
+		t.Fatal("ACIA word write unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.ikbdACIAControl != 0 || memory.ikbdACIAStatus != 0 || memory.ikbdACIAConfigured {
+		t.Fatalf("ACIA reset control/status/configured=%02x/%02x/%v",
+			memory.ikbdACIAControl, memory.ikbdACIAStatus, memory.ikbdACIAConfigured)
+	}
+}
+
+func TestIKBDACIAFirstTransmitData(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []byte{3, 0x96} {
+		if err := memory.WriteByte(IKBDACIAControl, value, 5); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0x80, 5); err != nil {
+		t.Fatal(err)
+	}
+	if memory.ikbdACIATDR != 0x80 || !memory.ikbdACIATXPending || memory.ikbdACIAStatus != 0 {
+		t.Fatalf("TDR/pending/status=%02x/%v/%02x", memory.ikbdACIATDR,
+			memory.ikbdACIATXPending, memory.ikbdACIAStatus)
+	}
+	if err := memory.WriteByte(IKBDACIAData, 0x80, 5); err == nil {
+		t.Fatal("pending ACIA data write unexpectedly accepted")
+	}
+	memory.advanceIKBDACIAClock()
+	if memory.ikbdACIATXPending || memory.ikbdACIAStatus != 2 {
+		t.Fatalf("advanced pending/status=%v/%02x", memory.ikbdACIATXPending, memory.ikbdACIAStatus)
+	}
+	if err := memory.WriteByte(IKBDACIAData, 1, 5); err == nil {
+		t.Fatal("out-of-scope second ACIA byte unexpectedly accepted")
+	}
+}
+
 func TestMFPTimerDataStoppedLoad(t *testing.T) {
 	for _, test := range []struct {
 		name     string

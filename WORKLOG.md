@@ -374,3 +374,10 @@
   data `$C0`、select 14、data `$07`；Talos以 typed state與錯序 fail-closed 接線，
   正常路徑前進到 68,528 instructions、4 interrupts、968,510 clocks，下一 gate
   是 ACIA `$FFFC00`。一般 MOVE.B timed-I/O 的 cycle差異明列，規格 089 升 CONFORMED。
+- 完成 IKBD MC6850 ACIA control 初始化與第一 transmit deadline：Hatari
+  `acia,ikbd_acia` trace確認 `$03` master reset、`$96` configuration、status `$02`、
+  TDR=`$80` 後 TDRE 清零，以及 1024 clocks 後恢復。Talos接入 typed control sequence、
+  TDR pending state與 recurrent deadline；synthetic memory／scheduler、固定 ROM、完整
+  240,000 筆 corpus、全測試、`go vet -stdmethods=false ./...` 與 CLI build通過。
+  正常路徑抵達 68,645 instructions、4 interrupts、969,640 clocks 的第二 byte `$01`
+  gate；指令邊界近似與 Hatari device-write phase差異明列。規格 090–091 升 CONFORMED。

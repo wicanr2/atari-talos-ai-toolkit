@@ -8,14 +8,16 @@ const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
 
 type Machine struct {
-	CPU            m68k.CPU
-	Memory         *Memory
-	Instructions   uint64
-	Interrupts     uint64
-	Clocks         uint64
-	nextVBLClock   uint64
-	vblFrameClocks uint64
-	vblPending     bool
+	CPU              m68k.CPU
+	Memory           *Memory
+	Instructions     uint64
+	Interrupts       uint64
+	Clocks           uint64
+	nextVBLClock     uint64
+	vblFrameClocks   uint64
+	vblPending       bool
+	aciaClockStarted bool
+	nextACIABitClock uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -39,6 +41,8 @@ func (m *Machine) Reset() error {
 	m.nextVBLClock = firstColorSTVBLClock
 	m.vblFrameClocks = colorST60HzFrameClocks
 	m.vblPending = false
+	m.aciaClockStarted = false
+	m.nextACIABitClock = 0
 	return nil
 }
 
@@ -60,6 +64,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 			m.vblPending = false
 			m.Interrupts++
 			m.Clocks += uint64(result.Clocks)
+			m.advanceClockedDevices()
 			return result, nil
 		}
 	}
@@ -69,6 +74,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
+	m.advanceClockedDevices()
 	if m.Memory != nil && m.Memory.videoSync50Transition {
 		if m.nextVBLClock != firstColorSTVBLClock+3*colorST60HzFrameClocks {
 			return result, &BusFault{Address: VideoSyncMode, FunctionCode: 5, Write: true, Size: 1, Reason: FaultUnsupportedDeviceState}
@@ -79,6 +85,21 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	}
 	m.raiseDueVBL()
 	return result, nil
+}
+
+func (m *Machine) advanceClockedDevices() {
+	if !m.aciaClockStarted && m.Memory != nil && m.Memory.ikbdACIAConfigured {
+		m.aciaClockStarted = true
+		m.nextACIABitClock = m.Clocks + 1024
+	}
+	m.advanceDueACIAClocks()
+}
+
+func (m *Machine) advanceDueACIAClocks() {
+	for m.aciaClockStarted && m.nextACIABitClock != 0 && m.Clocks >= m.nextACIABitClock {
+		m.Memory.advanceIKBDACIAClock()
+		m.nextACIABitClock += 1024
+	}
 }
 
 func (m *Machine) raiseDueVBL() {
