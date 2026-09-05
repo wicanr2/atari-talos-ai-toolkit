@@ -1029,6 +1029,67 @@ func TestMachineEmuTOSLoadsMFPResetTimerData(t *testing.T) {
 	}
 }
 
+func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for machine.Instructions < 68103 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d: %v", machine.Instructions+1, err)
+		}
+	}
+	state := machine.CPU.State
+	wantD := [8]uint32{0xffff_fffe, 0x00fc_0005, 5, 0x00fc_04de, 0x0008_0000, 0x0010_0000, 5, 1}
+	wantA := [7]uint32{2, 0x00fc_634e, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
+	if machine.Interrupts != 3 || machine.Clocks != 963104 || state.D != wantD || state.A != wantA ||
+		state.USP != 0 || state.SSP != 0x0f70 || state.SR != 0x2708 || state.PC != 0x00fc6196 ||
+		state.Prefetch != [2]uint16{0xe378, 0x1238} || machine.Memory.mfpTCDCR != 0x50 ||
+		machine.Memory.mfpTCDR != 0xc0 || machine.Memory.mfpTCMain != 0xc0 || !machine.Memory.mfpTimerCStart {
+		t.Fatalf("Timer C successor boundary instructions=%d interrupts=%d clocks=%d state=%+v control/data/main/start=%02x/%02x/%02x/%v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state, machine.Memory.mfpTCDCR,
+			machine.Memory.mfpTCDR, machine.Memory.mfpTCMain, machine.Memory.mfpTimerCStart)
+	}
+	if result, err := machine.Step(); err != nil || result.Clocks != 16 || machine.Instructions != 68104 ||
+		machine.Clocks != 963120 || machine.CPU.State.PC != 0x00fc6198 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x1238, 0xfa15} {
+		t.Fatalf("ROL.W result=%+v instructions=%d clocks=%d state=%+v err=%v",
+			result, machine.Instructions, machine.Clocks, machine.CPU.State, err)
+	}
+	for machine.Instructions < 100000 {
+		if _, err := machine.Step(); err != nil {
+			state = machine.CPU.State
+			wantD = [8]uint32{0x50, 1, 2, 0, 0x0008_0001, 0x0010_0001, 0x88, 0}
+			wantA = [7]uint32{0xffff_fa00, 0x3216, 0, 0, 0, 0x00fc_01f4, 0x0000_0ffc}
+			if err.Error() != "st: write 1-byte bus fault at 0xfffa1d fc=5: unsupported_device_state" ||
+				machine.Instructions != 68378 || machine.Interrupts != 4 || machine.Clocks != 966808 ||
+				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f3e ||
+				state.SR != 0x2300 || state.PC != 0x00fc629e || state.Prefetch != [2]uint16{0x001d, 0x1142} ||
+				machine.Memory.mfpIERB != 0x20 || machine.Memory.mfpIMRB != 0x20 {
+				t.Fatalf("post-ROL gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+					machine.Instructions, machine.Interrupts, machine.Clocks, state, err)
+			}
+			return
+		}
+	}
+	t.Fatal("no typed successor gate before 100000 instructions")
+}
+
 func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {

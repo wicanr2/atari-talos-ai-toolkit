@@ -339,6 +339,18 @@ func TestSingleStepRORLong(t *testing.T) {
 	testSingleStepCorpus(t, "ROR.l.json.bin")
 }
 
+func TestSingleStepROLByte(t *testing.T) {
+	testSingleStepCorpus(t, "ROL.b.json.bin")
+}
+
+func TestSingleStepROLWord(t *testing.T) {
+	testSingleStepCorpus(t, "ROL.w.json.bin")
+}
+
+func TestSingleStepROLLong(t *testing.T) {
+	testSingleStepCorpus(t, "ROL.l.json.bin")
+}
+
 func TestSingleStepSUBA(t *testing.T) {
 	for _, name := range []string{"SUBA.w.json.bin", "SUBA.l.json.bin"} {
 		t.Run(name, func(t *testing.T) { testSingleStepCorpus(t, name) })

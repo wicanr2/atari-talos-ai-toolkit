@@ -29,6 +29,7 @@
 | 68000 SUB／SUBI／SUBQ.B／W／L | 減法旗標、quick、An 特例與 RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 ASL.B／W／L | immediate／Dn count、X／NZVC、動態 clock、memory RMW 測試 | 三種寬度 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 ASR／LSR.B／W／L | immediate／Dn count、符號／零填入、X／NZVC、memory RMW 測試 | 六份語料 15,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
+| 68000 ROL.B／W／L | immediate／Dn count、X 保留、NZVC、memory RMW 測試 | 三份語料 7,500 筆完整 state／RAM／clock／bus／fault frame | 通過；固定 EmuTOS `$E378` 16 clocks |
 | 68000 MULS／MULU.W | signed／unsigned 結果、資料相依 clock、word data EA 測試 | 兩份語料 5,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 NOT／NEG.B／W／L | Dn／memory、邏輯／borrow 旗標、RMW bus 次序測試 | 六份語料 15,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 Scc.B | 16 conditions、Dn 真／假 clock、memory RMW、SR 不變測試 | Scc 2,500 筆完整 state／RAM／clock／bus trace | 通過 |
@@ -48,9 +49,10 @@
 | ST Shifter 程式化 framebuffer 基址 | `$FF8201/$FF8203` reset／byte R/W、`$3F` high mask、組址、alias／權限／寬度／timed wait | Hatari／EmuTOS `$FC67FA/$FC6800` 完整 state、register 與 active base 分離 | 通過；Talos 403,900→403,948 得 `$0F8000`，Hatari 403,924→403,972 |
 | ST Shifter 第四幀 active framebuffer 基址重載 | programmed／active 分離、VBL 原子提交、running crossing、STOP 快轉、reset | Hatari `video_hbl` trace；535,524→535,532 前後 `info video` 0→`$0F8000` | 通過；共同 deadline 535,528，Talos 可觀察邊界 535,520→535,530 |
 | ST low-res 4-plane 索引畫面 | 16 indices、plane／bit／group／line／frame 邊界、DMA RAM、fault、snapshot isolation | Hatari／EmuTOS VBL7 32,000-byte dump；raw／decoded SHA-256、histogram、首非零座標 | 通過；320×200 indices，Talos VBL4 正常路徑全黑 snapshot亦通過 |
+| ST MFP Timer C 啟動／channel enable | `$C0` main、TCDCR `$00→$50`、IERB bit 5、IMRB latch、fail-closed 邊界 | NXP MC68901 manual；EmuTOS `xbtimer`；Hatari `mfp_start/mfp_write` trace | 部分通過；start 與 enable 已接，countdown／timeout／IRQ 待補 |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET` 與空 cartridge 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；完全對拍至第 12 條／380 clocks，第 14 條首次差 2 clocks |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter 與部分 MFP 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；正常路徑至 68,378 instructions／966,808 clocks，下一 gate 是 Timer D `$50→$51` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

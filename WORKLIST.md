@@ -39,6 +39,7 @@
 | 68000 EOR／EORI.B／W／L | **CONFORMED** | 三種寬度、Dn／memory destination、immediate、RMW、fault 與 bus 共 7,500 筆全同 |
 | 68000 LSL.B／W／L | **CONFORMED** | immediate／Dn count、X／NZVC、動態 clock、memory RMW 與 fault 共 7,500 筆全同 |
 | 68000 ROR.B／W／L | **CONFORMED** | immediate／Dn count、X 保留、NZVC、動態 clock、memory RMW 與 fault 共 7,500 筆全同 |
+| 68000 ROL.B／W／L | **CONFORMED** | immediate／Dn count、X 保留、NZVC、動態 clock、memory RMW 與 fault 共 7,500 筆全同；EmuTOS `$E378` 已跨過 |
 | 68000 SUBA／CMPA.W／L | **CONFORMED** | word sign extension、全部 source EA、CCR、clock、fault 與 bus 共 10,000 筆全同 |
 | 68000 EXG | **CONFORMED** | Dn↔Dn、An↔An、Dn↔An、A7 bank、SR 與固定 6 clocks 共 2,500 筆全同 |
 | 68000 MOVE USP | **CONFORMED** | 雙方向、A7 bank、supervisor 正常與 user privilege vector 8 共 5,000 筆全同 |
@@ -69,6 +70,8 @@
 | ST MFP Vector Register | **CONFORMED** | vector base、unused bits read-zero、EOI／ISR clear、pending 非零 fail-closed；第 7,519 條／177,122 clocks 對拍 |
 | ST MFP timer control reset-stop | **CONFORMED** | TACR／TBCR／TCDCR `$00→$00`、非零 fail-closed、4 wait clocks；第 7,531 條／177,254 clocks 對拍 |
 | ST MFP timer data stopped-load | **CONFORMED** | TADR／TBDR／TCDR／TDDR 停止時同步 data/main counter、active fail-closed；第 7,547 條／177,430 clocks 對拍 |
+| ST MFP Timer C delay-mode 啟動 | **CONFORMED** | 固定 `$00→$50`、TCDR/main=`$C0`、÷64 start transition；68,103 條／963,104 clocks 抵達 `$E378` memory `ROL.W` gate |
+| ST MFP Timer C interrupt enable | **CONFORMED** | IERB bit 5=`$20`、IPRB 尚無 pending、IMRB=`$20`；68,378 條／966,808 clocks 抵達 Timer D `$50→$51` gate |
 | ST MFP USART reset writes | **CONFORMED** | SCR／UCR／RSR／TSR 軟體清零、TSR 硬體 reset 未定、非零與 UDR fail-closed；第 7,563 條／177,606 clocks 對拍 |
 | MC68000 `STOP` | **CONFORMED** | privilege、immediate SR、stopped latch、Reset 清除；2,500 筆語料通過，接入第一 VBL 後 EmuTOS 第 7,604 條／178,228 clocks 進入停機 |
 | MC68000 level 4 autovector 接受 | **CONFORMED** | mask 仲裁、44 clocks、6-byte frame、running／STOP saved PC 與 `$70→$FC0446` 對上固定 Hatari |

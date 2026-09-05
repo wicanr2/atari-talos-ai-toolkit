@@ -7,7 +7,7 @@ reliably, producing deterministic input, frame stepping, state capture, and mach
 evidence for more accurate retro-game remakes.
 
 The project is at M2. The versioned JSON Lines control protocol and CLI exist; the MC68000 core
-passes 232,500 external corpus cases. The incremental ST/STF core now schedules recurring reset-mode 60 Hz
+passes 240,000 external corpus cases. The incremental ST/STF core now schedules recurring reset-mode 60 Hz
 GLUE VBL events, advances a stopped CPU to the next event, performs E-clock-aligned video IACK,
 and executes the real EmuTOS handler. Its second handler entry matches Hatari at 267,332 machine
 clocks and increments `$466 frclock` from 1 to 2; a bounded run also crosses the third VBL and

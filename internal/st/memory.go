@@ -113,6 +113,7 @@ type Memory struct {
 	mfpTACR               byte
 	mfpTBCR               byte
 	mfpTCDCR              byte
+	mfpTimerCStart        bool
 	mfpTADR               byte
 	mfpTBDR               byte
 	mfpTCDR               byte
@@ -357,6 +358,10 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPIERB {
+		if m.mfpIERB == 0 && value == 0x20 && m.mfpIPRB == 0 && m.mfpTCDCR&0x70 == 0x50 {
+			m.mfpIERB = value
+			return nil
+		}
 		if m.mfpIERB != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -417,6 +422,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPTCDCR {
+		if m.mfpTCDCR == 0 && value == 0x50 && m.mfpTCDR == 0xc0 && m.mfpTCMain == 0xc0 {
+			m.mfpTCDCR = value
+			m.mfpTimerCStart = true
+			return nil
+		}
 		if m.mfpTCDCR != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -586,6 +596,7 @@ func (m *Memory) ColdReset() {
 	m.mfpTACR = 0
 	m.mfpTBCR = 0
 	m.mfpTCDCR = 0
+	m.mfpTimerCStart = false
 	m.mfpTADR = 0
 	m.mfpTBDR = 0
 	m.mfpTCDR = 0

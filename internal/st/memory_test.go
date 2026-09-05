@@ -785,6 +785,78 @@ func TestMFPTimerControlResetStopWrites(t *testing.T) {
 	}
 }
 
+func TestMFPTimerCDelayStartTransition(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpTCDR, memory.mfpTCMain = 0xc0, 0xc0
+	if wait, err := memory.WriteByteAt(0xfffffa1d, 0x50,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("Timer C start wait=%d err=%v", wait, err)
+	}
+	if got, err := memory.ReadByte(MFPTCDCR, 5); err != nil || got != 0x50 || !memory.mfpTimerCStart {
+		t.Fatalf("Timer C start control=%02x transition=%v err=%v", got, memory.mfpTimerCStart, err)
+	}
+	for _, value := range []byte{0, 0x10, 0x50, 0x51, 0x60, 0xff} {
+		before := memory.mfpTCDCR
+		if err := memory.WriteByte(MFPTCDCR, value, 5); err == nil {
+			t.Fatalf("active Timer C value %02x unexpectedly accepted", value)
+		}
+		if memory.mfpTCDCR != before || !memory.mfpTimerCStart {
+			t.Fatalf("failed value %02x changed control/transition=%02x/%v", value, memory.mfpTCDCR, memory.mfpTimerCStart)
+		}
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.mfpTCDCR != 0 || memory.mfpTimerCStart {
+		t.Fatalf("reset control/transition=%02x/%v", memory.mfpTCDCR, memory.mfpTimerCStart)
+	}
+	for _, data := range []byte{0, 0xbf, 0xc1, 0xff} {
+		memory.mfpTCDR, memory.mfpTCMain = data, data
+		if err := memory.WriteByte(MFPTCDCR, 0x50, 5); err == nil {
+			t.Fatalf("Timer C start with data %02x unexpectedly accepted", data)
+		}
+		if memory.mfpTCDCR != 0 || memory.mfpTimerCStart {
+			t.Fatalf("failed data %02x changed control/transition", data)
+		}
+	}
+}
+
+func TestMFPTimerCInterruptEnable(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, setup := range []func(*Memory){
+		func(m *Memory) {},
+		func(m *Memory) { m.mfpTCDCR = 0x50; m.mfpIPRB = 0x20 },
+	} {
+		setup(memory)
+		if err := memory.WriteByte(MFPIERB, 0x20, 5); err == nil {
+			t.Fatal("unsafe Timer C IERB enable unexpectedly accepted")
+		}
+		memory.mfpTCDCR, memory.mfpIPRB = 0, 0
+	}
+	memory.mfpTCDCR = 0x50
+	if wait, err := memory.WriteByteAt(0xfffffa09, 0x20,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("Timer C IERB enable wait=%d err=%v", wait, err)
+	}
+	if memory.mfpIERB != 0x20 || memory.mfpIPRB != 0 {
+		t.Fatalf("Timer C IERB/IPRB=%02x/%02x", memory.mfpIERB, memory.mfpIPRB)
+	}
+	for _, value := range []byte{0x20, 0x21, 0x40, 0xff} {
+		if err := memory.WriteByte(MFPIERB, value, 5); err == nil {
+			t.Fatalf("active IERB value %02x unexpectedly accepted", value)
+		}
+		if memory.mfpIERB != 0x20 || memory.mfpIPRB != 0 {
+			t.Fatalf("failed value %02x changed IERB/IPRB", value)
+		}
+	}
+}
+
 func TestMFPTimerDataStoppedLoad(t *testing.T) {
 	for _, test := range []struct {
 		name     string

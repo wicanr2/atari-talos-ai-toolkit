@@ -349,3 +349,20 @@
   Hatari VBL7 外部 fixture 的 raw／decoded SHA-256、histogram與首非零座標全過；Talos
   正常 VBL4 路徑亦產出全黑 320×200 snapshot。完整 232,500 筆 corpus、固定 ROM、
   全測試、vet、build通過，規格 082 升 CONFORMED；fixture與 ROM 均未入 Git。
+- 完成 MFP Timer C delay-mode 啟動首切片：NXP 手冊確認 control 5 是 ÷64；固定
+  EmuTOS `xbtimer(2, 0x50, 192, int_timerc)` 與 ROM `$FC62AA` 確認 `$C0/$50`；
+  Hatari trace 在 FrameCycles 124,038 顯示 12,288 MFP ticks，固定 clock 比例換算為
+  40,106 CPU clocks。Talos 僅接 `$00→$50` 與 start transition，其他 control、
+  countdown／timeout／IRQ 仍失敗即關閉。正常路徑前進到 68,103 instructions、
+  963,104 clocks，下一 gate 為 `$FC6192` memory `ROL.W` opcode `$E378`。規格 083
+  升 CONFORMED。
+- 完成 MC68000 ROL.B／W／L：依官方 manual 與固定 SingleStepTests 三份語料實作
+  immediate／register count、memory word RMW、C／X／NZV、EA、alignment、clock 與
+  bus fault；7,500／7,500 通過，完整 corpus 累計 240,000 筆。固定 EmuTOS
+  `$FC6192: E378 1238` 以 16 clocks 執行後，再前進到 68,131 instructions、
+  963,388 clocks 的 `$FFFA09` IERB gate。規格 084 升 CONFORMED。
+- 完成 MFP Timer C interrupt enable 首切片：NXP manual 確認 IERB bit 5 與兩級
+  enable/mask；EmuTOS `mfpint()` 與 Hatari trace 確認先清 IPRB／ISRB，再依序寫
+  IERB／IMRB=`$20`，期間沒有 timeout。Talos 只在 TCDCR=`$50`、IPRB=0 接受該 bit，
+  正常路徑前進到 68,378 instructions、4 interrupts、966,808 clocks，下一 gate
+  是 Timer D 的 TCDCR `$50→$51`。規格 085 升 CONFORMED。

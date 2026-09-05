@@ -245,6 +245,10 @@ func (c *CPU) StepAt(epoch uint64) (StepResult, error) {
 		return c.stepRORMemory(opcode)
 	case opcode&0xf118 == 0xe018 && opcode>>6&3 <= 2:
 		return c.stepRORRegister(opcode)
+	case opcode&0xffc0 == 0xe7c0:
+		return c.stepROLMemory(opcode)
+	case opcode&0xf118 == 0xe118 && opcode>>6&3 <= 2:
+		return c.stepROLRegister(opcode)
 	case opcode&0xffc0 == 0xe1c0:
 		return c.stepASLMemory(opcode)
 	case opcode&0xf118 == 0xe100 && opcode>>6&3 <= 2:
@@ -1451,14 +1455,18 @@ func (c *CPU) rightOperation(value uint32, bits uint8, count uint32, arithmetic,
 }
 
 func (c *CPU) stepASLRegister(opcode uint16) (StepResult, error) {
-	return c.stepShiftLeftRegister(opcode, true)
+	return c.stepLeftRegister(opcode, true, false)
 }
 
 func (c *CPU) stepLSLRegister(opcode uint16) (StepResult, error) {
-	return c.stepShiftLeftRegister(opcode, false)
+	return c.stepLeftRegister(opcode, false, false)
 }
 
-func (c *CPU) stepShiftLeftRegister(opcode uint16, arithmetic bool) (StepResult, error) {
+func (c *CPU) stepROLRegister(opcode uint16) (StepResult, error) {
+	return c.stepLeftRegister(opcode, false, true)
+}
+
+func (c *CPU) stepLeftRegister(opcode uint16, arithmetic, rotate bool) (StepResult, error) {
 	size := uint8(opcode >> 6 & 3)
 	reg := uint8(opcode & 7)
 	count := uint32(opcode >> 9 & 7)
@@ -1470,7 +1478,7 @@ func (c *CPU) stepShiftLeftRegister(opcode uint16, arithmetic bool) (StepResult,
 
 	bits := uint8(8 << size)
 	value := c.State.D[reg]
-	result := c.shiftLeft(value, bits, count, arithmetic)
+	result := c.leftOperation(value, bits, count, arithmetic, rotate)
 	switch size {
 	case 0:
 		c.State.D[reg] = value&0xffff_ff00 | result
@@ -1489,14 +1497,18 @@ func (c *CPU) stepShiftLeftRegister(opcode uint16, arithmetic bool) (StepResult,
 }
 
 func (c *CPU) stepASLMemory(opcode uint16) (StepResult, error) {
-	return c.stepShiftLeftMemory(opcode, true)
+	return c.stepLeftMemory(opcode, true, false)
 }
 
 func (c *CPU) stepLSLMemory(opcode uint16) (StepResult, error) {
-	return c.stepShiftLeftMemory(opcode, false)
+	return c.stepLeftMemory(opcode, false, false)
 }
 
-func (c *CPU) stepShiftLeftMemory(opcode uint16, arithmetic bool) (StepResult, error) {
+func (c *CPU) stepROLMemory(opcode uint16) (StepResult, error) {
+	return c.stepLeftMemory(opcode, false, true)
+}
+
+func (c *CPU) stepLeftMemory(opcode uint16, arithmetic, rotate bool) (StepResult, error) {
 	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
 	if mode < 2 || mode == 7 && reg > 1 {
 		return StepResult{}, fmt.Errorf("m68k: invalid left-shift memory mode %d:%d", mode, reg)
@@ -1519,7 +1531,7 @@ func (c *CPU) stepShiftLeftMemory(opcode uint16, arithmetic bool) (StepResult, e
 		return StepResult{}, err
 	}
 	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
-	result := uint16(c.shiftLeft(uint32(value), 16, 1, arithmetic))
+	result := uint16(c.leftOperation(uint32(value), 16, 1, arithmetic, rotate))
 	if err := stream.refill(); err != nil {
 		return StepResult{}, err
 	}
@@ -1530,7 +1542,7 @@ func (c *CPU) stepShiftLeftMemory(opcode uint16, arithmetic bool) (StepResult, e
 	return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
 }
 
-func (c *CPU) shiftLeft(value uint32, bits uint8, count uint32, arithmetic bool) uint32 {
+func (c *CPU) leftOperation(value uint32, bits uint8, count uint32, arithmetic, rotate bool) uint32 {
 	var mask, sign uint32
 	switch bits {
 	case 8:
@@ -1550,6 +1562,9 @@ func (c *CPU) shiftLeft(value uint32, bits uint8, count uint32, arithmetic bool)
 		oldSign := result & sign
 		carry = oldSign != 0
 		result = result << 1 & mask
+		if rotate && carry {
+			result |= 1
+		}
 		if arithmetic && result&sign != oldSign {
 			overflow = true
 		}
@@ -1564,9 +1579,14 @@ func (c *CPU) shiftLeft(value uint32, bits uint8, count uint32, arithmetic bool)
 		c.State.SR |= 0x0002
 	}
 	if count != 0 {
-		c.State.SR &^= 0x0010
+		if !rotate {
+			c.State.SR &^= 0x0010
+		}
 		if carry {
-			c.State.SR |= 0x0011
+			c.State.SR |= 0x0001
+			if !rotate {
+				c.State.SR |= 0x0010
+			}
 		}
 	}
 	return result

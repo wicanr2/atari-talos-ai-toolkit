@@ -231,6 +231,19 @@
   timer 的捕捉、延後 reload 與臨界不定值尚未建模，明確失敗。固定 EmuTOS 現可完成
   7,547 條／177,430 clocks；再完成三條控制指令後，第 7,551 次嘗試在 `$FFFA27`
   Synchronous Character Register 形成本規格當時的驗收停止點；後續由規格 071 接管。
+- MFP Timer C delay-mode 啟動已 CONFORMED：固定 EmuTOS 以 TCDR/main=`$C0`、
+  TCDCR `$00→$50` 啟動 control 5（÷64），Hatari trace 為 12,288 MFP ticks，依固定
+  8,021,248／2,457,600 Hz 比例是 40,106 CPU clocks。此切片只 latch start transition，
+  countdown／timeout／IRQ 尚未接線；正常路徑已前進到 68,103 instructions、3 interrupts、
+  963,104 clocks，下一 gate 是 `$FC6192` 的 memory `ROL.W` opcode `$E378`。
+- MC68000 ROL.B／W／L 已 CONFORMED：三份固定外部語料 7,500／7,500 通過，完整
+  corpus 累計 240,000 筆。固定 EmuTOS `$FC6192: E378 1238` 以 16 clocks 執行；
+  正常路徑再前進到 68,131 instructions、3 interrupts、963,388 clocks，下一 gate
+  是 Timer C channel 的 `$FFFA09` IERB 非零寫入。
+- MFP Timer C interrupt enable 已 CONFORMED：固定路徑只在 TCDCR=`$50`、IPRB=0
+  時允許 IERB bit 5 `$00→$20`，後續既有 IMRB latch 寫成 `$20`；尚未產生 timeout
+  或 IRQ。正常路徑跨過第四次 VBL，抵達 68,378 instructions、4 interrupts、
+  966,808 clocks；下一 gate 是 Timer D 啟動的 TCDCR `$50→$51`。
 - MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset write 已
   CONFORMED：依 NXP 手冊保留 TSR 硬體 reset 未定的事實，只接受固定 EmuTOS 的
   軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
@@ -286,6 +299,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理 VBL7 前 962,832 clocks 的
-   `$FFFA1D` 非零 timer control gate；RGB／PNG 色階契約與正常 50 Hz HBL310 提前重載
-   仍須各自 READY，不得由 palette index 或 VBL 保底提交外推。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理 966,808 clocks 的 TCDCR
+   `$50→$51` Timer D gate，再依正常路徑補 Timer C countdown／timeout／IRQ；RGB／PNG
+   色階契約與正常 50 Hz HBL310 提前重載仍須各自 READY，不得由 palette index或
+   VBL 保底提交外推。
