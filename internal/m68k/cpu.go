@@ -254,6 +254,8 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepRTE(opcode)
 	case opcode == 0x4e7a || opcode == 0x4e7b:
 		return c.enterStandardException(4, c.State.PC-4, nil, 36)
+	case opcode == 0x4e70:
+		return c.stepRESET()
 	case opcode&0xfff8 == 0x4e60:
 		return c.stepMOVEToUSP(opcode)
 	case opcode&0xfff8 == 0x4e68:
@@ -315,6 +317,18 @@ func (c *CPU) Step() (StepResult, error) {
 		Kind: "r", Cycle: 4, FC: fc, Address: address, Size: 2,
 		Data: word, UDS: true, LDS: true,
 	}}}, nil
+}
+
+// stepRESET implements RESET ($4E70). The instruction drives the external RESET
+// line so peripherals restart; the CPU's own registers, SR and memory are all
+// left alone, so the only visible effect here is the prefetch it then performs.
+// Nothing observes the RESET line yet, and inventing peripheral side effects
+// would be modelling behaviour no evidence covers (spec 053).
+func (c *CPU) stepRESET() (StepResult, error) {
+	if c.State.SR&supervisor == 0 {
+		return c.enterStandardException(8, c.State.PC-4, nil, 34)
+	}
+	return c.refillSequential(controlEA{returnPC: c.State.PC}, 132)
 }
 
 func (c *CPU) stepMOVEToUSP(opcode uint16) (StepResult, error) {

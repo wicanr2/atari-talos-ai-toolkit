@@ -51,7 +51,9 @@
 | ST MMU `$FF8001`／512 KiB bank translation | **CONFORMED** | cold `$00`、`$0A→$05` trace、512 KiB／1 MiB topology 與 EmuTOS `$FC0070` 邊界同狀態 |
 | 68000 `MOVEC` illegal instruction／vector 4 | **CONFORMED** | `$4E7A/$4E7B`、36 clocks；EmuTOS 以 8 條／128 clocks 到 `$FC0074`，frame／state 全同 |
 | vector 2 absolute-short fault address | **CONFORMED** | frame 保存 CPU 內部的 32-bit 有效位址；EmuTOS `$FC0080` `TST.W $8006` 端到端得 `$FFFF8006`、匯流排 `$FF8006`；含暫存器高位元的負對照與三條鑑別力驗證 |
-| MC68000 `RESET` | 待規格 | 完成前述 vector 2 frame 後，對拍 `$FC0088` 的 privilege、clocks 與周邊 reset 契約 |
+| MC68000 `RESET` | **CONFORMED** | `RESET.json.bin` 2,500 筆（supervisor 132 clocks／user vector 8 34 clocks）全同；EmuTOS `$FC0088` 端到端執行成功，CPU 狀態不變、PC 前進一個 word。外部 `RESET` 線對周邊的效果待 I/O 接入後各自定義 |
+| ST cartridge port `$FA0000`–`$FBFFFF` | 待規格 | EmuTOS 第 12 條指令在 `$FC008E` 探測插卡；目前 memory map 不涵蓋該區，回 unmapped fault |
+| bus fault → vector 2 的指令涵蓋面 | 待規格 | 目前只有 `MOVE.W` 來源讀取會轉成 vector 2；其餘路徑的 bus fault 直接往外傳，開機路徑因此停在第一個非 `MOVE.W` 的失敗存取 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
 | UCSD p-System 直譯器真實碼驗收 | **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |

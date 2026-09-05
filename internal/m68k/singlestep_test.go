@@ -431,6 +431,10 @@ func TestSingleStepBitOperations(t *testing.T) {
 	}
 }
 
+func TestSingleStepRESET(t *testing.T) {
+	testSingleStepCorpus(t, "RESET.json.bin")
+}
+
 func TestSingleStepUNLINKNormal(t *testing.T) {
 	testSingleStepCorpusFiltered(t, "UNLINK.json.bin", 1385, func(test corpusTest) bool {
 		return !hasTransactionKind(test.Transactions, "re")
