@@ -205,3 +205,7 @@
   byte write discard，且明確不接主機 wall-clock。固定 EmuTOS 第 6,879 條對拍通過，
   後續推進到 6,916 條；新停點為 `$FF8A3C` Blitter 探測 bus fault。規格 059 升
   CONFORMED。
+- 完成 `TST.B (An)` typed bus fault／vector 2：固定 Hatari `$FF8A3C` Blitter probe
+  確認 64 clocks 與 frame `$4A15,$FFFF,$8A3C,$4A10,$2704,$00FC,$0638`；synthetic
+  ST memory 與固定 EmuTOS 第 6,917 條的 registers、frame、handler prefetch 全同。
+  後續推進到 7,474 條，新停點為 `$FFFA01` MFP byte write；規格 060 升 CONFORMED。

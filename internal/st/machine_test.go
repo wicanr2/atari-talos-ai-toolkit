@@ -527,6 +527,53 @@ func TestMachineEmuTOSSTWithoutMegaRTC(t *testing.T) {
 	}
 }
 
+func TestMachineEmuTOSBlitterProbeBusError(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 6917; i++ {
+		result, stepErr := machine.Step()
+		if stepErr != nil {
+			t.Fatalf("step %d: %v", i+1, stepErr)
+		}
+		if i == 6916 && result.Clocks != 64 {
+			t.Fatalf("Blitter probe bus error clocks=%d want 64", result.Clocks)
+		}
+	}
+	state := machine.CPU.State
+	wantD := [8]uint32{0, 0x0f84, 0, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA := [7]uint32{0xffff8a3c, 0x00fc036e, 0, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 6917 || machine.Clocks != 168242 || state.D != wantD || state.A != wantA ||
+		state.USP != 0 || state.SSP != 0x0f76 || state.SR != 0x2704 || state.PC != 0x00fc0640 ||
+		state.Prefetch != [2]uint16{0x21c9, 0x0008} {
+		t.Fatalf("Blitter probe handler instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	wantFrame := []uint16{0x4a15, 0xffff, 0x8a3c, 0x4a10, 0x2704, 0x00fc, 0x0638}
+	for index, want := range wantFrame {
+		got, readErr := machine.Memory.ReadWord(state.SSP+uint32(index*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("Blitter probe frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+		}
+	}
+}
+
 func TestMachineResetWithEmuTOS(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {

@@ -1517,8 +1517,20 @@ func (c *CPU) stepTST(opcode uint16) (StepResult, error) {
 	}
 	switch size {
 	case 0:
+		initialPC := c.State.PC
 		value, cost, _, err := stream.readSource(mode, reg)
 		if err != nil {
+			if mode == 2 {
+				var fault BusFault
+				target := c.addressRegister(reg)
+				if errors.As(err, &fault) {
+					faultAddress, faultFC, write, faultSize := fault.M68KBusFault()
+					if !write && faultSize == 1 && faultAddress == target&addressMask && target&1 == 0 {
+						return c.enterByteBusError(opcode, target, initialPC-2,
+							stream.transactions, 60+cost, faultFC, "re", true)
+					}
+				}
+			}
 			return StepResult{}, err
 		}
 		c.setLogicalFlags(uint32(value), 8)
@@ -3186,7 +3198,7 @@ func (s *moveByteStep) readSource(mode, reg uint8) (byte, uint32, bool, error) {
 	}
 	value, err := c.Bus.ReadByte(address&addressMask, readFC)
 	if err != nil {
-		return 0, 0, true, err
+		return 0, cost, true, err
 	}
 	s.transactions = append(s.transactions, readByteTransaction(address&addressMask, readFC, value))
 	if mode == 3 {
@@ -4657,7 +4669,7 @@ func (c *CPU) enterAddressError(
 	faultKind string,
 	read bool,
 ) (StepResult, error) {
-	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x00000c)
+	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x00000c, 2)
 }
 
 func (c *CPU) enterBusError(
@@ -4670,7 +4682,20 @@ func (c *CPU) enterBusError(
 	faultKind string,
 	read bool,
 ) (StepResult, error) {
-	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x000008)
+	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x000008, 2)
+}
+
+func (c *CPU) enterByteBusError(
+	opcode uint16,
+	target uint32,
+	savedPC uint32,
+	prefix []Transaction,
+	clocks uint32,
+	faultFC uint8,
+	faultKind string,
+	read bool,
+) (StepResult, error) {
+	return c.enterAccessError(opcode, target, savedPC, prefix, clocks, faultFC, faultKind, read, 0x000008, 1)
 }
 
 func (c *CPU) enterAccessError(
@@ -4683,6 +4708,7 @@ func (c *CPU) enterAccessError(
 	faultKind string,
 	read bool,
 	vectorAddress uint32,
+	faultSize uint8,
 ) (StepResult, error) {
 	originalSR := c.State.SR
 	faultBusAddress := target & addressMask &^ 1
@@ -4704,9 +4730,14 @@ func (c *CPU) enterAccessError(
 		{newSP, ssw},
 		{newSP + 2, uint16(target >> 16)},
 	}
+	uds, lds := true, true
+	if faultSize == 1 {
+		uds = target&1 == 0
+		lds = !uds
+	}
 	transactions := append(prefix, Transaction{
 		Kind: faultKind, Cycle: 4, FC: faultFC, Address: faultBusAddress,
-		Size: 2, Data: 0, UDS: true, LDS: true,
+		Size: faultSize, Data: 0, UDS: uds, LDS: lds,
 	})
 	for _, write := range writes {
 		address := write.address & addressMask

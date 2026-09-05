@@ -458,6 +458,50 @@ func TestMOVEWordProtectedReadEntersBusErrorVector2(t *testing.T) {
 	}
 }
 
+func TestTSTByteReservedIOReadEntersBusErrorVector2(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	const handler = uint32(0x1000)
+	for address, value := range map[uint32]uint16{
+		0x0008: 0x0000, 0x000a: uint16(handler),
+		handler: 0x21c9, handler + 2: 0x0008,
+	} {
+		if err := memory.WriteWord(address, value, 5); err != nil {
+			t.Fatalf("seed 0x%x: %v", address, err)
+		}
+	}
+	cpu := m68k.CPU{Bus: memory, State: m68k.State{
+		A: [7]uint32{0xffff8a3c}, SSP: 0x2000, SR: 0x2704,
+		PC: 0x2004, Prefetch: [2]uint16{0x4a10, 0x4e71},
+	}}
+	result, err := cpu.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 64 || cpu.State.SSP != 0x1ff2 || cpu.State.SR != 0x2704 ||
+		cpu.State.PC != handler+4 || cpu.State.Prefetch != [2]uint16{0x21c9, 0x0008} ||
+		cpu.State.A[0] != 0xffff8a3c {
+		t.Fatalf("result=%+v state=%+v", result, cpu.State)
+	}
+	if len(result.Transactions) != 12 {
+		t.Fatalf("transactions=%d want 12: %+v", len(result.Transactions), result.Transactions)
+	}
+	fault := result.Transactions[0]
+	if fault.Kind != "re" || fault.Address != 0xff8a3c || fault.Size != 1 || fault.FC != 5 ||
+		!fault.UDS || fault.LDS {
+		t.Fatalf("fault transaction=%+v", fault)
+	}
+	wantFrame := []uint16{0x4a15, 0xffff, 0x8a3c, 0x4a10, 0x2704, 0x0000, 0x2002}
+	for index, want := range wantFrame {
+		got, readErr := memory.ReadWord(cpu.State.SSP+uint32(index*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+		}
+	}
+}
+
 func TestDivideByZeroEntersVector5(t *testing.T) {
 	for _, opcode := range []uint16{0x80c1, 0x81c1} {
 		t.Run(fmt.Sprintf("opcode_%04x", opcode), func(t *testing.T) {

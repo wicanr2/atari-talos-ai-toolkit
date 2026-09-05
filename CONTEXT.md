@@ -178,7 +178,11 @@
 - 普通 ST／Ricoh `$FF860F` void byte read 與無 Mega-RTC 的 `$FFFC21–$FFFC3F`
   void byte range已依固定 Hatari／EmuTOS 原始碼與 tracepoint CONFORMED；read 回 `$FF`，
   RTC range byte write discard，且不取用主機 wall-clock。固定 EmuTOS 可成功完成
-  6,916 條，新第一停點是第 6,917 條 `$FF8A3C` Blitter 探測的 `TST.B` bus fault。
+  6,916 條。
+- `TST.B (An)` byte source typed bus fault／vector 2 已以 `$FF8A3C` Blitter 探測
+  CONFORMED：64 clocks、byte UDS lane、SSW `$4A15`、fault address `$FFFF8A3C`、
+  saved PC `$FC0638`、完整 frame 與 handler state 對上 Hatari。固定 EmuTOS 可成功
+  完成 7,474 條，新第一停點是對 `$FFFA01` 的 MFP byte write。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -192,5 +196,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片規格化 `TST.B` memory source 的 typed bus fault／vector 2；以
-   EmuTOS 第 6,917 條 `$FF8A3C` Blitter 探測對拍，再繼續固定 ROM 開機。
+4. 下一個整機切片先查證並規格化 `$FFFA01` MFP GPIP byte write 的 reset state、
+   writable bits、副作用與 clocks，再繼續固定 ROM 開機對拍。

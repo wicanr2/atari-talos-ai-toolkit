@@ -283,3 +283,11 @@
 - Hatari tracepoint 以 A0=`$FFFFFC21` 捕捉同一 `$FC0636` `TST.B (A0)`；
   FrameCycles 35088→35096，SR `$2704→$2708`、prefetch `$4A10,$4E71→$4E71,$7001`，
   確認普通 ST 讀得 `$FF` 且 8 clocks，不取用主機 wall-clock。
+- 固定 Hatari 在 `--machine st --blitter false` 下將 `$FF8A00–$FF8A3F` 設為
+  bus-error region；EmuTOS `bios/machine.c:303-320 detect_blitter` 以
+  `check_read_byte($FFFF8A3C)` 判斷裝置是否存在。這個停點不應映射假 Blitter。
+- `$FC0636` `TST.B (A0)` fault 前為 A0=`$FFFF8A3C`、SSP=`$0F84`、SR=`$2704`、
+  prefetch=`$4A10,$4E71`、FrameCycles=35524；vector 2 handler `$FC063C` 入口為
+  35588、SSP=`$0F76`、prefetch=`$21C9,$0008`。14-byte frame words 是
+  `$4A15,$FFFF,$8A3C,$4A10,$2704,$00FC,$0638`，確認 64 clocks、byte read SSW
+  與 next-instruction saved PC。
