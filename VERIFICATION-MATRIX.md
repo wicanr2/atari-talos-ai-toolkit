@@ -36,8 +36,9 @@
 | ST／STF 基礎 memory map | RAM 容量／邊界、reset shadow、ROM、FC 權限、word 與 fault 測試 | 自建非原版 pattern；Atari 1986 hardware spec 第 25–27 頁 | 通過；CPU vector 2 其餘路徑／I/O 待補 |
 | MC68000／ST power-on reset | FC=6 vector 讀取、SR／SSP／PC／prefetch、failure staging、machine counters 與首指令 | synthetic ROM；EmuTOS 1.3 UK 192 KiB；Hatari 2.4.1 同狀態 | 通過；首條 `BRA.W` 後 10 clocks／PC／prefetch 一致 |
 | ST MMU `$FF8001` | cold reset、FC 權限、full-byte R/W latch、512 KiB-bank RAS／CAS translation、alias／identity／empty bank | Atari 1986 hardware spec；Hatari I/O trace／`stMemory.c`；EmuTOS 同 ROM | 通過；`$FA` 寫讀與前 7 條至 `$FC0070` state／92 clocks 全同 |
+| 68000 `MOVEC` illegal／vector 4 | `$4E7A/$4E7B`、saved opcode PC、format-0 frame、FC／bus、36 clocks | synthetic 雙方向／user／supervisor；Hatari／EmuTOS 同 ROM | 通過；第 8 條／128 clocks 到 `$FC0074` state／frame 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset 與前 7 條指令已建立；vector 4／後續 opcode／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；同狀態邊界 `$FC0070` |
+| TOS 開機 | reset、MMU 與 `MOVEC`→vector 4 已建立；vector 2 fault address／`RESET`／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；已完全對拍至 `$FC0074`（8 條／128 clocks） |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

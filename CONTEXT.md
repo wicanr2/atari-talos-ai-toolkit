@@ -146,6 +146,11 @@
   512 KiB 實體 bank 在 128 KiB／512 KiB／2 MiB 邏輯設定下的 STF
   位址轉換。Hatari trace 的 `$00→$0A→$05` 序列已收據；Atari Talos
   現可與 Hatari 同狀態到達 `$FC0070`（7 條指令、92 clocks）。
+- MC68000 對 68010+ `$4E7A/$4E7B` `MOVEC` 已正確進 illegal-instruction
+  vector 4；EmuTOS 與 Hatari 均以 8 條指令、128 clocks 到 `$FC0074`，
+  format-0 frame、SSP／SR 與 handler prefetch 全同。繼續至 `$FC0088`
+  時發現中間 vector 2 frame 的 fault address 高 byte 仍有
+  `$FFFF8006`（Hatari）／`$00FF8006`（Atari Talos）差異。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -160,4 +165,5 @@
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 擴充 MC68000 vector 2 其餘 fault 路徑，再加入啟動所需 I/O，由已對拍的
-   EmuTOS `$FC0070` 邊界先建立 MC68000 illegal-instruction vector 4，再繼續向後開機。
+   EmuTOS `$FC0080` 的 `TST.W $8006` bus fault 先保留 absolute-short 符號延伸
+   fault address `$FFFF8006`，再處理 `$FC0088` `RESET` 及後續開機。

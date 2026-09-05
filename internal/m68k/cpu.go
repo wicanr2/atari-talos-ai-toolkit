@@ -252,6 +252,8 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepRTS(opcode)
 	case opcode == 0x4e73:
 		return c.stepRTE(opcode)
+	case opcode == 0x4e7a || opcode == 0x4e7b:
+		return c.enterStandardException(4, c.State.PC-4, nil, 36)
 	case opcode&0xfff8 == 0x4e60:
 		return c.stepMOVEToUSP(opcode)
 	case opcode&0xfff8 == 0x4e68:

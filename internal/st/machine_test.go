@@ -86,6 +86,46 @@ func TestMachineEmuTOSReachesMOVECProbe(t *testing.T) {
 	}
 }
 
+func TestMachineEmuTOSMOVECEntersIllegalVector4(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 8; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	state := machine.CPU.State
+	if machine.Instructions != 8 || machine.Clocks != 128 || state.PC != 0x00fc0078 ||
+		state.Prefetch != [2]uint16{0x21fc, 0x00fc} || state.SSP != 0x0ffa || state.SR != 0x2704 {
+		t.Fatalf("vector-4 boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	wantFrame := []uint16{0x2704, 0x00fc, 0x0070}
+	for index, want := range wantFrame {
+		got, readErr := machine.Memory.ReadWord(0x0ffa+uint32(index*2), 5)
+		if readErr != nil || got != want {
+			t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+		}
+	}
+}
+
 func TestMachineResetWithEmuTOS(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {

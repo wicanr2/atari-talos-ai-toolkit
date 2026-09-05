@@ -102,6 +102,59 @@ func TestNOPPipelineAndFunctionCode(t *testing.T) {
 	}
 }
 
+func TestMC68000MOVECEntersIllegalInstructionVector4(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		opcode    uint16
+		initialSR uint16
+		finalSR   uint16
+	}{
+		{"control_to_register_supervisor_trace", 0x4e7a, 0xa704, 0x2704},
+		{"register_to_control_user_trace", 0x4e7b, 0x8004, 0x2004},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			memory := SparseMemory{
+				0x0010: 0x00, 0x0011: 0x00, 0x0012: 0x10, 0x0013: 0x00,
+				0x1000: 0x21, 0x1001: 0xfc, 0x1002: 0x00, 0x1003: 0xfc,
+			}
+			cpu := CPU{Bus: memory, State: State{
+				D: [8]uint32{0x12345678}, A: [7]uint32{0x87654321},
+				USP: 0x4000, SSP: 0x3000, SR: test.initialSR, PC: 0x2004,
+				Prefetch: [2]uint16{test.opcode, 0x0801},
+			}}
+			result, err := cpu.Step()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Clocks != 36 || cpu.State.SSP != 0x2ffa || cpu.State.USP != 0x4000 ||
+				cpu.State.SR != test.finalSR || cpu.State.PC != 0x1004 ||
+				cpu.State.Prefetch != [2]uint16{0x21fc, 0x00fc} ||
+				cpu.State.D[0] != 0x12345678 || cpu.State.A[0] != 0x87654321 {
+				t.Fatalf("result=%+v state=%+v", result, cpu.State)
+			}
+			wantFrame := []uint16{test.initialSR, 0x0000, 0x2000}
+			for index, want := range wantFrame {
+				got, readErr := memory.ReadWord(0x2ffa+uint32(index*2), 5)
+				if readErr != nil || got != want {
+					t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+				}
+			}
+			wantTransactions := []Transaction{
+				writeTransaction(0x2ffe, 5, 0x2000),
+				writeTransaction(0x2ffa, 5, test.initialSR),
+				writeTransaction(0x2ffc, 5, 0x0000),
+				readTransaction(0x0010, 5, 0x0000),
+				readTransaction(0x0012, 5, 0x1000),
+				readTransaction(0x1000, 6, 0x21fc),
+				readTransaction(0x1002, 6, 0x00fc),
+			}
+			if !reflect.DeepEqual(result.Transactions, wantTransactions) {
+				t.Fatalf("transactions=%+v want %+v", result.Transactions, wantTransactions)
+			}
+		})
+	}
+}
+
 func TestStepFailsClosed(t *testing.T) {
 	for _, test := range []CPU{
 		{State: State{Prefetch: [2]uint16{0x4e71}}},

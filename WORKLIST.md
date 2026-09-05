@@ -49,7 +49,9 @@
 | ST／STF 基礎 memory map | **CONFORMED** | 512 KiB／1 MiB RAM、reset shadow、192 KiB TOS ROM、保護與 typed bus fault 測試通過 |
 | MC68000／ST power-on reset／EmuTOS 首指令 | **CONFORMED** | 真實 ROM 的 SSP／PC／prefetch 與首條 `BRA.W` 10 clocks 均對 Hatari 一致 |
 | ST MMU `$FF8001`／512 KiB bank translation | **CONFORMED** | cold `$00`、`$0A→$05` trace、512 KiB／1 MiB topology 與 EmuTOS `$FC0070` 邊界同狀態 |
-| 68000 illegal instruction／vector 4 | 待規格 | EmuTOS `$FC0070` 的 68010+ `MOVEC` 探測必須依 MC68000 frame／clock 進 handler |
+| 68000 `MOVEC` illegal instruction／vector 4 | **CONFORMED** | `$4E7A/$4E7B`、36 clocks；EmuTOS 以 8 條／128 clocks 到 `$FC0074`，frame／state 全同 |
+| vector 2 absolute-short fault address | 待規格 | EmuTOS `$FC0080` `TST.W $8006` frame 必須保存 `$FFFF8006`，不可早截為 24-bit |
+| MC68000 `RESET` | 待規格 | 完成前述 vector 2 frame 後，對拍 `$FC0088` 的 privilege、clocks 與周邊 reset 契約 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

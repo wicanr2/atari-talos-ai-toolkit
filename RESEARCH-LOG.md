@@ -228,3 +228,12 @@
   與 Hatari 均為 92 clocks、`SSP=00001000`、`SR=2704`、prefetch=`4e7b,0801`。
   `$4E7B` 是 68010+ `MOVEC D0,VBR` CPU 型號探測；MC68000 應走 vector 4，
   目前因 illegal-instruction exception 尚未建立而成為新的第一停點。
+- Hatari 對 `$FC0070` `$4E7B` 的 vector 4 收據：vector long=`$00FC0074`；
+  進入 handler 後 FrameCycles `92→128`，`SSP=$0FFA`、`SR=$2704`、
+  prefetch=`$21FC,$00FC`。MMU cold `$00` 下的 physical `$1FFA` frame 為
+  `$2704,$00FC,$0070`，確認 saved PC 是 opcode 位址且本例外為 36 clocks。
+- 繼續探測時，兩引擎均以 10 條完成指令、220 clocks 到 `$FC0088`
+  `RESET`，但對 `$FC0080` `TST.W $8006` 產生的 vector 2 frame 不同：
+  Hatari 保存 fault address `$FFFF8006`，Atari Talos 保存 `$00FF8006`。
+  下一切片必須保留 effective address 的 32-bit 符號延伸表示，不可只由
+  24-bit bus backend 回報值反推。
