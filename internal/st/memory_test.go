@@ -1402,6 +1402,83 @@ func TestSTDMAResetToggleAndZeroSectorCount(t *testing.T) {
 	}
 }
 
+func TestEmptyACSITargetZeroCommandStart(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.fdcProbeDrive = 1
+	memory.fdcInitStage = 14
+	memory.dmaAddressWriteStage = 3
+	memory.dmaInitStage = 3
+	memory.dmaMode = 0x0090
+	memory.dmaResetCount = 2
+	memory.mfpGPIPIn |= 0x20
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil ||
+		memory.acsiStage != 0 || memory.acsiTarget != -1 || memory.dmaMode != 0x0090 {
+		t.Fatal("ACSI data before mode unexpectedly accepted or mutated state")
+	}
+	if err := memory.WriteWord(STDMAControl, 0x008a, 5); err == nil ||
+		memory.acsiStage != 0 || memory.acsiTarget != -1 || memory.dmaMode != 0x0090 {
+		t.Fatal("wrong ACSI first mode unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0088,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.dmaMode != 0x0088 || memory.acsiStage != 1 || memory.acsiTarget != 0 ||
+		memory.dmaResetCount != 2 {
+		t.Fatalf("ACSI select wait/err/mode/stage/target/resets=%d/%v/%04x/%d/%d/%d", wait,
+			err, memory.dmaMode, memory.acsiStage, memory.acsiTarget, memory.dmaResetCount)
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err == nil ||
+		memory.acsiStage != 1 || memory.acsiCommand != 0 || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatal("wrong ACSI command unexpectedly accepted or raised IRQ")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.acsiStage != 2 || memory.acsiCommand != 0 || memory.mfpGPIPIn&0x20 == 0 ||
+		memory.fdcIRQ {
+		t.Fatalf("ACSI command wait/err/stage/command/GPIP/IRQ=%d/%v/%d/%02x/%02x/%v", wait,
+			err, memory.acsiStage, memory.acsiCommand, memory.mfpGPIPIn, memory.fdcIRQ)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0088, 5); err == nil ||
+		memory.acsiStage != 2 || memory.dmaMode != 0x0088 {
+		t.Fatal("wrong ACSI next mode unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x008a,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.acsiStage != 3 || memory.dmaMode != 0x008a || memory.mfpGPIPIn&0x20 == 0 ||
+		memory.fdcIRQ || memory.dmaResetCount != 2 {
+		t.Fatalf("ACSI next wait/err/stage/mode/GPIP/IRQ/resets=%d/%v/%d/%04x/%02x/%v/%d", wait,
+			err, memory.acsiStage, memory.dmaMode, memory.mfpGPIPIn, memory.fdcIRQ,
+			memory.dmaResetCount)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0090, 5); err == nil ||
+		memory.acsiStage != 3 || memory.dmaMode != 0x008a {
+		t.Fatal("wrong ACSI timeout return unexpectedly accepted or mutated state")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.acsiStage != 4 || memory.dmaMode != 0x0080 || memory.dmaInitStage != 0 ||
+		memory.dmaResetCount != 0 || memory.fdcInitStage != 14 || memory.fdcProbeDrive != 1 ||
+		memory.mfpGPIPIn&0x20 == 0 || memory.fdcIRQ || memory.acsiTimeoutReturnClock != 2 {
+		t.Fatalf("ACSI return wait/err/stage/mode/init/resets/FDC/drive/GPIP/IRQ/clock=%d/%v/%d/%04x/%d/%d/%d/%d/%02x/%v/%d",
+			wait, err, memory.acsiStage, memory.dmaMode, memory.dmaInitStage,
+			memory.dmaResetCount, memory.fdcInitStage, memory.fdcProbeDrive,
+			memory.mfpGPIPIn, memory.fdcIRQ, memory.acsiTimeoutReturnClock)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0080, 1); err == nil {
+		t.Fatal("user ACSI mode unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.acsiStage != 0 || memory.acsiTarget != -1 || memory.acsiCommand != 0 ||
+		memory.acsiTimeoutReturnClock != 0 {
+		t.Fatalf("reset ACSI stage/target/command/clock=%d/%d/%02x/%d", memory.acsiStage,
+			memory.acsiTarget, memory.acsiCommand, memory.acsiTimeoutReturnClock)
+	}
+}
+
 func TestIKBDACIAControlInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

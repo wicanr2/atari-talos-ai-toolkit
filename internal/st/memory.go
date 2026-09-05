@@ -117,6 +117,10 @@ type Memory struct {
 	dmaSectorCount          uint8
 	dmaResetCount           uint8
 	dmaInitStage            uint8
+	acsiStage               uint8
+	acsiTarget              int8
+	acsiCommand             byte
+	acsiTimeoutReturnClock  uint64
 	fdcCommand              byte
 	fdcStatus               byte
 	fdcStatusTypeI          bool
@@ -242,6 +246,7 @@ func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
 		rom:           append([]byte(nil), tosROM...),
 		mfpGPIPIn:     0xa1,
 		fdcProbeDrive: -1,
+		acsiTarget:    -1,
 	}, nil
 }
 
@@ -1002,6 +1007,33 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.dmaInitStage = 3
 			return nil
 		}
+		if address == STDMAControl && m.dmaInitStage == 3 && m.acsiStage == 0 &&
+			m.dmaMode == 0x0090 && value == 0x0088 {
+			m.dmaMode = value
+			m.acsiTarget = 0
+			m.acsiStage = 1
+			return nil
+		}
+		if address == STDiskController && m.acsiStage == 1 && m.acsiTarget == 0 &&
+			m.dmaMode == 0x0088 && value == 0 {
+			m.acsiCommand = byte(value)
+			m.acsiStage = 2
+			return nil
+		}
+		if address == STDMAControl && m.acsiStage == 2 && m.acsiTarget == 0 &&
+			m.acsiCommand == 0 && m.dmaMode == 0x0088 && value == 0x008a {
+			m.dmaMode = value
+			m.acsiStage = 3
+			return nil
+		}
+		if address == STDMAControl && m.acsiStage == 3 && m.acsiTarget == 0 &&
+			m.acsiCommand == 0 && m.dmaMode == 0x008a && value == 0x0080 {
+			m.dmaMode = value
+			m.dmaResetCount = 0
+			m.dmaInitStage = 0
+			m.acsiStage = 4
+			return nil
+		}
 		if address == STDMAControl && m.fdcInitStage == 2 && m.dmaMode == 0x0080 && value == 0x0080 {
 			m.fdcInitStage = 3
 			return nil
@@ -1056,7 +1088,7 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.fdcInitStage = 1
 			return nil
 		}
-		if address == STDMAControl && m.fdcInitStage == 14 && m.psgDriveStage == 6 &&
+		if address == STDMAControl && m.fdcProbeDrive == 0 && m.fdcInitStage == 14 && m.psgDriveStage == 6 &&
 			m.psgRegisterSelect == 14 && m.psgRegisters[14] == 3 && value == 0x0080 {
 			m.dmaMode = value
 			m.fdcProbeDrive = 1
@@ -1113,6 +1145,7 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 	}
 	wasRestorePending := m.fdcRestorePending
 	wasSeekPending := m.fdcSeekPending
+	acsiStage := m.acsiStage
 	err = m.WriteWord(address, value, access.FunctionCode)
 	if err == nil {
 		address &= AddressMask
@@ -1124,6 +1157,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		}
 		if !wasSeekPending && m.fdcSeekPending {
 			m.fdcSeekStartClock = access.Clock
+		}
+		if acsiStage == 3 && m.acsiStage == 4 {
+			m.acsiTimeoutReturnClock = access.Clock
 		}
 	}
 	return wait, err
@@ -1173,6 +1209,10 @@ func (m *Memory) ColdReset() {
 	m.dmaSectorCount = 0
 	m.dmaResetCount = 0
 	m.dmaInitStage = 0
+	m.acsiStage = 0
+	m.acsiTarget = -1
+	m.acsiCommand = 0
+	m.acsiTimeoutReturnClock = 0
 	m.fdcCommand = 0
 	m.fdcStatus = 0
 	m.fdcStatusTypeI = false

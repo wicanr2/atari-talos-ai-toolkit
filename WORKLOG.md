@@ -495,3 +495,11 @@
   reset count=2。下一gate為291,386 instructions／3,002,576 clocks的
   `$FF8606=$0088` ACSI mode。完整240,000筆corpus、固定ROM、全測試、
   vet與build通過，規格111升CONFORMED。
+- 完成空ACSI bus的target-0 command開始與guest timeout：固定Hatari在無
+  ACSI image時不接受command也不設HDC IRQ；EmuTOS依次寫
+  `$0088→data $0000→$008A`後以Timer C／`hz_200`等待。Talos於291,404
+  instructions／3,002,700 clocks完成command start，於clock 3,771,064自然走
+  timeout並寫`$0080`。修正這筆同值mode被舊drive-1 probe誤混的條件，
+  FDC保持stage14。下一gate為361,268 instructions／4,062,736 clocks的
+  target-1 `$FF8606=$0088`。完整240,000筆corpus、固定ROM、全測試、
+  vet與build通過，規格112升CONFORMED。

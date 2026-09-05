@@ -1677,20 +1677,51 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		t.Fatalf("DMA reset exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, state)
 	}
+	for steps := 0; steps < 128 && machine.Memory.acsiStage < 3; steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("ACSI target zero instructions=%d interrupts=%d clocks=%d state=%+v stage/target/command/mode=%d/%d/%02x/%04x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.acsiStage, machine.Memory.acsiTarget,
+				machine.Memory.acsiCommand, machine.Memory.dmaMode, err)
+		}
+	}
+	if machine.Memory.acsiStage != 3 || machine.Memory.acsiTarget != 0 ||
+		machine.Memory.acsiCommand != 0 || machine.Memory.dmaMode != 0x008a ||
+		machine.Memory.mfpGPIPIn&0x20 == 0 || machine.Memory.fdcIRQ ||
+		machine.Memory.dmaResetCount != 2 {
+		t.Fatalf("ACSI target zero boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/target/command/mode/GPIP/IRQ/resets=%d/%d/%02x/%04x/%02x/%v/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.acsiStage, machine.Memory.acsiTarget, machine.Memory.acsiCommand,
+			machine.Memory.dmaMode, machine.Memory.mfpGPIPIn, machine.Memory.fdcIRQ,
+			machine.Memory.dmaResetCount)
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{0x8a, 0xffffffff, 0x8a, 0, 0x1004, 0x0010008a, 5, 1}
+	wantA = [7]uint32{0x0e63, 0x0e69, 0x0e9c, 0x0e64, 0x00fc6300, 0x0e63, 0x00fcd074}
+	if machine.Instructions != 291404 || machine.Interrupts != 234 || machine.Clocks != 3002700 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0e38 ||
+		state.SR != 0x2300 || state.PC != 0x00fc1292 ||
+		state.Prefetch != [2]uint16{0x4878, 0x0014} {
+		t.Fatalf("ACSI target zero exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state)
+	}
 	var nextGate error
-	for steps := 0; steps < 10_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	var busFault *BusFault
 	if !errors.As(nextGate, &busFault) || busFault.Address != STDMAControl || !busFault.Write ||
 		busFault.Size != 2 || busFault.FunctionCode != 5 ||
-		busFault.Reason != FaultUnsupportedDeviceState || machine.Instructions != 291386 ||
-		machine.Interrupts != 234 || machine.Clocks != 3002576 ||
-		machine.CPU.State.D != [8]uint32{0x32, 0xffffffff, 6, 0, 0x1004, 0x00100088, 5, 1} ||
+		busFault.Reason != FaultUnsupportedDeviceState || machine.Instructions != 361268 ||
+		machine.Interrupts != 263 || machine.Clocks != 4062736 ||
+		machine.CPU.State.D != [8]uint32{0x48, 0xffffffff, 6, 0, 0x1004, 0x00100088, 5, 1} ||
 		machine.CPU.State.A != [7]uint32{0x0eb6, 0x0e69, 0x0e9c, 6, 0x00fc6300, 0x0e63, 0x00fcd074} ||
 		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e38 ||
 		machine.CPU.State.SR != 0x2304 || machine.CPU.State.PC != 0x00fc1274 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x0045} {
+		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x0045} ||
+		machine.Memory.acsiTimeoutReturnClock != 3771064 || machine.Memory.acsiStage != 4 ||
+		machine.Memory.acsiTarget != 0 || machine.Memory.dmaInitStage != 3 ||
+		machine.Memory.dmaMode != 0x0090 || machine.Memory.dmaResetCount != 2 {
 		t.Fatalf("next gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
