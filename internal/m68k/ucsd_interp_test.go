@@ -22,6 +22,10 @@ import (
 //
 // 素材是原版磁碟的檔案，不進 repository：設 TALOS_UCSD_INTERP 指向存放目錄。
 // 檔案雜湊在測試裡釘死，換一份就失敗，不會拿別的檔案冒充通過。
+//
+// 序列測試的期望值另外由 laanwj/sundog 的 psys_interpreter.c（同一套 p-machine 的獨立
+// C 重寫）跑同一段 p-code 確認過，六組逐字相同——見 docs/spec/055。那份程式碼的角色與
+// Hatari 相同：外部 oracle，本 repository 不連結、不移植也不依賴它。
 const (
 	interpSHA256 = "a344edfb07d27cafa3dfda68f1854a76f63a0e89cf2e8229dacf5aa64d603c38"
 	interpSize   = 11776
