@@ -173,6 +173,10 @@
 - DM12EN 重建組語有 `TRAP` 8、`RTE` 6 個靜態使用點。TRAP 語料 2,500 筆固定
   34 clocks；RTE 2,500 筆分成正常 600、odd-target vector 3 共 614、user privilege
   vector 8 共 1,286。RTE 先提交 SSP+6 與 masked restored SR，才嘗試奇數 target。
+- DM12EN 重建組語有 EOR／EORI 共 35 個靜態使用點，涵蓋 Dn、memory destination
+  與 immediate。三份固定語料共 7,500 筆，確認三種寬度的 XOR、X／NZVC、EA、
+  read-modify-write、long low-word-first bus 次序與 vector 3；CCR／SR 特例另有獨立語料，
+  本切片不納入。
 - Atari Corporation《Engineering Hardware Specification of the Atari ST Computer
   System》（1986-01-07）保存掃描 SHA-256 為
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁

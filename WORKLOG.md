@@ -110,6 +110,9 @@
 - 完成 `TRAP #0..#15` 與 MC68000 `RTE`；固定語料 5,000 筆涵蓋 format-0 frame、
   vectors 32–47、normal return、user privilege vector 8、odd target vector 3、SR mask、
   stack 提交點與 bus 次序，全數通過後累計外部單步驗收 177,500 筆。
+- 完成 `EOR.B/W/L` 與 `EORI.B/W/L`；固定語料 7,500 筆涵蓋 Dn／memory destination、
+  immediate、三種寬度、X／NZVC、RMW、EA clocks、long word 寫回次序與 vector 3，
+  全數通過後累計外部單步驗收 185,000 筆。
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。

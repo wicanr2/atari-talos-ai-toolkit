@@ -107,6 +107,9 @@
   exception；RTE 正常 600、奇數 PC vector 3 共 614、user privilege vector 8 共
   1,286 筆。涵蓋 SR mask、SSP 提交點、restored program FC、frame 與完整 bus 次序。
   DM12EN 靜態使用 14 點；CPU 累計外部單步驗收 177,500 筆。
+- `EOR.B/W/L`／`EORI.B/W/L` 共 7,500 筆全部通過；涵蓋 Dn 與 memory destination、
+  immediate、X／NZVC、read-modify-write、long low-word-first、EA clocks、完整 bus
+  次序與 vector 3。DM12EN 靜態使用 35 點；CPU 累計外部單步驗收 185,000 筆。
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
   read-only 與 typed bus fault 均有測試。

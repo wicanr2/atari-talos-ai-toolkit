@@ -522,6 +522,12 @@ func isORImmediate(test corpusTest) bool {
 	return opcode&0xff00 == 0x0000 && opcode&0x003f != 0x003c
 }
 
+func TestSingleStepEOR(t *testing.T) {
+	for _, name := range []string{"EOR.b.json.bin", "EOR.w.json.bin", "EOR.l.json.bin"} {
+		t.Run(name, func(t *testing.T) { testSingleStepCorpus(t, name) })
+	}
+}
+
 func hasTransactionKind(transactions []Transaction, kind string) bool {
 	for _, transaction := range transactions {
 		if transaction.Kind == kind {
