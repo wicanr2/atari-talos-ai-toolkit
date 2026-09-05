@@ -116,6 +116,41 @@ func TestMachineStoppedAdvancesToRecurringVBL(t *testing.T) {
 	}
 }
 
+func TestMachineStoppedVBLReloadsProgrammedVideoBase(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for address, value := range map[uint32]uint16{
+		0x70: 0x0000, 0x72: 0x2000,
+		0x2000: 0x4e71, 0x2002: 0x4e71,
+	} {
+		if err := memory.WriteWord(address, value, 5); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := memory.WriteByte(VideoBaseHigh, 0x0f, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(VideoBaseMiddle, 0x80, 5); err != nil {
+		t.Fatal(err)
+	}
+	cpu := m68k.CPU{Bus: memory, State: m68k.State{
+		SSP: 0x3000, SR: 0x2300, PC: 0x1004, Prefetch: [2]uint16{0x4e72, 0x2300},
+	}}
+	if _, err := cpu.Step(); err != nil {
+		t.Fatal(err)
+	}
+	machine := Machine{CPU: cpu, Memory: memory, Clocks: 200000,
+		nextVBLClock: 267272, vblFrameClocks: colorST60HzFrameClocks}
+	if _, err := machine.Step(); err != nil {
+		t.Fatal(err)
+	}
+	if got := memory.ActiveVideoBase(); got != 0x0f8000 {
+		t.Fatalf("STOP-fast-forward active video base=%06x want 0f8000", got)
+	}
+}
+
 func TestVideoIACKExtraClocks(t *testing.T) {
 	for _, test := range []struct {
 		epoch uint64
@@ -294,5 +329,26 @@ func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
 		machine.CPU.State.PC != 0x00fc6808 || machine.CPU.State.Prefetch != [2]uint16{0x5c8f, 0x4e75} ||
 		machine.Memory.ProgrammedVideoBase() != 0x0f8000 {
 		t.Fatalf("video-base middle post-state result=%+v machine=%+v", result, machine)
+	}
+	for machine.Clocks < 535520 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("pre-VBL4 step %d clocks=%d: %v", machine.Instructions+1, machine.Clocks, err)
+		}
+	}
+	if machine.Clocks != 535520 || machine.Memory.ActiveVideoBase() != 0 ||
+		machine.Memory.ProgrammedVideoBase() != 0x0f8000 || machine.vblPending {
+		t.Fatalf("VBL4 pre-boundary machine=%+v programmed=%06x active=%06x", machine,
+			machine.Memory.ProgrammedVideoBase(), machine.Memory.ActiveVideoBase())
+	}
+	before = machine.CPU.State
+	result, err = machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 10 || machine.Clocks != 535530 || !machine.vblPending ||
+		machine.nextVBLClock != 695784 || machine.Memory.ActiveVideoBase() != 0x0f8000 ||
+		machine.Memory.ProgrammedVideoBase() != 0x0f8000 {
+		t.Fatalf("VBL4 post-boundary result=%+v machine=%+v programmed=%06x active=%06x before=%+v",
+			result, machine, machine.Memory.ProgrammedVideoBase(), machine.Memory.ActiveVideoBase(), before)
 	}
 }

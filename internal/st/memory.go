@@ -92,6 +92,7 @@ type Memory struct {
 	mmuConfig             byte
 	videoBaseHigh         byte
 	videoBaseMiddle       byte
+	activeVideoBase       uint32
 	videoSyncMode         byte
 	videoSync50Transition bool
 	shifterPalette        [16]uint16
@@ -565,6 +566,7 @@ func (m *Memory) ColdReset() {
 	m.mmuConfig = 0
 	m.videoBaseHigh = 0
 	m.videoBaseMiddle = 0
+	m.activeVideoBase = 0
 	m.videoSyncMode = 0
 	m.videoSync50Transition = false
 	m.shifterPalette = [16]uint16{}
@@ -603,6 +605,15 @@ func (m *Memory) ColdReset() {
 // It is not the base currently used by an active scanout.
 func (m *Memory) ProgrammedVideoBase() uint32 {
 	return uint32(m.videoBaseHigh)<<16 | uint32(m.videoBaseMiddle)<<8
+}
+
+// ActiveVideoBase returns the base committed by the latest modeled VBL reload.
+func (m *Memory) ActiveVideoBase() uint32 {
+	return m.activeVideoBase
+}
+
+func (m *Memory) reloadVideoBaseOnVBL() {
+	m.activeVideoBase = m.ProgrammedVideoBase()
 }
 
 func (m *Memory) M68KReset() error {

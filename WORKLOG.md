@@ -337,3 +337,9 @@
   state 與 Hatari 403,924→403,972 的同路徑一致；兩邊皆未把 write 當成 active base
   立即切換。有界續跑至 68,079 instructions／962,832 clocks 才遇 `$FFFA1D` 非零 timer
   control，但時間序上先處理第四幀前 active base reload。規格 080 升 CONFORMED。
+- 完成第四幀 VBL active framebuffer base reload：固定 Hatari trace證實 transition
+  frame 沒有 HBL 310，debugger 量得共同 event deadline 535,528 前 active=0、後為
+  `$0F8000`。Memory 分離 programmed／active state，Machine 的 running crossing 與
+  STOP 快轉共用 VBL 提交入口。Talos 可觀察邊界為 535,520→535,530，Hatari 為
+  535,524→535,532；既有 24-clock 累積差距明列而未冒稱收斂。完整 corpus、固定 ROM、
+  全測試、vet 與 build 通過後，規格 081 升 CONFORMED。

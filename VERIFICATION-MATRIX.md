@@ -46,6 +46,7 @@
 | ST GLUE `$FF820A` 第 0 線 60→50 Hz | reset/read、typed transition、same-value／反向 fail-closed、deadline／period 修正 | Hatari `$FC6A02` CycleCounter 401,272→401,284；VBL4 event 535,528 | 通過；Talos 固定寫入 12 clocks，next deadline 535,528 |
 | ST Shifter 16 色 palette | 16 word registers、`$0777` mask、reset／alias／權限／寬度／timed wait | Hatari／EmuTOS `$FC671A` 首筆與 `$FC6722` 完整 palette／state | 通過；Talos 401,366→402,052 完成迴圈，後續由 framebuffer base 切片接管 |
 | ST Shifter 程式化 framebuffer 基址 | `$FF8201/$FF8203` reset／byte R/W、`$3F` high mask、組址、alias／權限／寬度／timed wait | Hatari／EmuTOS `$FC67FA/$FC6800` 完整 state、register 與 active base 分離 | 通過；Talos 403,900→403,948 得 `$0F8000`，Hatari 403,924→403,972 |
+| ST Shifter 第四幀 active framebuffer 基址重載 | programmed／active 分離、VBL 原子提交、running crossing、STOP 快轉、reset | Hatari `video_hbl` trace；535,524→535,532 前後 `info video` 0→`$0F8000` | 通過；共同 deadline 535,528，Talos 可觀察邊界 535,520→535,530 |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | reset、MMU、exceptions、`RESET` 與空 cartridge 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；完全對拍至第 12 條／380 clocks，第 14 條首次差 2 clocks |

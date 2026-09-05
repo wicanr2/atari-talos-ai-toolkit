@@ -192,11 +192,24 @@ func TestProgrammedVideoBaseRegisters(t *testing.T) {
 	if got := memory.ProgrammedVideoBase(); got != 0x0f8000 {
 		t.Fatalf("programmed video base=%06x want 0f8000", got)
 	}
+	if got := memory.ActiveVideoBase(); got != 0 {
+		t.Fatalf("active video base changed before VBL: %06x", got)
+	}
+	memory.reloadVideoBaseOnVBL()
+	if got := memory.ActiveVideoBase(); got != 0x0f8000 {
+		t.Fatalf("active video base after VBL=%06x want 0f8000", got)
+	}
+	if err := memory.WriteByte(VideoBaseMiddle, 0x40, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got := memory.ActiveVideoBase(); got != 0x0f8000 {
+		t.Fatalf("active video base followed programmed write: %06x", got)
+	}
 	if got, err := memory.ReadByte(VideoBaseHigh, 5); err != nil || got != 0x0f {
 		t.Fatalf("high=%02x/%v want 0f", got, err)
 	}
-	if got, err := memory.ReadByte(VideoBaseMiddle, 5); err != nil || got != 0x80 {
-		t.Fatalf("middle=%02x/%v want 80", got, err)
+	if got, err := memory.ReadByte(VideoBaseMiddle, 5); err != nil || got != 0x40 {
+		t.Fatalf("middle=%02x/%v want 40", got, err)
 	}
 	for _, address := range []uint32{VideoBaseHigh, VideoBaseMiddle} {
 		if _, err := memory.ReadByte(address, 1); err == nil {
@@ -221,8 +234,8 @@ func TestProgrammedVideoBaseRegisters(t *testing.T) {
 		t.Fatalf("timed video-base write wait=%d err=%v want 2", wait, err)
 	}
 	memory.ColdReset()
-	if got := memory.ProgrammedVideoBase(); got != 0 {
-		t.Fatalf("reset programmed video base=%06x", got)
+	if programmed, active := memory.ProgrammedVideoBase(), memory.ActiveVideoBase(); programmed != 0 || active != 0 {
+		t.Fatalf("reset video bases programmed=%06x active=%06x", programmed, active)
 	}
 }
 

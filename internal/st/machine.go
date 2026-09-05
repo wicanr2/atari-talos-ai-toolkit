@@ -46,8 +46,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	idle := uint64(0)
 	if m.CPU.IsStopped() && !m.vblPending && m.Clocks < m.nextVBLClock {
 		idle = m.nextVBLClock - m.Clocks
-		m.vblPending = true
-		m.nextVBLClock += m.vblFrameClocks
+		m.raiseVBL()
 	}
 	if m.vblPending {
 		acceptEpoch := m.Clocks + idle
@@ -84,9 +83,16 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 
 func (m *Machine) raiseDueVBL() {
 	if m.nextVBLClock != 0 && m.Clocks >= m.nextVBLClock {
-		m.vblPending = true
-		m.nextVBLClock += m.vblFrameClocks
+		m.raiseVBL()
 	}
+}
+
+func (m *Machine) raiseVBL() {
+	if m.Memory != nil {
+		m.Memory.reloadVideoBaseOnVBL()
+	}
+	m.vblPending = true
+	m.nextVBLClock += m.vblFrameClocks
 }
 
 func videoIACKExtraClocks(epoch uint64) uint32 {

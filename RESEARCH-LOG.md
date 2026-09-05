@@ -414,3 +414,8 @@
   `LSR.L #8,D0` 用 24 clocks 將 `$000F8000` 變 `$00000F80`；`$FC6800`
   `MOVE.B D0,$8203` 再用 12 clocks 得 programmed `$0F8000`，active base 仍為 0。
   因此暫存器 write 與掃描基址 reload 必須是兩個切片。
+- 固定 Hatari `video_hbl` trace 顯示前三次 `VideoBase` reload 都在 HBL 260 且為 0；
+  第三幀於 line 0 改成 50 Hz 後仍在 HBL 262 結束，沒有 HBL 310 reload。debugger 在
+  CycleCounter=535,524、VBL=3、HBL=263 仍讀 active=0；`$FC299E LEA $1C(A7),A4`
+  跨 deadline 535,528，535,532／VBL=4 時 active=`$0F8000`。這是 Hatari
+  `Video_ClearOnVBL` 的保底重載，不是一般 50 Hz 提前三線時序。
