@@ -1115,6 +1115,57 @@ func TestPSGFirstDriveSelectUpdate(t *testing.T) {
 	}
 }
 
+func TestSTFDCForceInterruptInit(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 3
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 5
+	if err := memory.WriteWord(STDiskController, 0x00d0, 5); err == nil || memory.fdcInitStage != 0 {
+		t.Fatal("FDC command before DMA mode unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(0xffff8606, 0x0080,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.dmaMode != 0x0080 || memory.fdcInitStage != 1 {
+		t.Fatalf("DMA mode wait/err/mode/stage=%d/%v/%04x/%d", wait, err,
+			memory.dmaMode, memory.fdcInitStage)
+	}
+	if err := memory.WriteWord(STDiskController, 0x000b, 5); err == nil ||
+		memory.fdcInitStage != 1 || memory.fdcCommand != 0 {
+		t.Fatal("wrong FDC command unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x00d0,
+		m68k.BusAccess{Clock: 0, FunctionCode: 5}); err != nil || wait != 4 {
+		t.Fatalf("FDC command wait/err=%d/%v", wait, err)
+	}
+	if memory.fdcInitStage != 2 || memory.fdcCommand != 0xd0 || memory.fdcStatus != 0x80 ||
+		!memory.fdcStatusTypeI || memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("FDC stage/command/status/typeI/IRQ/GPIP=%d/%02x/%02x/%v/%v/%02x",
+			memory.fdcInitStage, memory.fdcCommand, memory.fdcStatus,
+			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0080, 1); err == nil {
+		t.Fatal("user DMA mode write unexpectedly accepted")
+	}
+	if err := memory.WriteByte(STDMAControl, 0x80, 5); err == nil {
+		t.Fatal("byte DMA mode write unexpectedly accepted")
+	}
+	if _, err := memory.ReadWord(STDMAControl, 5); err == nil {
+		t.Fatal("unmodeled DMA status read unexpectedly accepted")
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.dmaMode != 0 || memory.fdcCommand != 0 || memory.fdcStatus != 0 ||
+		memory.fdcStatusTypeI || memory.fdcIRQ || memory.fdcInitStage != 0 || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("FDC reset mode/command/status/typeI/IRQ/stage/GPIP=%04x/%02x/%02x/%v/%v/%d/%02x",
+			memory.dmaMode, memory.fdcCommand, memory.fdcStatus, memory.fdcStatusTypeI,
+			memory.fdcIRQ, memory.fdcInitStage, memory.mfpGPIPIn)
+	}
+}
+
 func TestIKBDACIAControlInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

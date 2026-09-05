@@ -342,8 +342,12 @@
   後續`$FF860F` ordinary-ST void byte write亦已CONFORMED：任意byte忽略、不建立
   Falcon／FDC狀態，完成點289,521 instructions／2,982,760 clocks。
 - YM2149 port A首次drive-select更新已CONFORMED：固定EmuTOS同值選R14、讀回`$07`、
-  寫成`$05`；完成點289,556 instructions／2,983,132 clocks。下一gate為289,565
-  instructions／2,983,240 clocks的DMA mode/status word `$FF8606=$0080`。
+  寫成`$05`；完成點289,556 instructions／2,983,132 clocks。
+- ST DMA／WD1772第一組初始化已CONFORMED：`$FF8606=$0080`選command/status，
+  `$FF8604=$00D0`執行condition 0 force-interrupt；保存mode／command／Type-I motor-on
+  status `$80`，IRQ與GPIP5維持inactive。完成點289,612 instructions／2,983,694 clocks；
+  下一gate為289,692 instructions／2,984,438 clocks的第二次`$FF8606=$0080`，後接
+  restore `$0B`。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -353,7 +357,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理 DMA mode/status word
-   `$FF8606=$0080`與後續FDC access；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步處理第二組DMA mode `$0080`、
+   WD1772 restore `$0B`及其IRQ完成期限；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

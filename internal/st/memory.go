@@ -54,6 +54,8 @@ const (
 	MFPRSR             = 0x00ff_fa2b
 	MFPTSR             = 0x00ff_fa2d
 	MFPUDR             = 0x00ff_fa2f
+	STDiskController   = 0x00ff_8604
+	STDMAControl       = 0x00ff_8606
 	STVoidDMAByte      = 0x00ff_860f
 	STVoidRTCBase      = 0x00ff_fc21
 	STVoidRTCEnd       = 0x00ff_fc3f
@@ -106,6 +108,12 @@ type Memory struct {
 	psgRegisterSelect       byte
 	psgRegisters            [16]byte
 	psgDriveStage           uint8
+	dmaMode                 uint16
+	fdcCommand              byte
+	fdcStatus               byte
+	fdcStatusTypeI          bool
+	fdcIRQ                  bool
+	fdcInitStage            uint8
 	ikbdACIAControl         byte
 	ikbdACIAStatus          byte
 	ikbdACIAConfigured      bool
@@ -838,6 +846,26 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 	if address&1 != 0 {
 		return m.fault(address, functionCode, true, 2, FaultOddWordAddress)
 	}
+	if address == STDMAControl || address == STDiskController {
+		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
+			return fault
+		}
+		if address == STDMAControl && m.fdcInitStage == 0 && m.psgDriveStage == 3 && value == 0x0080 {
+			m.dmaMode = value
+			m.fdcInitStage = 1
+			return nil
+		}
+		if address == STDiskController && m.fdcInitStage == 1 && m.dmaMode == 0x0080 && value == 0x00d0 {
+			m.fdcCommand = byte(value)
+			m.fdcStatus = 0x80
+			m.fdcStatusTypeI = true
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.fdcInitStage = 2
+			return nil
+		}
+		return m.fault(address, functionCode, true, 2, FaultUnsupportedDeviceState)
+	}
 	if address >= ShifterPaletteBase && address <= ShifterPaletteEnd {
 		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
 			return fault
@@ -864,7 +892,14 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 	if err != nil {
 		return 0, err
 	}
-	return wait, m.WriteWord(address, value, access.FunctionCode)
+	err = m.WriteWord(address, value, access.FunctionCode)
+	if err == nil {
+		address &= AddressMask
+		if address == STDMAControl || address == STDiskController {
+			wait += 4
+		}
+	}
+	return wait, err
 }
 
 func busSlotWait(clock uint64) (uint32, error) {
@@ -905,6 +940,13 @@ func (m *Memory) ColdReset() {
 	m.psgRegisterSelect = 0
 	m.psgRegisters = [16]byte{}
 	m.psgDriveStage = 0
+	m.dmaMode = 0
+	m.fdcCommand = 0
+	m.fdcStatus = 0
+	m.fdcStatusTypeI = false
+	m.fdcIRQ = false
+	m.fdcInitStage = 0
+	m.mfpGPIPIn |= 0x20
 	m.ikbdACIAControl = 0
 	m.ikbdACIAStatus = 0
 	m.ikbdACIAConfigured = false

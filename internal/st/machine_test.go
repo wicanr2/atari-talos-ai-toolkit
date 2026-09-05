@@ -1448,6 +1448,30 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Instructions, machine.Interrupts, machine.Clocks, state,
 			machine.Memory.psgDriveStage, machine.Memory.psgRegisterSelect, machine.Memory.psgRegisters[14])
 	}
+	for machine.Instructions < 400_000 && machine.Memory.fdcInitStage < 2 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("FDC force interrupt instructions=%d interrupts=%d clocks=%d PC=%08x prefetch=%04x,%04x stage=%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1],
+				machine.Memory.fdcInitStage, err)
+		}
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{0xffffffff, 0x2700, 0x01b4, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA = [7]uint32{0xffff8800, 1, 0x00fc3924, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 289612 || machine.Interrupts != 234 || machine.Clocks != 2983694 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f38 ||
+		state.SR != 0x2310 || state.PC != 0x00fc373a ||
+		state.Prefetch != [2]uint16{0x4e75, 0x2f0a} || machine.Memory.fdcInitStage != 2 ||
+		machine.Memory.dmaMode != 0x0080 || machine.Memory.fdcCommand != 0xd0 ||
+		machine.Memory.fdcStatus != 0x80 || !machine.Memory.fdcStatusTypeI ||
+		machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("FDC force exact boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/mode/command/status/typeI/IRQ/GPIP=%d/%04x/%02x/%02x/%v/%v/%02x",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.fdcInitStage, machine.Memory.dmaMode, machine.Memory.fdcCommand,
+			machine.Memory.fdcStatus, machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ,
+			machine.Memory.mfpGPIPIn)
+	}
 }
 
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {

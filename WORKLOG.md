@@ -442,3 +442,9 @@
   instructions／2,983,132 clocks完成，下一gate定位為DMA mode/status
   `$FF8606=$0080`。完整240,000筆corpus、固定ROM、全測試、vet與CLI build通過，
   規格103升CONFORMED。
+- 完成ST DMA mode與WD1772 force-interrupt初始化：固定Hatari `fdc.c`證實
+  `$0080`選command/status、兩個word I/O各增加4 wait clocks；`$D0`為condition 0
+  Type IV，idle時建立Type-I motor-on status並清IRQ。Talos保存可供後續restore消費的
+  typed狀態，正常ROM在289,612 instructions／2,983,694 clocks完成；下一gate是第二次
+  mode `$0080`，後接restore `$0B`。完整240,000筆corpus、固定ROM、全測試、vet與
+  CLI build通過，規格104升CONFORMED。
