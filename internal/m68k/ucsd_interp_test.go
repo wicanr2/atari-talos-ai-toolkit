@@ -39,6 +39,10 @@ const (
 	interpSLLA     = 0x0554 // 取區域變數位址 1–8（opcode $60–$67）
 	interpSSTL     = 0x057c // 存入區域變數 1–8（opcode $68–$6f）
 	interpInvalid  = 0x0304 // 無效 opcode 的錯誤路徑（錯誤碼 11）
+	interpUJP      = 0x0d0e // 無條件跳躍（opcode $8A）
+	interpFJP      = 0x0d22 // 假時跳躍（opcode $D4）
+	interpTJP      = 0x0d18 // 真時跳躍（opcode $F1）
+	interpLDB      = 0x08a8 // 取 byte（opcode $A7）
 
 	// 測試選的記憶體佈局。直譯器實際載入位址由 p-system 決定，這裡挑一個非零基底，
 	// 若某個切片其實依賴絕對位址或 PC-relative，測試會失敗而不是碰巧通過。
@@ -596,6 +600,118 @@ func TestUCSDInterpGroundGridArithmetic(t *testing.T) {
 			}
 			if got := h.cpu.State.A[4]; got != operandStream+uint32(len(tc.pcode)) {
 				t.Fatalf("a4 前進 %d，want %d", got-operandStream, len(tc.pcode))
+			}
+		})
+	}
+}
+
+// TestUCSDInterpBranches 驗收跳躍族。有了分支，p-code 才能表達條件邏輯。
+//
+// 位移是相對「位移位元組之後」，不是相對 opcode。`fjp` 在堆疊頂為 0 時跳，`tjp` 在非 0
+// 時跳，兩者都消耗那個值。
+func TestUCSDInterpBranches(t *testing.T) {
+	image := loadInterp(t)
+	cases := []struct {
+		name  string
+		pcode []byte
+		ops   int
+		stack []uint16
+	}{
+		// sldc5 / ujp +1 / sldc3 / sldc7：跳過 sldc3。
+		{"ujp 無條件跳過一個位元組", []byte{0x05, 0x8a, 0x01, 0x03, 0x07}, 3, []uint16{7, 5}},
+		// sldc0 是假 → fjp 跳，sldc3 被跳過。
+		{"fjp 假時跳", []byte{0x00, 0xd4, 0x01, 0x03, 0x07}, 3, []uint16{7}},
+		// sldc1 是真 → fjp 不跳，sldc3 執行。
+		{"fjp 真時不跳", []byte{0x01, 0xd4, 0x01, 0x03, 0x07}, 4, []uint16{7, 3}},
+		// sldc1 是真 → tjp 跳。
+		{"tjp 真時跳", []byte{0x01, 0xf1, 0x01, 0x03, 0x07}, 3, []uint16{7}},
+		{"tjp 假時不跳", []byte{0x00, 0xf1, 0x01, 0x03, 0x07}, 4, []uint16{7, 3}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			h.startDispatch(tc.pcode, operandStream)
+			h.runPCode(tc.ops, 128)
+			wantSP := uint32(stackTop - 2*len(tc.stack))
+			if got := h.cpu.State.SSP; got != wantSP {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x", got, wantSP)
+			}
+			for i, want := range tc.stack {
+				if got := h.peek(h.cpu.State.SSP + uint32(i)*2); got != want {
+					t.Fatalf("堆疊第 %d 個 word 是 %d，want %d", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestUCSDInterpIndirectLoads 驗收間接載入：sind 讀 word，ldb 讀 byte。
+func TestUCSDInterpIndirectLoads(t *testing.T) {
+	image := loadInterp(t)
+	// p-system 位址是相對 a6 的 16-bit 值；harness 的 a6 是 0，所以這裡就是絕對位址。
+	const at = 0xa000
+	cases := []struct {
+		name  string
+		pcode []byte
+		ops   int
+		want  uint16
+	}{
+		// ldci <at> / sind0：讀 [at]。
+		{"sind0 讀該位址的 word", []byte{0x81, byte(at & 0xff), byte(at >> 8), 0x78}, 2, 0x1234},
+		// ldci <at-2> / sind1：讀 [at-2 + 1 word] ＝ [at]。
+		{"sind1 讀往後一個 word", []byte{0x81, byte((at - 2) & 0xff), byte((at - 2) >> 8), 0x79}, 2, 0x1234},
+		// ldci <at> / sldc0 / ldb：讀 [at] 的高位元組（p-system 資料是 big-endian）。
+		{"ldb 偏移 0 取高位元組", []byte{0x81, byte(at & 0xff), byte(at >> 8), 0x00, 0xa7}, 3, 0x12},
+		{"ldb 偏移 1 取低位元組", []byte{0x81, byte(at & 0xff), byte(at >> 8), 0x01, 0xa7}, 3, 0x34},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, image)
+			h.poke(at, 0x1234)
+			h.startDispatch(tc.pcode, operandStream)
+			h.runPCode(tc.ops, 64)
+			if got := h.peek(h.cpu.State.SSP); got != tc.want {
+				t.Fatalf("結果是 0x%04x，want 0x%04x", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestUCSDInterpGroundCodeNormalisation 用 p-code 重現原版讀地面碼並正規化的完整流程。
+//
+// check_exit 讀出腳下那一格之後做的第一件事是「大於 15 就減 16」——那 16 是 draw_city_map
+// 繪圖時加上的視覺變體偏移。這一段是原版的條件邏輯，用 dup1／leqi／tjp 表達：
+//
+//	dup1 / sldc15 / leqi / tjp +2 / sldc16 / sbi
+//
+// 邊界值是這一條的重點：15 不減、16 要減。門表的上界 36 正規化之後正好是 20，與
+// check_building 的跳表 max 相同。
+func TestUCSDInterpGroundCodeNormalisation(t *testing.T) {
+	image := loadInterp(t)
+	// dup1 / sldc15 / leqi / tjp +2 / sldc16 / sbi
+	tail := []byte{0xe2, 0x0f, 0xb2, 0xf1, 0x02, 0x10, 0xa3}
+	cases := []struct {
+		code, want uint16
+		ops        int
+		note       string
+	}{
+		{5, 5, 5, "碼 5：check_exit 特地為它開的那條 or"},
+		{15, 15, 5, "邊界：15 不減"},
+		{16, 0, 7, "邊界：16 要減"},
+		{35, 19, 7, "Drahew 的倉庫槽位，正規化成門表的 19"},
+		{36, 20, 7, "門表上界，等於 check_building 跳表的 max"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.note, func(t *testing.T) {
+			h := newHarness(t, image)
+			pcode := append([]byte{0x80, byte(tc.code)}, tail...) // ldcb <碼> 起頭
+			h.startDispatch(pcode, operandStream)
+			h.runPCode(tc.ops, 128)
+			if got := h.cpu.State.SSP; got != stackTop-2 {
+				t.Fatalf("SSP 是 0x%06x，want 0x%06x（該只剩正規化後的碼）", got, stackTop-2)
+			}
+			if got := h.peek(h.cpu.State.SSP); got != tc.want {
+				t.Fatalf("碼 %d 正規化成 %d，want %d", tc.code, got, tc.want)
 			}
 		})
 	}
