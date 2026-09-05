@@ -54,4 +54,5 @@
 | MC68000 `RESET` | 待規格 | 完成前述 vector 2 frame 後，對拍 `$FC0088` 的 privilege、clocks 與周邊 reset 契約 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
+| UCSD p-System 直譯器真實碼驗收 | **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

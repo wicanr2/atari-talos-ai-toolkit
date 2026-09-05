@@ -156,3 +156,10 @@
   36 clocks。EmuTOS 同 ROM 以 8 條指令／128 clocks 到 `$FC0074`，
   SSP／SR／prefetch／frame 與 Hatari 全同。後續 `$FC0080` bus-error frame 探針
   發現 `$FFFF8006`／`$00FF8006` 差異，已收斂成下一個明確 gate。
+- 新增 UCSD p-System 直譯器真實碼驗收（規格 054）。以 SunDog 的 `SYSTEM.INTERP`
+  作為與合成語料互補的驗收來源：合成語料窮舉單一指令，這裡跑一段指令彼此有真實資料
+  相依的程式。四組測試涵蓋分派表結構、短常數、區域變數與陣列索引，每條斷言都做過
+  負對照（期望值差 1、指令數差 1、活動記錄偏移差 2 都確認會失敗）。`tools/go.sh`
+  新增 `TALOS_UCSD_INTERP` 掛載，與既有的 `TALOS_M68000_TESTS` 可並存。原版素材
+  不進 repository，雜湊在測試裡釘死。完整 227,500 筆語料回歸與靜態檢查通過。
+

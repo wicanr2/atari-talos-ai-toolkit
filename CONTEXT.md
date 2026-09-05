@@ -156,6 +156,12 @@
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
   實際 I/O 裝置與 TOS 後續開機仍未完成。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
+- UCSD p-System IV.2.1 直譯器（SunDog 的 `SYSTEM.INTERP`，固定 SHA-256）已可在
+  Atari Talos 上執行並通過驗收：分派表結構、32 個短常數 opcode、16 個區域變數的
+  「編號×2+8」換算，以及 `ixa` 的 `base + index × n × 2`（含兩位元組變長運算元）。
+  這段 1985 年的真實程式碼不含 trap、line-A 與硬體位址，所以只需要 CPU 與記憶體。
+  它**不代表 Atari Talos 能跑 SunDog**——完整 p-machine 需要磁碟、螢幕與輸入，屬 M3。
+  素材不進 repository，以 `TALOS_UCSD_INTERP` 指路，雜湊在測試裡釘死。
 
 ## 下一步
 

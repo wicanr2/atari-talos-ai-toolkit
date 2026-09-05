@@ -54,9 +54,27 @@ if [ -n "${TALOS_M68000_TESTS:-}" ]; then
     echo "m68000 corpus is incomplete: $CORPUS" >&2
     exit 1
   }
-  run_go -e TALOS_M68000_TESTS=/corpus -v "$CORPUS:/corpus:ro" \
-    -v "$ROOT:/src" -w /src golang:1.24-bookworm /usr/local/go/bin/go "$@"
 fi
 
-run_go -v "$ROOT:/src" -w /src \
-  golang:1.24-bookworm /usr/local/go/bin/go "$@"
+if [ -n "${TALOS_UCSD_INTERP:-}" ]; then
+  case "$TALOS_UCSD_INTERP" in
+    /*) INTERP=$TALOS_UCSD_INTERP ;;
+    *) INTERP=$ROOT/$TALOS_UCSD_INTERP ;;
+  esac
+  [ -f "$INTERP/SYSTEM.INTERP" ] || {
+    echo "SYSTEM.INTERP not found under: $INTERP" >&2
+    exit 1
+  }
+fi
+
+# 由內往外疊 docker 參數，避免把使用者傳給 go 的參數重新加引號。
+set -- golang:1.24-bookworm /usr/local/go/bin/go "$@"
+if [ -n "${INTERP:-}" ]; then
+  set -- -e TALOS_UCSD_INTERP=/ucsd -v "$INTERP:/ucsd:ro" "$@"
+fi
+if [ -n "${CORPUS:-}" ]; then
+  set -- -e TALOS_M68000_TESTS=/corpus -v "$CORPUS:/corpus:ro" "$@"
+fi
+set -- -v "$ROOT:/src" -w /src "$@"
+
+run_go "$@"

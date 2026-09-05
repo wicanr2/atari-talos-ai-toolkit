@@ -237,3 +237,19 @@
   Hatari 保存 fault address `$FFFF8006`，Atari Talos 保存 `$00FF8006`。
   下一切片必須保留 effective address 的 32-bit 符號延伸表示，不可只由
   24-bit bus backend 回報值反推。
+- SunDog: Frozen Legacy（Atari ST）的 `SYSTEM.INTERP` 是 UCSD p-System IV.2.1 的
+  p-machine 直譯器，11,776 bytes，SHA-256
+  `a344edfb07d27cafa3dfda68f1854a76f63a0e89cf2e8229dacf5aa64d603c38`。SunDog remake
+  專案對它做過全檔掃描，結果是零個 trap、零個 line-A、零個硬體位址——直譯器本體
+  不碰 I/O，因此在 M3 之前就能作為真實 68000 程式碼的驗收語料。
+- 分派表在偏移 `$00EC`，256 項 big-endian word。opcode `$00`–`$1F` 的表項全部是
+  `$00D8`，`$20` 是 `$0534`；這證明「前 32 個 opcode 共用短常數常式」寫在表裡，
+  不是從常式行為反推的。
+- `$00D8` 是 `lsr.w #1,d0` / `move.w d0,-(sp)` / `jmp (a5)`：進入時 `D0` 為 opcode×2，
+  右移還原成常數。`$0534` 是 `subi.w #$3E,d0` / `move.w 8(a0,d0.l),-(sp)` / `jmp (a5)`，
+  即活動記錄「編號×2＋8」的出處。
+- `$0952` 是 `ixa`：以 UCSD 變長編碼取元素大小，pop 索引，`mulu` 後 `add.w d1,d1` 再
+  `add.w d1,(a7)`。結果為 `base + index × n × 2`，且基底是 byte 位址（位移直接相加）。
+  SunDog 專案據此把城市地面圖定為每列 40 bytes（`ixa $14`＝20 words×2）、整張 40×24；
+  該結論原本只有閱讀反組譯這一層證據，現在有了執行時收據。
+

@@ -55,14 +55,23 @@ tools/go.sh build -o bin/ataritalos ./cmd/ataritalos
 # 下載固定版本的外部 CPU 語料，再跑逐 clock／bus 驗收
 tools/fetch-m68000-tests.sh
 TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
+
+# 用真實出貨的 68000 程式碼驗收：UCSD p-System IV.2.1 直譯器
+# （SunDog: Frozen Legacy 的 SYSTEM.INTERP，自備原版磁碟檔案）
+TALOS_UCSD_INTERP=workplace/sundog tools/go.sh test ./internal/m68k -run UCSD
 ```
+
+合成語料逐條窮舉單一指令的狀態空間；`TALOS_UCSD_INTERP` 那組跑的則是一段有目的的
+程式——opcode 分派、短常數、區域變數與陣列索引，指令彼此有真實的資料相依。兩者互補。
+原版素材不進 repository，檔案雜湊在測試裡釘死；未設定環境變數時該組測試跳過。
+契約見 [`docs/spec/054-ucsd-psystem-interpreter-execution.md`](docs/spec/054-ucsd-psystem-interpreter-execution.md)。
 
 ## 里程碑
 
 | 里程碑 | 完成條件 | 狀態 |
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
-| M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE，共 227,500 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）** |
+| M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE，共 227,500 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）；另以 UCSD p-System IV.2.1 直譯器的真實出貨程式碼補一組互補驗收** |
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU `$FF8001` 與 EmuTOS `MOVEC`→vector 4（8 條／128 clocks）已對 Hatari CONFORMED；下一差異是 vector 2 frame 的 `$FFFF8006`，其餘 I/O 與後續開機進行中** |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
