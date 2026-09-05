@@ -21,7 +21,8 @@ stopped state，並經 E-clock 對齊的 level-4 autovector 進入真正的 EmuT
 第二次 handler 在 267,332 clocks 與 Hatari 全狀態一致，且 `$466 frclock` 已由 1 增至 2；
 有界續跑亦可跨第三次 VBL，並完成 `$FF8260` Shifter low-resolution 同值初始化。
 `$FF820A` 也會在第三幀由 60 Hz 切至 50 Hz，第四個 VBL deadline 已依 Hatari 修正為
-535,528。目前下一個開機閘門是 `$FF8240` palette word write。
+535,528。16 色 `$FF8240–$FF825E` palette bank 與 EmuTOS 初始化迴圈也已完整對拍；
+目前下一個開機閘門是 `$FF8201` framebuffer base high byte write。
 畫面、輸入、磁碟與完整 TOS
 開機仍未完成，因此目前**還不是可啟動遊戲的模擬器**；
 未具備的控制命令持續明確失敗，不會假裝成功。
@@ -74,7 +75,7 @@ TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE／STOP／line-F，共 232,500 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）** |
-| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP reset bank、固定 GPIP input、首個 external bus slot、level-4 autovector、reset 60 Hz recurring GLUE VBL、stopped-clock 快轉、`$FF8260` low-res init 及 `$FF820A` 60→50 Hz 已 CONFORMED；固定 EmuTOS 第二次 handler 於 267,332 clocks 全狀態對拍，第四 VBL deadline 為 535,528** |
+| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP reset bank、固定 GPIP input、首個 external bus slot、level-4 autovector、reset 60 Hz recurring GLUE VBL、stopped-clock 快轉、video mode 與 16 色 palette 已 CONFORMED；固定 EmuTOS 第二次 handler 於 267,332 clocks 全狀態對拍，第四 VBL deadline 為 535,528** |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
 | M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |

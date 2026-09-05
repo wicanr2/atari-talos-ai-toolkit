@@ -44,6 +44,7 @@
 | ST reset 60 Hz recurring VBL／STOP 快轉 | 263×508 deadline、E-clock 公式、video IACK、idle timeline、STOP 喚醒與 guest handler | 固定 EmuTOS＋Hatari 第二 `$FC0446` 完整 state／frame／prefetch；`$466:1→2` | 通過；第二 handler 267,332 clocks，後續由規格 077 接管 |
 | ST Shifter `$FF8260` reset／low-res 同值寫入 | reset/read、`0→0`、非零 fail-closed、alias／權限／寬度／bus wait | Atari hardware map；固定 Hatari／EmuTOS `$FC69E6` 前後完整 state | 通過；12 clocks 到 `$FC69EA`，後續由規格 078 接管 |
 | ST GLUE `$FF820A` 第 0 線 60→50 Hz | reset/read、typed transition、same-value／反向 fail-closed、deadline／period 修正 | Hatari `$FC6A02` CycleCounter 401,272→401,284；VBL4 event 535,528 | 通過；Talos 固定寫入 12 clocks，next deadline 535,528 |
+| ST Shifter 16 色 palette | 16 word registers、`$0777` mask、reset／alias／權限／寬度／timed wait | Hatari／EmuTOS `$FC671A` 首筆與 `$FC6722` 完整 palette／state | 通過；Talos 401,366→402,052 完成迴圈，下一 gate `$FF8201` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | reset、MMU、exceptions、`RESET` 與空 cartridge 已建立；bus arbitration／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中；完全對拍至第 12 條／380 clocks，第 14 條首次差 2 clocks |

@@ -13,7 +13,8 @@ and executes the real EmuTOS handler. Its second handler entry matches Hatari at
 clocks and increments `$466 frclock` from 1 to 2; a bounded run also crosses the third VBL and
 completes the `$FF8260` low-resolution initialization. EmuTOS then changes `$FF820A` from 60 Hz to
 50 Hz during line zero; Talos adjusts the fourth VBL deadline to Hatari's 535,528 clocks. The next
-boot gate is the `$FF8240` palette word write.
+EmuTOS's complete 16-color `$FF8240–$FF825E` palette loop now also matches Hatari. The next boot
+gate is the `$FF8201` framebuffer-base high-byte write.
 Video, input, disk, and a complete TOS boot are not
 implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.

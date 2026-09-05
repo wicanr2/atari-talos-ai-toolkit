@@ -203,4 +203,52 @@ func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
 	if got, err := machine.Memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfe {
 		t.Fatalf("video sync=%02x/%v want fe", got, err)
 	}
+	for !(machine.CPU.State.Prefetch[0] == 0x30c1 && machine.CPU.State.A[0] == 0xffff8240) {
+		if machine.Instructions > 7800 {
+			t.Fatal("EmuTOS palette loop was not reached")
+		}
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("pre-palette step %d clocks=%d: %v", machine.Instructions+1, machine.Clocks, err)
+		}
+	}
+	wantPaletteD := [8]uint32{0, 0x0777, 1, 0, 0x00080000, 0x00100000, 5, 1}
+	wantPaletteA := [7]uint32{0xffff8240, 0x00fc6a68, 0x00fc68fa, 0, 0, 0x00fc01f4, 0x0ffc}
+	before = machine.CPU.State
+	if machine.Instructions != 7671 || machine.Interrupts != 3 || machine.Clocks != 401366 ||
+		before.D != wantPaletteD || before.A != wantPaletteA || before.SSP != 0x0f7c ||
+		before.SR != 0x2710 || before.PC != 0x00fc671e || before.Prefetch != [2]uint16{0x30c1, 0xb0fc} {
+		t.Fatalf("palette first pre-state machine=%+v", machine)
+	}
+	result, err = machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPaletteA[0] = 0xffff8242
+	after = machine.CPU.State
+	if result.Clocks != 8 || machine.Instructions != 7672 || machine.Clocks != 401374 ||
+		after.D != wantPaletteD || after.A != wantPaletteA || after.SSP != 0x0f7c ||
+		after.SR != 0x2710 || after.PC != 0x00fc6720 || after.Prefetch != [2]uint16{0xb0fc, 0x8260} ||
+		machine.Memory.shifterPalette[0] != 0x0777 {
+		t.Fatalf("palette first post-state result=%+v machine=%+v", result, machine)
+	}
+	for !(machine.CPU.State.Prefetch[0] == 0x0c40 && machine.CPU.State.PC == 0x00fc6726) {
+		if machine.Instructions > 7800 {
+			t.Fatal("EmuTOS palette loop did not finish")
+		}
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("palette loop step %d clocks=%d: %v", machine.Instructions+1, machine.Clocks, err)
+		}
+	}
+	wantPalette := [16]uint16{
+		0x0777, 0x0700, 0x0070, 0x0770, 0x0007, 0x0707, 0x0077, 0x0555,
+		0x0333, 0x0733, 0x0373, 0x0773, 0x0337, 0x0737, 0x0377, 0x0000,
+	}
+	wantLoopD := [8]uint32{0, 0, 1, 0, 0x00080000, 0x00100000, 5, 1}
+	wantLoopA := [7]uint32{0xffff8260, 0x00fc6a86, 0x00fc68fa, 0, 0, 0x00fc01f4, 0x0ffc}
+	after = machine.CPU.State
+	if machine.Instructions != 7749 || machine.Clocks != 402052 || after.D != wantLoopD ||
+		after.A != wantLoopA || after.SSP != 0x0f7c || after.SR != 0x2714 ||
+		after.Prefetch != [2]uint16{0x0c40, 0x0001} || machine.Memory.shifterPalette != wantPalette {
+		t.Fatalf("palette loop final machine=%+v palette=%#v", machine, machine.Memory.shifterPalette)
+	}
 }

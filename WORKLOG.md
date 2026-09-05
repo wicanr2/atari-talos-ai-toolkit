@@ -322,3 +322,11 @@
   160,256-clock frame。Talos 在固定 guest path 以 401,270→401,282 完成同狀態寫入，
   排程改為 next=535,528、後續 period=160,256。下一 gate 為 7,671 instructions／
   401,366 clocks 的 `$FF8240` palette word write。規格 078 升 CONFORMED。
+- 完成 ST Shifter `$FF8240–$FF825E` 16 色 palette word bank：一手 hardware map 與
+  Hatari 固定 source 確認 ST `$0777` mask、4-clock bus boundary、byte mirroring 特例與
+  STF read unused bits限制；本切片只接 deterministic word path。固定 EmuTOS 首筆
+  `$FC671A: MOVE.W D1,(A0)+` 以 D1=`$0777`、8 clocks 寫 color 0；完整 16 色表與
+  Hatari 相同，Talos 在 7,749 instructions／402,052 clocks 抵達迴圈後 `$FC6722` 狀態。
+  palette state 已可供未來 framebuffer 消費，但尚未宣稱像素輸出。下一 gate 為
+  7,896 instructions／403,900 clocks 的 `$FF8201` framebuffer base high byte write。
+  規格 079 升 CONFORMED。

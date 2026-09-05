@@ -7,46 +7,48 @@ import (
 )
 
 const (
-	AddressMask       = 0x00ff_ffff
-	RAM512K           = 512 * 1024
-	RAM1M             = 1024 * 1024
-	TOSROMSize        = 192 * 1024
-	TOSROMBase        = 0x00fc_0000
-	TOSROMEnd         = 0x00fe_ffff
-	CartridgeBase     = 0x00fa_0000
-	CartridgeEnd      = 0x00fb_ffff
-	CartridgeSize     = 128 * 1024
-	IOBase            = 0x00ff_0000
-	MMUConfig         = 0x00ff_8001
-	VideoSyncMode     = 0x00ff_820a
-	ShifterResolution = 0x00ff_8260
-	MFPGPIP           = 0x00ff_fa01
-	MFPAER            = 0x00ff_fa03
-	MFPDDR            = 0x00ff_fa05
-	MFPIERA           = 0x00ff_fa07
-	MFPIERB           = 0x00ff_fa09
-	MFPIPRA           = 0x00ff_fa0b
-	MFPIPRB           = 0x00ff_fa0d
-	MFPISRA           = 0x00ff_fa0f
-	MFPISRB           = 0x00ff_fa11
-	MFPIMRA           = 0x00ff_fa13
-	MFPIMRB           = 0x00ff_fa15
-	MFPVR             = 0x00ff_fa17
-	MFPTACR           = 0x00ff_fa19
-	MFPTBCR           = 0x00ff_fa1b
-	MFPTCDCR          = 0x00ff_fa1d
-	MFPTADR           = 0x00ff_fa1f
-	MFPTBDR           = 0x00ff_fa21
-	MFPTCDR           = 0x00ff_fa23
-	MFPTDDR           = 0x00ff_fa25
-	MFPSCR            = 0x00ff_fa27
-	MFPUCR            = 0x00ff_fa29
-	MFPRSR            = 0x00ff_fa2b
-	MFPTSR            = 0x00ff_fa2d
-	MFPUDR            = 0x00ff_fa2f
-	STVoidDMAByte     = 0x00ff_860f
-	STVoidRTCBase     = 0x00ff_fc21
-	STVoidRTCEnd      = 0x00ff_fc3f
+	AddressMask        = 0x00ff_ffff
+	RAM512K            = 512 * 1024
+	RAM1M              = 1024 * 1024
+	TOSROMSize         = 192 * 1024
+	TOSROMBase         = 0x00fc_0000
+	TOSROMEnd          = 0x00fe_ffff
+	CartridgeBase      = 0x00fa_0000
+	CartridgeEnd       = 0x00fb_ffff
+	CartridgeSize      = 128 * 1024
+	IOBase             = 0x00ff_0000
+	MMUConfig          = 0x00ff_8001
+	VideoSyncMode      = 0x00ff_820a
+	ShifterPaletteBase = 0x00ff_8240
+	ShifterPaletteEnd  = 0x00ff_825e
+	ShifterResolution  = 0x00ff_8260
+	MFPGPIP            = 0x00ff_fa01
+	MFPAER             = 0x00ff_fa03
+	MFPDDR             = 0x00ff_fa05
+	MFPIERA            = 0x00ff_fa07
+	MFPIERB            = 0x00ff_fa09
+	MFPIPRA            = 0x00ff_fa0b
+	MFPIPRB            = 0x00ff_fa0d
+	MFPISRA            = 0x00ff_fa0f
+	MFPISRB            = 0x00ff_fa11
+	MFPIMRA            = 0x00ff_fa13
+	MFPIMRB            = 0x00ff_fa15
+	MFPVR              = 0x00ff_fa17
+	MFPTACR            = 0x00ff_fa19
+	MFPTBCR            = 0x00ff_fa1b
+	MFPTCDCR           = 0x00ff_fa1d
+	MFPTADR            = 0x00ff_fa1f
+	MFPTBDR            = 0x00ff_fa21
+	MFPTCDR            = 0x00ff_fa23
+	MFPTDDR            = 0x00ff_fa25
+	MFPSCR             = 0x00ff_fa27
+	MFPUCR             = 0x00ff_fa29
+	MFPRSR             = 0x00ff_fa2b
+	MFPTSR             = 0x00ff_fa2d
+	MFPUDR             = 0x00ff_fa2f
+	STVoidDMAByte      = 0x00ff_860f
+	STVoidRTCBase      = 0x00ff_fc21
+	STVoidRTCEnd       = 0x00ff_fc3f
 )
 
 type FaultReason string
@@ -88,6 +90,7 @@ type Memory struct {
 	mmuConfig             byte
 	videoSyncMode         byte
 	videoSync50Transition bool
+	shifterPalette        [16]uint16
 	shifterResolution     byte
 	mfpGPIP               byte
 	mfpGPIPIn             byte
@@ -259,6 +262,12 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 	address &= AddressMask
 	if address&1 != 0 {
 		return 0, m.fault(address, functionCode, false, 2, FaultOddWordAddress)
+	}
+	if address >= ShifterPaletteBase && address <= ShifterPaletteEnd {
+		if fault := m.validateAccess(address, functionCode, false, 2); fault != nil {
+			return 0, fault
+		}
+		return m.shifterPalette[(address-ShifterPaletteBase)/2], nil
 	}
 	if address <= STVoidRTCEnd && address+1 >= STVoidRTCBase {
 		return 0, m.fault(address, functionCode, false, 2, m.unmappedReason(address))
@@ -481,6 +490,13 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 	if address&1 != 0 {
 		return m.fault(address, functionCode, true, 2, FaultOddWordAddress)
 	}
+	if address >= ShifterPaletteBase && address <= ShifterPaletteEnd {
+		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
+			return fault
+		}
+		m.shifterPalette[(address-ShifterPaletteBase)/2] = value & 0x0777
+		return nil
+	}
 	hi, fault := m.writableRAMAddress(address, functionCode, 2)
 	if fault != nil {
 		return fault
@@ -533,6 +549,7 @@ func (m *Memory) ColdReset() {
 	m.mmuConfig = 0
 	m.videoSyncMode = 0
 	m.videoSync50Transition = false
+	m.shifterPalette = [16]uint16{}
 	m.shifterResolution = 0
 	m.mfpGPIP = 0
 	m.mfpAER = 0

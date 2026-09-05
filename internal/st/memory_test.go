@@ -173,6 +173,58 @@ func TestVideoSyncResetAndFixed50HzTransition(t *testing.T) {
 	}
 }
 
+func TestShifterPaletteWordBank(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range 16 {
+		address := ShifterPaletteBase + uint32(index*2)
+		if got, err := memory.ReadWord(address, 5); err != nil || got != 0 {
+			t.Fatalf("palette[%d] reset=%04x/%v", index, got, err)
+		}
+		value := uint16(0xf888 | index*0x111)
+		if err := memory.WriteWord(address, value, 5); err != nil {
+			t.Fatalf("palette[%d] write: %v", index, err)
+		}
+		if got, err := memory.ReadWord(address, 5); err != nil || got != value&0x0777 {
+			t.Fatalf("palette[%d]=%04x/%v want %04x", index, got, err, value&0x0777)
+		}
+	}
+	if got, err := memory.ReadWord(0xffff8240, 5); err != nil || got != memory.shifterPalette[0] {
+		t.Fatalf("palette alias=%04x/%v", got, err)
+	}
+	if _, err := memory.ReadWord(ShifterPaletteBase, 1); err == nil {
+		t.Fatal("user palette read unexpectedly succeeded")
+	}
+	if err := memory.WriteWord(ShifterPaletteBase, 0, 1); err == nil {
+		t.Fatal("user palette write unexpectedly succeeded")
+	}
+	if _, err := memory.ReadWord(ShifterPaletteBase+1, 5); err == nil {
+		t.Fatal("odd palette word read unexpectedly succeeded")
+	}
+	if _, err := memory.ReadByte(ShifterPaletteBase, 5); err == nil {
+		t.Fatal("palette byte read unexpectedly succeeded")
+	}
+	if err := memory.WriteByte(ShifterPaletteBase, 0, 5); err == nil {
+		t.Fatal("palette byte write unexpectedly succeeded")
+	}
+	for _, address := range []uint32{ShifterPaletteBase - 2, ShifterPaletteEnd + 2} {
+		if _, err := memory.ReadWord(address, 5); err == nil {
+			t.Fatalf("adjacent palette word %06x unexpectedly mapped", address)
+		}
+	}
+	if wait, err := memory.WriteWordAt(ShifterPaletteBase, 0x0777, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 2 {
+		t.Fatalf("timed palette write wait=%d err=%v want 2", wait, err)
+	}
+	memory.ColdReset()
+	for index, value := range memory.shifterPalette {
+		if value != 0 {
+			t.Fatalf("palette[%d] after reset=%04x", index, value)
+		}
+	}
+}
+
 func TestMemoryRAMBoundsAndAddressMask(t *testing.T) {
 	for _, size := range []int{RAM512K, RAM1M} {
 		memory, err := NewMemory(size, testROM())
