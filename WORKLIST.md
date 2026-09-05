@@ -62,6 +62,7 @@
 | ST MFP GPIP `$FFFA01` reset write | **CONFORMED** | DDR=0 masking、4 wait clocks；EmuTOS 第 7,475 條／176,638 clocks 對拍，下一停點 `$FFFA03` |
 | ST MFP AER `$FFFA03` reset zero write | **CONFORMED** | falling-edge reset、非零改寫 fail-closed、4 wait clocks；第 7,479 條／176,682 clocks 對拍 |
 | ST MFP DDR `$FFFA05` reset zero write | **CONFORMED** | input reset、非零方向改寫 fail-closed、4 wait clocks；第 7,483 條／176,726 clocks 對拍 |
+| ST MFP IERA／IERB reset zero writes | **CONFORMED** | disable/reset、非零 enable fail-closed、4 wait clocks；第 7,491 條／176,814 clocks 對拍 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區與 MFP GPIP／AER／DDR reset write 已接；下一停點 `$FFFA07` IERA byte write 需先規格化 |
+| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區與 MFP GPIP／AER／DDR／IER reset write 已接；下一停點 `$FFFA0B` IPRA byte write 需先規格化 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

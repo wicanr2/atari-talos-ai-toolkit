@@ -225,3 +225,8 @@
   typed fail-closed。Hatari trace 為 16 clocks，固定 EmuTOS 第 7,483 條／176,726
   clocks 全狀態對拍；下一停點 `$FFFA07` IERA。完整 corpus、固定 ROM、全測試、
   vet 與 build 通過，規格 063 升 CONFORMED。
+- 合併完成 MFP IERA／IERB `$FFFA07/$FFFA09` reset-state zero writes：依 NXP
+  manual 的 enable／pending 契約，只放行 `$00→$00`，非零 enable typed fail-closed。
+  Hatari 兩次 trace 各 16 clocks；固定 EmuTOS 第 7,491 條／176,814 clocks 全狀態
+  對拍，下一停點 `$FFFA0B` IPRA。完整 corpus、固定 ROM、全測試、vet 與 build
+  通過，規格 064 升 CONFORMED。

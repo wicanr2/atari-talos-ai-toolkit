@@ -314,3 +314,10 @@
 - 固定 Hatari A0=`$FFFFFA05` tracepoint 實測 `$FC614A→$FC614E` 的 FrameCycles
   `44210→44226`，共 16 clocks；GPIP／AER／DDR 前後皆 `$00`。固定 EmuTOS
   第 7,483 條對拍後，下一輪停在 `$FFFA07` IERA write。
+- NXP MC68901 manual §4.3.1 確認 IERA／IERB reset=`$00`；bit=1 enable、bit=0
+  disable，寫 0 會清相應 pending request但不影響 in-service bit。固定 Hatari handlers
+  亦採 `pending &= enable` 後重新評估 IRQ，因此非零 enable 不可脫離 interrupt sources
+  單獨冒稱完整。
+- 固定 Hatari IERA trace為 FrameCycles `44254→44270`，IERB 為
+  `44298→44314`，各 16 clocks；兩 latch 前後皆 `$00`。固定 EmuTOS 第 7,491 條
+  對拍後，下一輪停在 `$FFFA0B` IPRA write。

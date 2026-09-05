@@ -197,6 +197,11 @@
   代表八條 GPIP pin 均為 high-impedance input；因非零值會切換 pin drive 並重新評估
   interrupt，目前只接受 `$00→$00`，其他 write 回 `unsupported_device_state`。
   固定 EmuTOS 現可完成 7,483 條／176,726 clocks，下一未支援寫入為 `$FFFA07` IERA。
+- MFP IERA／IERB `$FFFA07/$FFFA09` reset-state zero writes 已 CONFORMED：官方手冊
+  確認 reset/disable=`$00`，寫 0 同時清相應 pending bit但不清 in-service。因 interrupt
+  sources、pending 與 IRQ 尚未建模，目前只接受 `$00→$00`；非零 enable 回
+  `unsupported_device_state`。固定 EmuTOS 現可完成 7,491 條／176,814 clocks，
+  下一未支援寫入為 `$FFFA0B` IPRA。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -210,5 +215,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 `$FFFA07` MFP IERA byte write 的 enable／pending
-   互動、reset state、副作用與 clocks，再繼續固定 ROM 開機對拍。
+4. 下一個整機切片先查證並規格化 `$FFFA0B/$FFFA0D` MFP IPRA／IPRB write 的
+   write-zero clear、set restriction與 clocks，再繼續固定 ROM 開機對拍。

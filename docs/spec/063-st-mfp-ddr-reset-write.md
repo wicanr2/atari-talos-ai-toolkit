@@ -42,7 +42,8 @@ GPIP transition／pending interrupt 與其餘 MFP registers 維持失敗即關�
    GPIP read source及 interrupt transition 副作用。
 4. `$FFFA05` byte access固定增加 4 wait clocks；已驗證的
    `MOVE.B #$00,(An)` 總計 16 clocks。
-5. 下一次迴圈在 `$FFFA07` IERA write 維持 reserved-I/O fault，作為停止線。
+5. 本規格驗收時以 `$FFFA07` IERA write 的 reserved-I/O fault 作為停止線；
+   後續規格 064 只取代這條停止線，不改變 DDR 契約。
 
 ## 驗收與停止線
 
@@ -60,7 +61,8 @@ GPIP transition／pending interrupt 與其餘 MFP registers 維持失敗即關�
 - 固定 EmuTOS 完成第 7,483 條後為 176,726 累計 clocks；DDR=`$00`，D/A、USP、
   SSP=`$0F8C`、SR=`$2714`、內部 prefetch 游標 PC=`$FC6152`、prefetch
   `$5488,$B0FC` 均符合 Hatari 對應邊界。
-- 再完成三條迴圈控制指令後，第 7,487 條嘗試停在 `$FFFA07` IERA reserved-I/O
-  write；沒有把相鄰 register bank 泛化成可寫 memory。
+- 本規格驗收時，再完成三條迴圈控制指令後，第 7,487 條嘗試停在 `$FFFA07`
+  IERA reserved-I/O write；該停止線其後由規格 064 取代，其他未規格化 register
+  仍未泛化成可寫 memory。
 - 完整 230,000 筆 CPU corpus、固定 ROM 全測試、`go vet -stdmethods=false ./...`
   與 `go build ./...` 全部通過。

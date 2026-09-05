@@ -21,6 +21,8 @@ const (
 	MFPGPIP       = 0x00ff_fa01
 	MFPAER        = 0x00ff_fa03
 	MFPDDR        = 0x00ff_fa05
+	MFPIERA       = 0x00ff_fa07
+	MFPIERB       = 0x00ff_fa09
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -66,11 +68,18 @@ type Memory struct {
 	mfpGPIP   byte
 	mfpAER    byte
 	mfpDDR    byte
+	mfpIERA   byte
+	mfpIERB   byte
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
+	return m.isModeledMFPByte(address)
+}
+
+func (m *Memory) isModeledMFPByte(address uint32) bool {
 	address &= AddressMask
-	return address == MFPGPIP || address == MFPAER || address == MFPDDR
+	return address == MFPGPIP || address == MFPAER || address == MFPDDR ||
+		address == MFPIERA || address == MFPIERB
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -97,6 +106,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.mfpAER, nil
 	case address == MFPDDR:
 		return m.mfpDDR, nil
+	case address == MFPIERA:
+		return m.mfpIERA, nil
+	case address == MFPIERB:
+		return m.mfpIERB, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -118,7 +131,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 }
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
-	if address&AddressMask == MFPGPIP || address&AddressMask == MFPAER || address&AddressMask == MFPDDR {
+	if m.isModeledMFPByte(address) {
 		value, err := m.ReadByte(address, access.FunctionCode)
 		return value, 4, err
 	}
@@ -183,6 +196,18 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		}
 		return nil
 	}
+	if address == MFPIERA {
+		if m.mfpIERA != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if address == MFPIERB {
+		if m.mfpIERB != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -199,7 +224,7 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 }
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
-	if address&AddressMask == MFPGPIP || address&AddressMask == MFPAER || address&AddressMask == MFPDDR {
+	if m.isModeledMFPByte(address) {
 		return 4, m.WriteByte(address, value, access.FunctionCode)
 	}
 	wait, err := busSlotWait(access.Clock)
@@ -267,6 +292,8 @@ func (m *Memory) ColdReset() {
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0
+	m.mfpIERA = 0
+	m.mfpIERB = 0
 }
 
 func (m *Memory) M68KReset() error {
