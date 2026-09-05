@@ -266,3 +266,9 @@
   Hatari 四次 trace 各 16 clocks；EmuTOS 第 7,547 條／177,430 clocks 全狀態對拍，
   下一停點 `$FFFA27` SCR。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build
   通過，規格 070 升 CONFORMED。
+- 完成 MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset writes：
+  依 NXP manual 不把 TSR 冒稱硬體 reset-zero，只在固定 EmuTOS 軟體寫零後標為已知；
+  非零 serial state 與 UDR 維持 typed fail-closed。Hatari 四次 trace 各 16 clocks；
+  EmuTOS 第 7,563 條／177,606 clocks 全狀態對拍，有界續跑至第 7,598 條後停在
+  `STOP` `$4E72`。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與 build 通過，
+  規格 071 升 CONFORMED。

@@ -37,6 +37,11 @@ const (
 	MFPTBDR       = 0x00ff_fa21
 	MFPTCDR       = 0x00ff_fa23
 	MFPTDDR       = 0x00ff_fa25
+	MFPSCR        = 0x00ff_fa27
+	MFPUCR        = 0x00ff_fa29
+	MFPRSR        = 0x00ff_fa2b
+	MFPTSR        = 0x00ff_fa2d
+	MFPUDR        = 0x00ff_fa2f
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -102,6 +107,11 @@ type Memory struct {
 	mfpTBMain byte
 	mfpTCMain byte
 	mfpTDMain byte
+	mfpSCR    byte
+	mfpUCR    byte
+	mfpRSR    byte
+	mfpTSR    byte
+	mfpTSRSet bool
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -114,7 +124,8 @@ func (m *Memory) isModeledMFPByte(address uint32) bool {
 		address == MFPIERA || address == MFPIERB || address == MFPIPRA || address == MFPIPRB ||
 		address == MFPISRA || address == MFPISRB || address == MFPIMRA || address == MFPIMRB ||
 		address == MFPVR || address == MFPTACR || address == MFPTBCR || address == MFPTCDCR ||
-		address == MFPTADR || address == MFPTBDR || address == MFPTCDR || address == MFPTDDR
+		address == MFPTADR || address == MFPTBDR || address == MFPTCDR || address == MFPTDDR ||
+		address == MFPSCR || address == MFPUCR || address == MFPRSR || address == MFPTSR
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -185,6 +196,17 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 			return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 		}
 		return m.mfpTDMain, nil
+	case address == MFPSCR:
+		return m.mfpSCR, nil
+	case address == MFPUCR:
+		return m.mfpUCR, nil
+	case address == MFPRSR:
+		return m.mfpRSR, nil
+	case address == MFPTSR:
+		if !m.mfpTSRSet {
+			return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
+		}
+		return m.mfpTSR, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -371,6 +393,32 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mfpTDDR, m.mfpTDMain = value, value
 		return nil
 	}
+	if address == MFPSCR {
+		if m.mfpSCR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if address == MFPUCR {
+		if m.mfpUCR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if address == MFPRSR {
+		if m.mfpRSR != 0 || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if address == MFPTSR {
+		if (m.mfpTSRSet && m.mfpTSR != 0) || value != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		m.mfpTSR = 0
+		m.mfpTSRSet = true
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -475,6 +523,11 @@ func (m *Memory) ColdReset() {
 	m.mfpTBMain = 0
 	m.mfpTCMain = 0
 	m.mfpTDMain = 0
+	m.mfpSCR = 0
+	m.mfpUCR = 0
+	m.mfpRSR = 0
+	m.mfpTSR = 0
+	m.mfpTSRSet = false
 }
 
 func (m *Memory) M68KReset() error {

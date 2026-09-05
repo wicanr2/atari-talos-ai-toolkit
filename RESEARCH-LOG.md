@@ -360,3 +360,11 @@
 - 固定 Hatari TADR trace為 FrameCycles `44782→44798`、TBDR `44826→44842`、
   TCDR `44870→44886`、TDDR `44914→44930`，各 16 clocks；四 register 前後皆
   `$00`。固定 EmuTOS 第 7,547 條／177,430 clocks 對拍後，下一輪停在 `$FFFA27` SCR。
+- NXP MC68901 manual §3.3、§7.1.2、§7.1.3、§7.2.2、§7.3.2 確認 SCR／UCR／RSR
+  硬體 reset 為 `$00`，但 TSR／UDR 不由硬體 reset 清除；RSR/TSR 的 bit 0 分別控制
+  receiver/transmitter enable。固定 EmuTOS `bios/mfp.c:25-36 reset_mfp_regs` 明確由
+  GPIP 每隔一 byte 寫零至 TSR，刻意排除 UDR。
+- 固定 Hatari SCR trace為 FrameCycles `44958→44974`、UCR `45002→45018`、RSR
+  `45046→45062`、TSR `45090→45106`，各 16 clocks，四 register 前後皆 `$00`。
+  固定 EmuTOS 第 7,563 條／177,606 clocks 全狀態對拍；有界續跑至第 7,598 條／
+  178,092 clocks，下一次嘗試在 PC `$FCD09E` 遇到 `STOP` `$4E72`。

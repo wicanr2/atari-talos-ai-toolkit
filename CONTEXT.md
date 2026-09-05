@@ -230,7 +230,12 @@
   CONFORMED：timer 停止時任意 byte 同步載入 data register 與 main counter；active
   timer 的捕捉、延後 reload 與臨界不定值尚未建模，明確失敗。固定 EmuTOS 現可完成
   7,547 條／177,430 clocks；再完成三條控制指令後，第 7,551 次嘗試在 `$FFFA27`
-  Synchronous Character Register 失敗即關閉。
+  Synchronous Character Register 形成本規格當時的驗收停止點；後續由規格 071 接管。
+- MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset write 已
+  CONFORMED：依 NXP 手冊保留 TSR 硬體 reset 未定的事實，只接受固定 EmuTOS 的
+  軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
+  第 7,563 條／177,606 clocks 的 state／prefetch 對上 Hatari；後續可完成至第 7,598
+  條／178,092 clocks，第 7,599 次嘗試停在 PC `$FCD09E` 的 `STOP` `$4E72`。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -244,5 +249,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 `$FFFA27` 起的 MFP USART control/status/data
-   registers；先切固定 ROM reset write，不在沒有 serial clock/state 時泛化 USART。
+4. 下一個整機切片先查證並規格化 PC `$FCD09E` 的 MC68000 `STOP`；須處理 immediate
+   SR、supervisor privilege、停止狀態與 interrupt 喚醒邊界，不以無限迴圈代替。

@@ -637,8 +637,84 @@ func TestMFPTimerDataStoppedLoad(t *testing.T) {
 	}
 	if memory, err := NewMemory(RAM1M, testROM()); err != nil {
 		t.Fatal(err)
-	} else if _, err := memory.ReadByte(MFPTDDR+2, 5); err == nil {
-		t.Fatal("neighboring SCR unexpectedly mapped")
+	} else if _, err := memory.ReadByte(MFPSCR, 5); err != nil {
+		t.Fatalf("neighboring SCR reset read: %v", err)
+	}
+}
+
+func TestMFPUSARTResetZeroWrites(t *testing.T) {
+	tests := []struct {
+		name    string
+		address uint32
+		field   func(*Memory) byte
+		set     func(*Memory, byte)
+	}{
+		{name: "SCR", address: MFPSCR, field: func(m *Memory) byte { return m.mfpSCR }, set: func(m *Memory, v byte) { m.mfpSCR = v }},
+		{name: "UCR", address: MFPUCR, field: func(m *Memory) byte { return m.mfpUCR }, set: func(m *Memory, v byte) { m.mfpUCR = v }},
+		{name: "RSR", address: MFPRSR, field: func(m *Memory) byte { return m.mfpRSR }, set: func(m *Memory, v byte) { m.mfpRSR = v }},
+		{name: "TSR", address: MFPTSR, field: func(m *Memory) byte { return m.mfpTSR }, set: func(m *Memory, v byte) { m.mfpTSR, m.mfpTSRSet = v, true }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			memory, err := NewMemory(RAM1M, testROM())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.address == MFPTSR {
+				if _, err := memory.ReadByte(test.address, 5); err == nil {
+					t.Fatal("hardware-reset TSR unexpectedly treated as known")
+				}
+			} else if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+				t.Fatalf("cold %s=%02x/%v want 00", test.name, got, err)
+			}
+			if wait, err := memory.WriteByteAt(test.address|0xff000000, 0,
+				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+				t.Fatalf("initialized %s=%02x/%v want 00", test.name, got, err)
+			}
+			test.set(memory, 0x5a)
+			if err := memory.WriteByte(test.address, 0, 5); err == nil {
+				t.Fatalf("non-reset %s state unexpectedly accepted", test.name)
+			}
+			if test.field(memory) != 0x5a {
+				t.Fatalf("failed %s write changed state", test.name)
+			}
+			test.set(memory, 0)
+			if err := memory.WriteByte(test.address, 1, 5); err == nil {
+				t.Fatalf("nonzero %s write unexpectedly accepted", test.name)
+			}
+			if _, err := memory.ReadByte(test.address, 1); err == nil {
+				t.Fatalf("user %s read unexpectedly succeeded", test.name)
+			}
+			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+				t.Fatalf("user %s write unexpectedly succeeded", test.name)
+			}
+			if _, err := memory.ReadWord(test.address, 5); err == nil {
+				t.Fatalf("odd %s word read unexpectedly succeeded", test.name)
+			}
+		})
+	}
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := memory.ReadByte(MFPUDR, 5); err == nil {
+		t.Fatal("UDR unexpectedly mapped")
+	}
+	memory.mfpSCR, memory.mfpUCR, memory.mfpRSR = 1, 2, 3
+	memory.mfpTSR, memory.mfpTSRSet = 4, true
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{MFPSCR, MFPUCR, MFPRSR} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != 0 {
+			t.Fatalf("reset USART register %06x=%02x/%v want 00", address, got, err)
+		}
+	}
+	if _, err := memory.ReadByte(MFPTSR, 5); err == nil {
+		t.Fatal("hardware-reset TSR unexpectedly remained known")
 	}
 }
 

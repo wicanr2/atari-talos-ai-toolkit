@@ -43,14 +43,14 @@ write。active timer、prescaler、countdown、reload、timeout、output 與 int
 4. 對應 control 非零時，read/write 回 `unsupported_device_state`，且 TDR／main
    counter 不變；這是 active counter 捕捉／延後 reload 未接線前的停止線。
 5. 四位址 byte access各增加 4 wait clocks；EmuTOS 同形 MOVE各 16 clocks。
-6. 完成 TDDR 後，下一次迴圈在 `$FFFA27` Synchronous Character Register write
-   維持 reserved-I/O fault。
+6. 完成 TDDR 後的驗收停止點是 `$FFFA27` Synchronous Character Register write；
+   該後續位址現由規格 071 接管，本規格的 timer-data 契約不變。
 
 ## 驗收與停止線
 
 - table test涵蓋 reset、任意 byte 同步載入 TDR/main counter、`$00` round-trip、
   active control 原子失敗、alias、4 wait clocks、user protection、word access及
-  `$FFFA27` 未映射。
+  `$FFFA27` 在本規格驗收當時未映射；後續接線見規格 071。
 - 固定 EmuTOS 應完成第 7,547 條、累計 177,430 clocks，state、prefetch 與四個
   TDR/main counter 對上 Hatari；再三條控制指令後，第 7,551 次嘗試在 `$FFFA27`
   明確停止，成功完成數維持 7,550。

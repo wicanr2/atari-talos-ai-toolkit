@@ -1019,10 +1019,67 @@ func TestMachineEmuTOSLoadsMFPResetTimerData(t *testing.T) {
 			t.Fatalf("post-TDDR step %d: %v", machine.Instructions+1, err)
 		}
 	}
-	if _, err := machine.Step(); err == nil || machine.Instructions != 7550 ||
+	if _, err := machine.Step(); err != nil || machine.Instructions != 7551 ||
 		machine.CPU.State.A[0] != 0xfffffa27 {
-		t.Fatalf("next SCR stop instructions=%d A0=%08x err=%v",
+		t.Fatalf("SCR successor instructions=%d A0=%08x err=%v",
 			machine.Instructions, machine.CPU.State.A[0], err)
+	}
+}
+
+func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for machine.Instructions < 7563 {
+		result, stepErr := machine.Step()
+		if stepErr != nil {
+			t.Fatalf("USART reset step instructions=%d clocks=%d PC=%08x A0=%08x err=%v",
+				machine.Instructions, machine.Clocks, machine.CPU.State.PC, machine.CPU.State.A[0], stepErr)
+		}
+		if (machine.Instructions == 7551 || machine.Instructions == 7555 ||
+			machine.Instructions == 7559 || machine.Instructions == 7563) && result.Clocks != 16 {
+			t.Fatalf("MFP USART write step %d clocks=%d want 16", machine.Instructions, result.Clocks)
+		}
+	}
+	state := machine.CPU.State
+	wantD := [8]uint32{0x1e, 2, 0, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA := [7]uint32{0xfffffa2d, 0x3156, 0, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Clocks != 177606 || state.D != wantD || state.A != wantA || state.USP != 0 ||
+		state.SSP != 0x0f8c || state.SR != 0x2714 || state.PC != 0x00fc6152 ||
+		state.Prefetch != [2]uint16{0x5488, 0xb0fc} {
+		t.Fatalf("MFP USART boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	for _, address := range []uint32{MFPSCR, MFPUCR, MFPRSR, MFPTSR} {
+		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+			t.Fatalf("MFP USART %06x=%02x/%v want 00", address, got, err)
+		}
+	}
+	for machine.Instructions < 7598 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("post-USART step %d: %v", machine.Instructions+1, err)
+		}
+	}
+	if _, err := machine.Step(); err == nil || err.Error() != "m68k: opcode 0x4e72 is not implemented" ||
+		machine.Instructions != 7598 || machine.Clocks != 178092 || machine.CPU.State.PC != 0x00fcd09e {
+		t.Fatalf("next STOP boundary instructions=%d clocks=%d PC=%08x err=%v",
+			machine.Instructions, machine.Clocks, machine.CPU.State.PC, err)
 	}
 }
 
