@@ -178,3 +178,8 @@
   synthetic 2-clock wait 驗證 access 前 clock、idle＋active timeline 與總 clocks；
   NOP 2,500 筆完整 phase、全 227,500 筆舊驗收、固定 EmuTOS 12 條／380 clocks、
   靜態檢查及建置均通過。其餘指令與 Shifter 仲裁未冒稱完成。
+- 固定 Hatari v2.4.1 原始碼顯示 cycle-exact memory read／write 會在 access 前，以
+  全機＋指令內 clock 對齊四 clock bus slot；將原本籠統的「Shifter arbitration」
+  收窄為 shared-memory bus slot alignment。建立 DRAFT 規格 056 並記錄三份來源檔
+  SHA-256；因 `$21FC` 未出現在固定 MOVE.L 語料，access offsets、phase 0／2 探針與
+  地址分類仍未完成，故未升 READY、未加入 production wait。

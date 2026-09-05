@@ -257,3 +257,9 @@
 - Hatari `$FC00BE` `$F010` 會讀 vector 11=`$FC00D4`，以 36 clocks 進 handler；
   但該邊界 Hatari=496、Atari Talos=494 clocks。line-F 實作必須等待前置
   bus arbitration clocks 對齊，避免以 exception timing 掩蓋較早差異。
+- 查讀 Hatari v2.4.1 commit `4371dcd647fc85d31c0629400adaeaa4212040d9`
+  的 cycle-exact memory access：`src/cpu/custom.c:217–223,360–366` 在實際
+  read／write 前，以全機 clock 加指令內 clock 對四 clock bus slot 對齊；phase bit 1
+  為 1 時等待 `4-phase`。因此第 14 條差異應收窄為 ST 共用 memory bus slot alignment，
+  而非已證實的即時 Shifter 搶占。固定 MOVE.L 語料沒有 opcode `$21FC`，其 access
+  offset 與地址分類仍缺證據，先建立 DRAFT 規格 056，不進 production timing。

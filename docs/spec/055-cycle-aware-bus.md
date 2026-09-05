@@ -8,7 +8,7 @@
 clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序、全機單調時鐘，
 以及後續 Shifter／MFP／DMA／FDC；既有 JSON Lines 控制協定與遊戲資料格式不變。
 
-本規格只建立時間語意、遷移邊界及失敗即關閉條件。Shifter 仲裁公式須另以 Hatari
+本規格只建立時間語意、遷移邊界及失敗即關閉條件。ST 共用 bus 對齊公式須另以 Hatari
 外部 oracle 與硬體資料完成規格，不在此處猜補；因此第 14 條 EmuTOS 的動態 `+2`
 仍是未完成驗收，不得用 opcode、位址或總時鐘特例通過。
 
@@ -21,7 +21,8 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
   `MOVE.L #$FC00B2,$0010` 時，Hatari 由 390 到 416 clocks，Atari Talos 由
   390 到 414；前 13 條的 CPU state、prefetch 與總 clocks 相同。
 - **強證據**：相同 opcode shape 在較早全機時相為 24 clocks，因此差異不是
-  `MOVE.L` 固定成本，而是依全機時相發生的 ST RAM／Shifter bus arbitration。
+  `MOVE.L` 固定成本；固定 Hatari 原始碼進一步將它收窄為 ST shared-memory
+  四 clock bus slot alignment，詳見 DRAFT 規格 056。
 
 ## typed 契約
 
@@ -51,7 +52,7 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
    active transaction，非零 wait 時在實際 access 前插入 idle phase 並推高總 clocks。
    未建立 exact mode 前，尚未遷移的指令仍使用 legacy Bus；不得據此宣稱全 CPU timed。
 3. 以語料時間軸逐族遷移 CPU access；每族同時比對 phase 序列，禁止只比總 clocks。
-4. 另寫 READY Shifter arbitration 規格後，接入 ST RAM，對拍 EmuTOS 第 14 條的
+4. 規格 056 升為 READY 後，接入 ST RAM shared-bus alignment，對拍 EmuTOS 第 14 條的
    動態 wait；再前進 line-F／vector 11。
 
 ## 驗收與停止線
@@ -63,5 +64,5 @@ clocks」與忽略 ST 動態等待的方案。此契約服務 MC68000 微時序�
   epoch 在 access 前送達，2-clock wait 產生 idle 2＋active 4，且 legacy transaction
   duration 仍為 4。machine 整合測試須證明非零 epoch 傳入 CPU。
 - 固定 EmuTOS ROM 前 12 條維持 380 clocks 與既有 state／prefetch 收據。
-- 本切片完成只可稱「首個 cycle-aware runtime access 已接線」，不可稱全 CPU、Shifter
+- 本切片完成只可稱「首個 cycle-aware runtime access 已接線」，不可稱全 CPU、shared bus
   arbitration 或 Atari ST 開機完成。
