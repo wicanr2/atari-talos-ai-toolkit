@@ -278,3 +278,8 @@
   位址為 `$FCD09A`，並保留 Hatari D2／D3 差異。2,500 筆 STOP 語料加入後累計
   232,500 筆；固定 EmuTOS 第 7,599 條／178,096 clocks 進入停機。全測試、vet、build
   通過，規格 072 升 CONFORMED。
+- 完成固定 color ST profile 的 MFP GPIP input sample：依 MC68901 DDR 契約合併
+  `$A1` 外部 pins，對上 Hatari `$FC67B8` monitor probe，STOP 前 D2 從 `$2704`
+  收斂為 `$2710`。剩餘 D3 差異由 ROM bytes 與 EmuTOS producer／consumer 證實為
+  `$466 frclock` 尚無 VBL producer，不再歸咎 CPU／GPIP。完整 232,500 筆 corpus、
+  固定 ROM、全測試、vet、build 通過，規格 073 升 CONFORMED。

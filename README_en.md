@@ -10,7 +10,8 @@ The project is at M2. The versioned JSON Lines control protocol and CLI exist; t
 passes 232,500 external corpus cases, and the incremental ST/STF machine core executes 7,599
 instructions of a fixed EmuTOS 1.3 ROM before correctly entering the MC68000 stopped state. The
 MFP USART reset-write boundary is in parity with Hatari; interrupt wake-up and peripheral IRQs are
-the next boot gate.
+the next boot gate. The fixed color profile now samples MFP GPIP as `$A1`, matching EmuTOS monitor
+detection; the remaining D3 difference at STOP is the not-yet-produced VBL `frclock` value.
 Video, input, disk, and a complete TOS boot are not
 implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.

@@ -376,3 +376,11 @@
   的 pipeline PC `$FCD09E` 是下一指令位址，不是 opcode 位址。Hatari 該點
   FrameCycles=`45752`、SR/prefetch 與 Talos一致；D2／D3 分別為 `$2710/$1`，Talos
   為 `$2704/$0`，列為後續開機差異，不以 STOP 實作遮蔽。
+- 固定 Hatari 在 `$FC67B8` GPIP read 前 cached GPIP=`$20`；read handler 依 DDR 取樣
+  color monitor bit 7 與 no-printer bit 0 後，連同既有 FDC-idle bit 5 得 `$A1`。
+  `$FC67B8→$FC67C2` FrameCycles `45300→45360`，D0 最終為 `$1`。Talos 加入固定
+  color profile sample 後，STOP 前 D2 從 `$2704` 收斂為 Hatari `$2710`。
+- 剩餘 D3 差異不是 GPIP：固定 ROM `$FC6904` 的 bytes
+  `26 39 00 00 04 66` 是 `MOVE.L $00000466,D3`；EmuTOS `tosvars.ld:62` 證實
+  `$466=_frclock`，`bios/vectors.S:323-324 _int_vbl` 每次 VBL 加 1，`screen.c:1204-1207`
+  的 `vsync` 讀它後 STOP 等待中斷。Hatari 已有一個 VBL故 D3=1，Talos 尚無 VBL故 0。

@@ -613,8 +613,8 @@ func TestMachineEmuTOSWritesMFPResetGPIP(t *testing.T) {
 		t.Fatalf("MFP GPIP boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MFPGPIP, 5); err != nil || got != 0 {
-		t.Fatalf("MFP GPIP=%02x/%v want 00", got, err)
+	if got, err := machine.Memory.ReadByte(MFPGPIP, 5); err != nil || got != 0xa1 {
+		t.Fatalf("MFP GPIP sampled=%02x/%v want a1", got, err)
 	}
 }
 
@@ -1078,6 +1078,13 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 		}
 	}
 	stopPreState := machine.CPU.State
+	wantSTOPD := [8]uint32{0x2304, 0x18, 0x2710, 0, 0x00080000, 0x00100000, 5, 1}
+	wantSTOPA := [7]uint32{0xfffffa2f, 0x3156, 0x00fcd074, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if stopPreState.D != wantSTOPD || stopPreState.A != wantSTOPA || stopPreState.USP != 0 ||
+		stopPreState.SSP != 0x0f70 || stopPreState.SR != 0x2300 || stopPreState.PC != 0x00fcd09e ||
+		stopPreState.Prefetch != [2]uint16{0x4e72, 0x2300} {
+		t.Fatalf("STOP pre-state mismatch: %+v", stopPreState)
+	}
 	result, err := machine.Step()
 	if err != nil || result.Clocks != 4 || machine.Instructions != 7599 || machine.Clocks != 178096 ||
 		machine.CPU.State.SR != 0x2300 || !machine.CPU.IsStopped() ||

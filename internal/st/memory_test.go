@@ -191,13 +191,13 @@ func TestMFPGPIPResetStateByteAccess(t *testing.T) {
 		t.Fatalf("masked GPIP=%02x/%v want ac", got, err)
 	}
 	memory.ColdReset()
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got != 0xa1 {
 		t.Fatalf("cold GPIP=%02x/%v", got, err)
 	}
 	if err := memory.WriteByte(MFPGPIP, 0xff, 5); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := memory.ReadByte(MFPGPIP, 5); got != 0 {
+	if got, _ := memory.ReadByte(MFPGPIP, 5); got != 0xa1 {
 		t.Fatalf("DDR=0 write changed GPIP to %02x", got)
 	}
 	if wait, err := memory.WriteByteAt(MFPGPIP, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {

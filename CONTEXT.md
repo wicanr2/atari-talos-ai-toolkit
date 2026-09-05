@@ -240,8 +240,13 @@
   masking、4 clocks、stopped latch、重複 Step 原子停止與 CPU Reset 清除均已接線；
   2,500 筆固定外部語料全過。固定 EmuTOS 的 opcode 位址是 `$FCD09A`，Talos pipeline
   PC `$FCD09E` 指向下一指令；第 7,599 條／178,096 clocks 後 SR=`$2300` 並停機。
-  Hatari 同點的 opcode／SR／prefetch 一致，但 Hatari D2=`$2710`、D3=`$1`，Talos
-  D2=`$2704`、D3=`$0`，故不宣稱這個較晚點已達全暫存器 parity。
+  Hatari 同點的 opcode／SR／prefetch 一致。規格 073 已將 D2 修正為雙方 `$2710`；
+  D3 尚因 VBL `frclock` 未接而是 Talos `$0`、Hatari `$1`，故不宣稱這個較晚點已達
+  全暫存器 parity。
+- 固定 color ST profile 的 MFP GPIP input sample 已 CONFORMED：bus read 依 DDR 合併
+  `$A1`（color monitor bit 7、FDC idle bit 5、no-printer busy bit 0），修正 `$FC67B8`
+  monitor detection。STOP 前 D2 已由 `$2704` 收斂為 Hatari `$2710`；剩餘 D3 差異
+  已定位到 `$FC6904 MOVE.L $466,D3`，`$466` 是由 VBL handler 增加的 `frclock`。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -255,5 +260,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證 STOP 後的 interrupt 喚醒入口與第一個實際 IRQ source；
-   同時追查 STOP 前 D2／D3 與 Hatari 的差異來源，不在 IRQ 尚未建模時假造 VBL。
+4. 下一個整機切片先查證並規格化 GLUE VBL → CPU level-4 interrupt → STOP wake；
+   驗收須包含 `$466 frclock` 從 0 到 1，不能只清 stopped latch 或直接改記憶體。

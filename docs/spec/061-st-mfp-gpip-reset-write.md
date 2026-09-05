@@ -51,6 +51,8 @@ supervisor byte read／write，以及同形 `MOVE.B #imm,(An)` 的 timed write p
    alignment，也不宣稱 pin-level E-clock parity。
 5. 本規格驗收時以 `$FFFA03` AER write 的 reserved-I/O fault 作為切片停止線；
    後續規格 062 只取代這條停止線，不改變 GPIP 契約。
+6. 本規格只涵蓋尚未抽樣外部 pins 的 reset latch；固定 color ST profile 的 bus read
+   input sample 已由規格 073 擴充，本規格其餘 write／timing 契約不變。
 
 ## 驗收與停止線
 

@@ -85,6 +85,7 @@ type Memory struct {
 	rom       []byte
 	mmuConfig byte
 	mfpGPIP   byte
+	mfpGPIPIn byte
 	mfpAER    byte
 	mfpDDR    byte
 	mfpIERA   byte
@@ -135,7 +136,11 @@ func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
 	if len(tosROM) != TOSROMSize {
 		return nil, fmt.Errorf("st: TOS ROM size %d, want %d", len(tosROM), TOSROMSize)
 	}
-	return &Memory{ram: make([]byte, ramSize), rom: append([]byte(nil), tosROM...)}, nil
+	return &Memory{
+		ram:       make([]byte, ramSize),
+		rom:       append([]byte(nil), tosROM...),
+		mfpGPIPIn: 0xa1,
+	}, nil
 }
 
 func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
@@ -147,6 +152,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	case address == MMUConfig:
 		return m.mmuConfig, nil
 	case address == MFPGPIP:
+		m.mfpGPIP = m.mfpGPIP&m.mfpDDR | m.mfpGPIPIn&^m.mfpDDR
 		return m.mfpGPIP, nil
 	case address == MFPAER:
 		return m.mfpAER, nil
