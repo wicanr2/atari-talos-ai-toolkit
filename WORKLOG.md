@@ -283,3 +283,9 @@
   收斂為 `$2710`。剩餘 D3 差異由 ROM bytes 與 EmuTOS producer／consumer 證實為
   `$466 frclock` 尚無 VBL producer，不再歸咎 CPU／GPIP。完整 232,500 筆 corpus、
   固定 ROM、全測試、vet、build 通過，規格 073 升 CONFORMED。
+- 完成 MC68000 level 4 autovector CPU 接受層：NXP manual 確認 STOP／mask／vector 28，
+  固定 Hatari 量得 `$70=$FC0446`、STOP 後 saved PC `$FCD09E`、SSP `$F70→$F6A`、
+  SR mask 4 與 handler prefetch `$52B8,$0466`。實作遮罩拒絕、非法 level fail-closed、
+  44 clocks、format-0 frame 與成功後解除 stopped latch；完整 232,500 筆 corpus、固定
+  EmuTOS STOP gate、全測試、vet、build 通過，規格 074 升 CONFORMED。GLUE frame
+  phase 尚無 READY 規格，故未猜測 VBL deadline 或直接改 `$466`。

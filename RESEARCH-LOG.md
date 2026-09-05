@@ -384,3 +384,12 @@
   `26 39 00 00 04 66` 是 `MOVE.L $00000466,D3`；EmuTOS `tosvars.ld:62` 證實
   `$466=_frclock`，`bios/vectors.S:323-324 _int_vbl` 每次 VBL 加 1，`screen.c:1204-1207`
   的 `vsync` 讀它後 STOP 等待中斷。Hatari 已有一個 VBL故 D3=1，Talos 尚無 VBL故 0。
+- NXP MC68000 Programmer’s Reference Manual 的 STOP 契約確認 PC 先推進到下一指令，
+  中斷 level 必須高於 SR mask；附錄 B 確認 level 4 autovector 是 vector 28／offset `$70`。
+  固定 Hatari 在 `$FCD09A: STOP #$2300` 讀得 `$70=$00FC0446`；第二個 VBL handler
+  入口 SSP `$F70→$F6A`、SR mask 4、frame bytes 對應 `$2300,$00FC,$D09E`，prefetch
+  `$52B8,$0466`。handler 第一條即 `ADDQ.L #1,$466`；入口時 `$466` 尚為 1，證明
+  frclock 應由 guest handler 執行增加，而不是由主機事件直接寫入。
+- Hatari 第二個 VBL handler 入口 FrameCycles=`124`，支援 44-clock autovector exception
+  sequence；實體 IACK pin／VPA 波形未由 debugger 觀測，維持未建模。Talos CPU API
+  只接受已由外部仲裁的 level 1–6 autovector，第 7 級特殊語意失敗即關閉。

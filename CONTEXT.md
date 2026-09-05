@@ -247,6 +247,11 @@
   `$A1`（color monitor bit 7、FDC idle bit 5、no-printer busy bit 0），修正 `$FC67B8`
   monitor detection。STOP 前 D2 已由 `$2704` 收斂為 Hatari `$2710`；剩餘 D3 差異
   已定位到 `$FC6904 MOVE.L $466,D3`，`$466` 是由 VBL handler 增加的 `frclock`。
+- MC68000 level 4 autovector 接受已 CONFORMED：外部仲裁後的 CPU API 依 SR mask 決定
+  接受，使用 vector 28、建立 6-byte frame、切 mask 4、44 clocks 並解除 STOP。固定
+  Hatari 在第二個 VBL 進 `$FC0446`，frame 為 `$2300,$00FC,$D09E`，與 Talos typed
+  測試一致。GLUE VBL 產生時點仍未規格化，因此尚未接進 `Machine.Step()`，也未直接
+  改寫 `$466`。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -260,5 +265,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查證並規格化 GLUE VBL → CPU level-4 interrupt → STOP wake；
-   驗收須包含 `$466 frclock` 從 0 到 1，不能只清 stopped latch 或直接改記憶體。
+4. 下一個整機切片查證並規格化 GLUE frame phase／VBL 事件排程，再呼叫已完成的 CPU
+   level-4 autovector；驗收須由 `$FC0446` 真正執行令 `$466 frclock` 從 0 到 1，不能
+   直接改記憶體。

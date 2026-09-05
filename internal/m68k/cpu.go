@@ -12,6 +12,8 @@ const (
 
 var ErrStopped = errors.New("m68k: processor is stopped")
 
+var ErrInvalidAutovectorLevel = errors.New("m68k: autovector level must be 1 through 6")
+
 type State struct {
 	D        [8]uint32
 	A        [7]uint32
@@ -101,6 +103,41 @@ type CPU struct {
 
 func (c *CPU) IsStopped() bool {
 	return c.stopped
+}
+
+// AcceptAutovector accepts an already-arbitrated level 1-6 autovector interrupt.
+// Level 7 has distinct edge-triggered semantics and is intentionally fail-closed.
+func (c *CPU) AcceptAutovector(level uint8) (StepResult, bool, error) {
+	return c.AcceptAutovectorAt(level, 0)
+}
+
+// AcceptAutovectorAt is the cycle-aware form of AcceptAutovector.
+func (c *CPU) AcceptAutovectorAt(level uint8, epoch uint64) (StepResult, bool, error) {
+	if c.Bus == nil {
+		return StepResult{}, false, fmt.Errorf("m68k: nil bus")
+	}
+	if level < 1 || level > 6 {
+		return StepResult{}, false, ErrInvalidAutovectorLevel
+	}
+	if level <= uint8(c.State.SR>>8&7) {
+		return StepResult{}, false, nil
+	}
+	c.epoch = epoch
+	var (
+		result StepResult
+		err    error
+	)
+	if _, ok := c.Bus.(TimedBus); ok {
+		result, err = c.enterTimedStandardException(24+level, c.State.PC, 44)
+	} else {
+		result, err = c.enterStandardException(24+level, c.State.PC, nil, 44)
+	}
+	if err != nil {
+		return result, false, err
+	}
+	c.State.SR = c.State.SR&^0x0700 | uint16(level)<<8
+	c.stopped = false
+	return result, true, nil
 }
 
 func (c *CPU) Reset() error {

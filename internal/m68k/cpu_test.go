@@ -7,6 +7,63 @@ import (
 	"testing"
 )
 
+func TestMC68000Level4AutovectorWakesSTOP(t *testing.T) {
+	memory := SparseMemory{
+		0x70: 0x00, 0x71: 0xfc, 0x72: 0x04, 0x73: 0x46,
+		0xfc0446: 0x52, 0xfc0447: 0xb8, 0xfc0448: 0x04, 0xfc0449: 0x66,
+		0x1000: 0x4e, 0x1001: 0x72, 0x1002: 0x23, 0x1003: 0x00,
+	}
+	cpu := CPU{Bus: memory, State: State{SSP: 0x0f70, SR: 0x2300, PC: 0x1004,
+		Prefetch: [2]uint16{0x4e72, 0x2300}}}
+	if _, err := cpu.Step(); err != nil {
+		t.Fatal(err)
+	}
+	result, accepted, err := cpu.AcceptAutovector(4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !accepted || result.Clocks != 44 || cpu.IsStopped() {
+		t.Fatalf("accepted=%v clocks=%d stopped=%v", accepted, result.Clocks, cpu.IsStopped())
+	}
+	if cpu.State.SSP != 0x0f6a || cpu.State.SR != 0x2400 || cpu.State.PC != 0xfc044a ||
+		cpu.State.Prefetch != [2]uint16{0x52b8, 0x0466} {
+		t.Fatalf("unexpected state: %+v", cpu.State)
+	}
+	if memory[0x0f6a] != 0x23 || memory[0x0f6b] != 0x00 || memory[0x0f6c] != 0 || memory[0x0f6d] != 0 ||
+		memory[0x0f6e] != 0x10 || memory[0x0f6f] != 0x04 {
+		t.Fatalf("unexpected frame bytes at SSP: %v", memory)
+	}
+}
+
+func TestMC68000AutovectorRejectsMaskedAndInvalidLevels(t *testing.T) {
+	initial := State{SSP: 0x1000, SR: 0x2400, PC: 0x2004}
+	cpu := CPU{Bus: SparseMemory{}, State: initial, stopped: true}
+	if result, accepted, err := cpu.AcceptAutovector(4); err != nil || accepted || result.Clocks != 0 || len(result.Transactions) != 0 || len(result.Timeline) != 0 || cpu.State != initial || !cpu.IsStopped() {
+		t.Fatalf("masked interrupt changed state: result=%+v accepted=%v err=%v", result, accepted, err)
+	}
+	for _, level := range []uint8{0, 7, 8} {
+		if result, accepted, err := cpu.AcceptAutovector(level); !errors.Is(err, ErrInvalidAutovectorLevel) || accepted || result.Clocks != 0 || len(result.Transactions) != 0 || len(result.Timeline) != 0 || cpu.State != initial || !cpu.IsStopped() {
+			t.Fatalf("level %d did not fail closed: result=%+v accepted=%v err=%v", level, result, accepted, err)
+		}
+	}
+}
+
+func TestMC68000AutovectorTimedBus(t *testing.T) {
+	bus := &timedRecordingBus{SparseMemory: SparseMemory{
+		0x70: 0x00, 0x71: 0x00, 0x72: 0x20, 0x73: 0x00,
+		0x2000: 0x4e, 0x2001: 0x71, 0x2002: 0x4e, 0x2003: 0x71,
+	}}
+	cpu := CPU{Bus: bus, State: State{SSP: 0x1000, SR: 0x2000, PC: 0x3000}}
+	result, accepted, err := cpu.AcceptAutovectorAt(4, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !accepted || result.Clocks != 44 || len(result.Transactions) != 7 || len(result.Timeline) != 8 ||
+		result.Timeline[0] != (BusPhase{Cycles: 16}) || bus.accesses[0].Clock != 116 {
+		t.Fatalf("unexpected timed result=%+v accesses=%+v", result, bus.accesses)
+	}
+}
+
 func TestMC68000STOPStateAndReset(t *testing.T) {
 	initial := State{D: [8]uint32{1}, A: [7]uint32{2}, USP: 3, SSP: 4,
 		SR: 0x2704, PC: 0x1004, Prefetch: [2]uint16{0x4e72, 0x2300}}
