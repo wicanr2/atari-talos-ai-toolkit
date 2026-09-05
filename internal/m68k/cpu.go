@@ -85,6 +85,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepASLMemory(opcode)
 	case opcode&0xf118 == 0xe100 && opcode>>6&3 <= 2:
 		return c.stepASLRegister(opcode)
+	case opcode&0xffc0 == 0xe3c0:
+		return c.stepLSLMemory(opcode)
+	case opcode&0xf118 == 0xe108 && opcode>>6&3 <= 2:
+		return c.stepLSLRegister(opcode)
 	case opcode&0xff00 == 0x4a00 && opcode>>6&3 <= 2:
 		return c.stepTST(opcode)
 	case opcode&0xfff8 == 0x4e50:
@@ -1040,6 +1044,14 @@ func (c *CPU) shiftRight(value uint32, bits uint8, count uint32, arithmetic bool
 }
 
 func (c *CPU) stepASLRegister(opcode uint16) (StepResult, error) {
+	return c.stepShiftLeftRegister(opcode, true)
+}
+
+func (c *CPU) stepLSLRegister(opcode uint16) (StepResult, error) {
+	return c.stepShiftLeftRegister(opcode, false)
+}
+
+func (c *CPU) stepShiftLeftRegister(opcode uint16, arithmetic bool) (StepResult, error) {
 	size := uint8(opcode >> 6 & 3)
 	reg := uint8(opcode & 7)
 	count := uint32(opcode >> 9 & 7)
@@ -1051,7 +1063,7 @@ func (c *CPU) stepASLRegister(opcode uint16) (StepResult, error) {
 
 	bits := uint8(8 << size)
 	value := c.State.D[reg]
-	result := c.arithmeticShiftLeft(value, bits, count)
+	result := c.shiftLeft(value, bits, count, arithmetic)
 	switch size {
 	case 0:
 		c.State.D[reg] = value&0xffff_ff00 | result
@@ -1060,7 +1072,7 @@ func (c *CPU) stepASLRegister(opcode uint16) (StepResult, error) {
 	case 2:
 		c.State.D[reg] = result
 	default:
-		return StepResult{}, fmt.Errorf("m68k: invalid ASL register size %d", size)
+		return StepResult{}, fmt.Errorf("m68k: invalid left-shift register size %d", size)
 	}
 	clocks := uint32(6) + 2*count
 	if size == 2 {
@@ -1070,9 +1082,17 @@ func (c *CPU) stepASLRegister(opcode uint16) (StepResult, error) {
 }
 
 func (c *CPU) stepASLMemory(opcode uint16) (StepResult, error) {
+	return c.stepShiftLeftMemory(opcode, true)
+}
+
+func (c *CPU) stepLSLMemory(opcode uint16) (StepResult, error) {
+	return c.stepShiftLeftMemory(opcode, false)
+}
+
+func (c *CPU) stepShiftLeftMemory(opcode uint16, arithmetic bool) (StepResult, error) {
 	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
 	if mode < 2 || mode == 7 && reg > 1 {
-		return StepResult{}, fmt.Errorf("m68k: invalid ASL memory mode %d:%d", mode, reg)
+		return StepResult{}, fmt.Errorf("m68k: invalid left-shift memory mode %d:%d", mode, reg)
 	}
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
 	if c.State.SR&supervisor != 0 {
@@ -1092,7 +1112,7 @@ func (c *CPU) stepASLMemory(opcode uint16) (StepResult, error) {
 		return StepResult{}, err
 	}
 	stream.transactions = append(stream.transactions, readTransaction(address&addressMask, stream.dataFC, value))
-	result := uint16(c.arithmeticShiftLeft(uint32(value), 16, 1))
+	result := uint16(c.shiftLeft(uint32(value), 16, 1, arithmetic))
 	if err := stream.refill(); err != nil {
 		return StepResult{}, err
 	}
@@ -1103,7 +1123,7 @@ func (c *CPU) stepASLMemory(opcode uint16) (StepResult, error) {
 	return StepResult{Clocks: 8 + cost, Transactions: stream.transactions}, nil
 }
 
-func (c *CPU) arithmeticShiftLeft(value uint32, bits uint8, count uint32) uint32 {
+func (c *CPU) shiftLeft(value uint32, bits uint8, count uint32, arithmetic bool) uint32 {
 	var mask, sign uint32
 	switch bits {
 	case 8:
@@ -1113,7 +1133,7 @@ func (c *CPU) arithmeticShiftLeft(value uint32, bits uint8, count uint32) uint32
 	case 32:
 		mask, sign = 0xffff_ffff, 0x8000_0000
 	default:
-		panic("m68k: invalid ASL width")
+		panic("m68k: invalid left-shift width")
 	}
 	result := value & mask
 	overflow := false
@@ -1123,7 +1143,7 @@ func (c *CPU) arithmeticShiftLeft(value uint32, bits uint8, count uint32) uint32
 		oldSign := result & sign
 		carry = oldSign != 0
 		result = result << 1 & mask
-		if result&sign != oldSign {
+		if arithmetic && result&sign != oldSign {
 			overflow = true
 		}
 	}
