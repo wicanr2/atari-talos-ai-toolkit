@@ -31,6 +31,7 @@ const (
 	interpSLDC     = 0x00d8 // 短常數 0–31（opcode 0x00–0x1f）
 	interpLDL      = 0x0534 // 載入區域變數 1–16（opcode 0x20–0x2f）
 	interpIXA      = 0x0952 // 陣列索引（p-code 的 ixa）
+	interpLoop     = 0x00de // 分派迴圈：取 opcode、查表、跳進常式
 
 	// 測試選的記憶體佈局。直譯器實際載入位址由 p-system 決定，這裡挑一個非零基底，
 	// 若某個切片其實依賴絕對位址或 PC-relative，測試會失敗而不是碰巧通過。
@@ -84,8 +85,41 @@ func newHarness(t *testing.T, image []byte) *harness {
 	h.cpu.Bus = mem
 	h.cpu.State.SR = 0x2700 // supervisor，關中斷；A7 用 SSP
 	h.cpu.State.SSP = stackTop
-	h.cpu.State.A[5] = sentinel // a5 是 dispatch 迴圈的回返點
+	h.cpu.State.A[3] = interpBase // a3 是直譯器載入基底；分派表存的是相對它的偏移
+	h.cpu.State.A[5] = sentinel   // a5 是常式的回返點
 	return h
+}
+
+// startDispatch 讓直譯器從分派迴圈開始跑，而不是直接進單一常式。
+// a5 改指向迴圈本身，常式結尾的 jmp (a5) 因此構成完整的 fetch-execute 循環。
+func (h *harness) startDispatch(pcode []byte, at uint32) {
+	for i, b := range pcode {
+		h.mem[at+uint32(i)] = b
+	}
+	h.cpu.State.A[4] = at // a4 是 p-code 的 IP
+	h.cpu.State.A[5] = interpBase + interpLoop
+	h.start(interpLoop)
+}
+
+// runPCode 執行指定數量的 p-code 指令，回傳消耗的 68000 指令數。
+// 一條 p-code 指令的邊界是「控制權回到分派迴圈起點」。
+func (h *harness) runPCode(ops int, maxSteps int) int {
+	h.t.Helper()
+	loopPC := uint32(interpBase + interpLoop + 4)
+	completed, steps := 0, 0
+	for completed < ops {
+		if steps >= maxSteps {
+			h.t.Fatalf("%d 條 p-code 指令沒有在 %d 步內完成（已完成 %d）", ops, maxSteps, completed)
+		}
+		if _, err := h.cpu.Step(); err != nil {
+			h.t.Fatalf("step %d at PC=0x%06x: %v", steps, h.cpu.State.PC-4, err)
+		}
+		steps++
+		if h.cpu.State.PC == loopPC {
+			completed++
+		}
+	}
+	return steps
 }
 
 // poke 寫入一個 big-endian word（68000 與 p-system 的資料都是 big-endian）。
@@ -285,5 +319,67 @@ func TestUCSDInterpLoadLocalUsesVarOffsetEight(t *testing.T) {
 			t.Fatalf("local %d pushed 0x%04x, want 0x%04x（該讀 frame+8+%d×2）",
 				local, got, want, local)
 		}
+	}
+}
+
+// TestUCSDInterpDispatchLoopRunsPCodeSequence 讓分派迴圈自己跑一串 p-code。
+//
+// 前面幾個測試各自跳進單一常式；這一個從分派迴圈起步，讓直譯器自己取 opcode、查表、
+// 進常式、回迴圈。它證明的東西不同：不是「某支常式做對事」，而是**取指令與分派這個
+// 循環本身在 Atari Talos 上成立**，因此可以執行任意 p-code 序列。
+//
+// 迴圈是 moveq #0,d0 / move.b (a4)+,d0 / add.w d0,d0 / move.w 6(pc,d0.w),d7 /
+// jmp 0(a3,d7.w)。`6(pc,d0.w)` 的 PC 是延伸字位址 $00E6，加 6 正好是分派表 $00EC；
+// `0(a3,d7.w)` 說明表項是相對載入基底的偏移，所以直譯器不必載在位址 0。
+func TestUCSDInterpDispatchLoopRunsPCodeSequence(t *testing.T) {
+	image := loadInterp(t)
+	h := newHarness(t, image)
+	// sldc5、sldc3、sldc31、sldc0：四條短常數，堆疊由下往上是 5、3、31、0。
+	h.startDispatch([]byte{0x05, 0x03, 0x1f, 0x00}, operandStream)
+	steps := h.runPCode(4, 64)
+
+	const wantPerOp = 8 // 迴圈 5 條 ＋ 常式 3 條
+	if steps != 4*wantPerOp {
+		t.Fatalf("四條 p-code 花了 %d 條 68000 指令，want %d", steps, 4*wantPerOp)
+	}
+	if got := h.cpu.State.A[4]; got != operandStream+4 {
+		t.Fatalf("a4 停在 0x%06x，want 0x%06x（IP 該前進四個位元組）", got, operandStream+4)
+	}
+	if got := h.cpu.State.SSP; got != stackTop-8 {
+		t.Fatalf("SSP 是 0x%06x，want 0x%06x（四個 word）", got, stackTop-8)
+	}
+	for i, want := range []uint16{0, 31, 3, 5} { // 由堆疊頂往下
+		if got := h.peek(h.cpu.State.SSP + uint32(i)*2); got != want {
+			t.Fatalf("堆疊第 %d 個 word 是 %d，want %d", i, got, want)
+		}
+	}
+}
+
+// TestUCSDInterpDispatchLoopMixesOpcodeFamilies 在同一串裡混用不同常式。
+//
+// 只跑同一種 opcode 證明不了分派表真的被查了——四條 sldc 走同一個表項。這一條混入
+// 區域變數載入與陣列索引，讓迴圈必須跳到三支不同的常式，且後面的指令要吃前面留在
+// 堆疊上的結果。
+func TestUCSDInterpDispatchLoopMixesOpcodeFamilies(t *testing.T) {
+	image := loadInterp(t)
+	h := newHarness(t, image)
+	const frame = 0x028000
+	h.cpu.State.A[0] = frame
+	h.poke(frame+8+3*2, 0x1000) // 區域變數 3 ＝ 地面圖的基底位址
+
+	// ldl3（opcode $22）取基底、sldc7 推列號、ixa $14 算出「基底 + 7 列 × 40 bytes」。
+	// 這正是 SunDog 讀城市地面圖某一列的完整三步。
+	h.startDispatch([]byte{0x22, 0x07, 0xd7, 0x14}, operandStream)
+	h.runPCode(3, 64)
+
+	if got := h.cpu.State.SSP; got != stackTop-2 {
+		t.Fatalf("SSP 是 0x%06x，want 0x%06x（三條指令後只剩一個結果）", got, stackTop-2)
+	}
+	const want = 0x1000 + 7*20*2
+	if got := h.peek(h.cpu.State.SSP); got != want {
+		t.Fatalf("地面圖第 7 列的位址是 0x%04x，want 0x%04x", got, want)
+	}
+	if got := h.cpu.State.A[4]; got != operandStream+4 {
+		t.Fatalf("a4 停在 0x%06x，want 0x%06x（ixa 的運算元佔一個位元組）", got, operandStream+4)
 	}
 }

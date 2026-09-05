@@ -162,6 +162,10 @@
   這段 1985 年的真實程式碼不含 trap、line-A 與硬體位址，所以只需要 CPU 與記憶體。
   它**不代表 Atari Talos 能跑 SunDog**——完整 p-machine 需要磁碟、螢幕與輸入，屬 M3。
   素材不進 repository，以 `TALOS_UCSD_INTERP` 指路，雜湊在測試裡釘死。
+- 分派迴圈（`$00DE` 的 fetch-execute）也已驗收，因此可以執行**任意由已驗收常式組成的
+  p-code 序列**，而不只是單獨呼叫某支常式。這是把 p-code 當成對拍載體的前提：同一段
+  p-code 可以拿去和其他 p-system 實作比對。尚未納入的 opcode 會跳進未驗收常式並失敗即
+  關閉，不會靜靜給出錯的結果。
 
 ## 下一步
 
