@@ -61,9 +61,10 @@
 | ST Ricoh `$FF860F` void byte write | 任意byte忽略、24-bit alias、user／width邊界、無裝置狀態 | Hatari `IoMem_FixVoidAccessForST/IoMem_VoidWrite`；固定EmuTOS ROM | 通過；289,521條／234 IRQ／2,982,760 clocks |
 | ST YM2149 port A首次drive-select更新 | R14同值選擇、read `$07`、write `$05`、錯序拒絕與reset | Atari PSG map；Hatari CPU／I/O trace；固定EmuTOS ROM | 通過；289,556條／234 IRQ／2,983,132 clocks |
 | ST DMA mode／WD1772 force-interrupt初始化 | `$0080` command/status routing、`$D0` Type IV、status／IRQ／GPIP與4 wait clocks | Hatari `fdc.c`＋FDC trace；固定EmuTOS ROM | 通過；289,612條／234 IRQ／2,983,694 clocks，下一gate第二組mode `$0080` |
+| ST `flopvbl()`媒體輪詢 | YM2149 port A `$23→$25→$23`、DMA mode `$0080`、WD1772 status `$E4`、錯序拒絕與reset | EmuTOS 1.3 `floppy.c`／`sound.c`；Hatari VBL66 PSG／FDC trace；固定EmuTOS ROM | 通過；1,005,296條／521 IRQ／13,037,306 clocks，下一gate為VBL77 IKBD `$1C` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至289,612條／2,983,694 clocks完成FDC force-interrupt，下一gate是第二組DMA mode `$0080` |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至1,005,296條／13,037,306 clocks完成首輪`flopvbl()`媒體檢查，下一gate是VBL77 IKBD `$1C` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

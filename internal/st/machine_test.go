@@ -1848,17 +1848,37 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.ikbdClockReadbackReadClocks, machine.Instructions, machine.Interrupts,
 			machine.Clocks, machine.CPU.State, machine.nextIKBDClockResponseClock, nextGate)
 	}
+	for steps := 0; steps < 200_000 && !machine.Memory.flopVBLMediaComplete && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate != nil || !machine.Memory.flopVBLMediaComplete || machine.Memory.flopVBLMediaStage != 8 ||
+		machine.Memory.flopVBLStatusReadClock != 13036978 || machine.Memory.psgRegisters[14] != 0x23 ||
+		machine.Memory.dmaMode != 0x0080 || machine.Memory.fdcInitStage != 14 ||
+		machine.Memory.fdcStatus != 0xe4 || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
+		machine.Instructions != 1005296 || machine.Interrupts != 521 || machine.Clocks != 13037306 ||
+		machine.CPU.State.D != [8]uint32{0xffff0025, 0x23, 0x2400, 0x20, 0x00fc0003, 0x00100003, 0, 1} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 0x3010, 0x00fc36b8, 0, 0x100, 0x00fc58e8, 0x00fcc8d8} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e02 ||
+		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36e4 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x40c1, 0x46c2} {
+		t.Fatalf("flopvbl complete=%v stage=%d status-clock=%d port=%02x DMA/FDC/status/IRQ/GPIP=%04x/%d/%02x/%v/%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.flopVBLMediaComplete, machine.Memory.flopVBLMediaStage,
+			machine.Memory.flopVBLStatusReadClock, machine.Memory.psgRegisters[14],
+			machine.Memory.dmaMode, machine.Memory.fdcInitStage, machine.Memory.fdcStatus,
+			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn, machine.Instructions,
+			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
+	}
 	for steps := 0; steps < 200_000 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xff8800 fc=5: unsupported_device_state" ||
-		machine.Instructions != 1005202 || machine.Interrupts != 521 || machine.Clocks != 13036392 ||
-		machine.CPU.State.D != [8]uint32{5, 5, 0x2400, 0, 0x00fce2fa, 0x00100003, 0, 1} ||
-		machine.CPU.State.A != [7]uint32{0xffff8800, 8, 0x00fc36b8, 0x000fa19f, 0x100, 0x00fc58e8, 0x00fcc8d8} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e04 ||
-		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36d0 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
-		t.Fatalf("post-readback gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
+		machine.Instructions != 1085703 || machine.Interrupts != 548 || machine.Clocks != 13927048 ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0x5c, 0x1c, 0, 0, 1, 5, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc261e, 0x23b2, 0x00fc5132, 0x00fc5142, 0x00fc5916, 0x00fc5276, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0ede ||
+		machine.CPU.State.SR != 0x2308 || machine.CPU.State.PC != 0x00fc515a ||
+		machine.CPU.State.Prefetch != [2]uint16{0xfc02, 0x241f} {
+		t.Fatalf("post-flopvbl gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }

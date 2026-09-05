@@ -1161,6 +1161,72 @@ func TestPSGSelectsDriveOne(t *testing.T) {
 	}
 }
 
+func TestFlopVBLChecksDriveZeroAndRestoresPortA(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 9
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 0x23
+	memory.fdcInitStage = 14
+	memory.fdcProbeDrive = 1
+	memory.acsiStage = 5
+	memory.dmaMode = 0x0080
+	memory.fdcStatus = 0xe4
+	memory.fdcStatusTypeI = true
+	memory.ikbdClockReadbackComplete = true
+
+	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err == nil {
+		t.Fatal("media-check data write before register select unexpectedly accepted")
+	}
+	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil || memory.flopVBLMediaStage != 1 {
+		t.Fatalf("media-check select stage=%d err=%v", memory.flopVBLMediaStage, err)
+	}
+	if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x23 ||
+		memory.flopVBLMediaStage != 2 {
+		t.Fatalf("media-check old port/stage=%02x/%d err=%v", got, memory.flopVBLMediaStage, err)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err != nil ||
+		memory.psgRegisters[14] != 0x25 || memory.flopVBLMediaStage != 3 {
+		t.Fatalf("media-check drive-0 port/stage=%02x/%d err=%v",
+			memory.psgRegisters[14], memory.flopVBLMediaStage, err)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.flopVBLMediaStage != 4 {
+		t.Fatalf("media-check DMA wait/stage=%d/%d err=%v", wait, memory.flopVBLMediaStage, err)
+	}
+	if got, wait, err := memory.ReadWordAt(STDiskController,
+		m68k.BusAccess{Clock: 100, FunctionCode: 5}); err != nil || wait != 4 || got != 0x00e4 ||
+		memory.flopVBLMediaStage != 5 || memory.flopVBLStatusReadClock != 100 ||
+		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("media-check status/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
+			got, wait, memory.flopVBLMediaStage, memory.flopVBLStatusReadClock,
+			memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil || memory.flopVBLMediaStage != 6 {
+		t.Fatalf("media-check restore select stage=%d err=%v", memory.flopVBLMediaStage, err)
+	}
+	if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x25 ||
+		memory.flopVBLMediaStage != 7 {
+		t.Fatalf("media-check restore old port/stage=%02x/%d err=%v", got,
+			memory.flopVBLMediaStage, err)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err != nil ||
+		memory.psgRegisters[14] != 0x23 || memory.flopVBLMediaStage != 8 ||
+		!memory.flopVBLMediaComplete || memory.fdcInitStage != 14 || memory.fdcProbeDrive != 1 {
+		t.Fatalf("media-check completion port/stage/complete/FDC/drive=%02x/%d/%v/%d/%d err=%v",
+			memory.psgRegisters[14], memory.flopVBLMediaStage, memory.flopVBLMediaComplete,
+			memory.fdcInitStage, memory.fdcProbeDrive, err)
+	}
+	memory.ColdReset()
+	if memory.flopVBLMediaStage != 0 || memory.flopVBLStatusReadClock != 0 ||
+		memory.flopVBLMediaComplete {
+		t.Fatal("cold reset retained flopvbl media-check state")
+	}
+}
+
 func TestSTFDCForceInterruptInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

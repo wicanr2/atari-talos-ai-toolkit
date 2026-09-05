@@ -539,3 +539,9 @@
   889,609 instructions／483 interrupts／11,851,910 clocks。下一gate為
   1,005,202／13,036,392的YM2149 `$FF8800=$05`。完整240,000筆corpus、固定ROM、
   全測試、vet與build通過，117與118均升CONFORMED。
+- 完成規格119：依固定EmuTOS `flopvbl()`與Hatari bus trace接入VBL66的drive-0
+  media-change輪詢。Talos依序將YM2149 port A `$23→$25`、以DMA mode `$0080`
+  讀WD1772 status `$E4`、再恢復`$23`，於1,005,296 instructions／521 interrupts／
+  13,037,306 clocks完成；同時訂正先前把CPU D0=`$05`誤當control bus value的紀錄，
+  實際register select為`$0E`。下一gate為VBL77再次寫IKBD `$1C`；95-VBL Hatari
+  trace確認回傳仍是`$FC,$24,$03,$17,$00,$00,$00`，留待下一個READY規格泛化。

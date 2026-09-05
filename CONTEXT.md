@@ -400,8 +400,14 @@
   `$1B,$24,$03,$17,$00,$00,$00`，第七筆於11,763,550完成並在同一serial deadline
   載入預先buffer的第二個`$1C`；request於11,773,790完成。readback
   `[FC,24,03,17,00,00,00]`於889,609 instructions／483 interrupts／11,851,910 clocks
-  全數由EmuTOS消費。下一gate為1,005,202／521／13,036,392的YM2149
-  `$FF8800=$05` register-select byte write。
+  全數由EmuTOS消費。下一gate為1,005,202／521／13,036,392的YM2149 control write；
+  先前依D0誤記為`$05`，固定Hatari bus trace已訂正實際值為register 14的`$0E`。
+- ST `flopvbl()` drive-0媒體輪詢已CONFORMED：固定EmuTOS在VBL66將YM2149 port A
+  `$23→$25`暫選drive 0，以DMA mode `$0080`讀WD1772 status `$E4`，再恢復`$23`
+  （drive 1）。Talos於1,005,296 instructions／521 interrupts／13,037,306 clocks完成；
+  status讀取clock為13,036,978。下一gate為1,085,703／548／13,927,048的IKBD
+  `$FFFC02=$1C`；Hatari VBL77確認這是可重入的第三次讀時鐘請求，回傳值仍為
+  `$FC,$24,$03,$17,$00,$00,$00`。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -411,8 +417,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步由固定EmuTOS／Hatari證據確認
-   1,005,202 instructions的YM2149 register 5 select及其consumer序列，再立READY規格。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步把固定EmuTOS在VBL77再次發出的
+   IKBD `$1C`讀時鐘命令收攏成可重入的確定性請求／回應週期，再續跑定位下一gate。
    RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。
