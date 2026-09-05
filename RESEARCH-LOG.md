@@ -210,3 +210,11 @@
   `eb3a001ed636123f94c9c612ab33b6de2b1b118177ea01cfb971bf3ae17e6044`。第 25–27 頁
   確認低 2 KiB 與 I/O supervisor protection、reset 前 8 bytes ROM shadow、512 KiB／
   1 MiB RAM、`FC0000–FEFFFF` 192 KiB ROM 及 `FF0000–FFFFFF` I/O space。
+- NXP 官方《M68000 Family Programmer's Reference Manual》附錄 B 確認 reset
+  vector 0／1 分別載入 ISP 與 PC；PDF SHA-256 為
+  `06e4864b78da0e815054cead9326b7ec9914661f240fd39a455f2061ff47c4e8`。
+- EmuTOS 1.3 UK 192 KiB ROM SHA-256 為
+  `ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135`；前 8 bytes
+  `60 2e 01 04 00 fc 00 30` 對應 `SSP=602e0104`、`PC=fc0030`。Hatari 2.4.1
+  於首條 `BRA.W $001c` 後觀測 `PC=fc004e`、FrameCycles=10、`SR=2700`、
+  `A7=602e0104`；因此初始 SSP 即使看似非法位址也不得代換。

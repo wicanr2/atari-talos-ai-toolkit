@@ -55,6 +55,49 @@ type CPU struct {
 	Bus   Bus
 }
 
+func (c *CPU) Reset() error {
+	if c.Bus == nil {
+		return fmt.Errorf("m68k: nil bus")
+	}
+	readLong := func(address uint32) (uint32, error) {
+		high, err := c.Bus.ReadWord(address&addressMask, 6)
+		if err != nil {
+			return 0, err
+		}
+		low, err := c.Bus.ReadWord((address+2)&addressMask, 6)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(high)<<16 | uint32(low), nil
+	}
+
+	ssp, err := readLong(0)
+	if err != nil {
+		return err
+	}
+	initialPC, err := readLong(4)
+	if err != nil {
+		return err
+	}
+	if initialPC&1 != 0 {
+		return fmt.Errorf("m68k: odd reset PC 0x%08x", initialPC)
+	}
+	first, err := c.Bus.ReadWord(initialPC&addressMask, 6)
+	if err != nil {
+		return err
+	}
+	second, err := c.Bus.ReadWord((initialPC+2)&addressMask, 6)
+	if err != nil {
+		return err
+	}
+
+	c.State.SSP = ssp
+	c.State.SR = 0x2700
+	c.State.PC = initialPC + 4
+	c.State.Prefetch = [2]uint16{first, second}
+	return nil
+}
+
 func (c *CPU) Step() (StepResult, error) {
 	if c.Bus == nil {
 		return StepResult{}, fmt.Errorf("m68k: nil bus")

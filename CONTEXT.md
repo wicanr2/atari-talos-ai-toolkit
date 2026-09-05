@@ -139,10 +139,13 @@
 - ST／STF 基礎 memory map 已完成：可配置 512 KiB／1 MiB RAM、192 KiB TOS ROM、
   reset SSP／PC shadow、24-bit masking、低 2 KiB／I/O supervisor protection、ROM
   read-only 與 typed bus fault 均有測試。
+- MC68000／ST power-on reset 已完成：以 FC=6 載入 SSP／PC 與 prefetch、
+  staged failure 不提交、machine epoch counters 歸零；EmuTOS 1.3 真實 ROM
+  第一條 `BRA.W` 後的 PC／prefetch／10 clocks 與 Hatari 一致。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
-  實際 I/O 裝置與 TOS 開機仍未完成。
+  實際 I/O 裝置與 TOS 後續開機仍未完成。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -152,5 +155,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 將 ST memory backend fault 接成 MC68000 vector 2，再加入啟動所需 I/O，走
-   EmuTOS reset／開機的最小路徑。
+4. 擴充 MC68000 vector 2 其餘 fault 路徑，再加入啟動所需 I/O，由已對拍的
+   EmuTOS reset／第一條指令繼續向後開機。

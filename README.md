@@ -63,7 +63,7 @@ TALOS_M68000_TESTS=workplace/m68000-tests/v1 tools/go.sh test ./internal/m68k
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE，共 227,500 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）** |
-| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map 已完成；vector 2、I/O 與 TOS 開機未完成** |
+| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset 與 EmuTOS 第一條指令已對 Hatari CONFORMED；vector 2 其餘路徑、I/O 與後續 TOS 開機進行中** |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
 | M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |

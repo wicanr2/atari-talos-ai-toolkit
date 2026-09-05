@@ -141,3 +141,8 @@
 - `go vet ./...` 的 `stdmethods` 會把專案既有 address-aware `ReadByte(address, FC)`／
   `WriteByte(address, value, FC)` 誤認為 `io.ByteReader`／`io.ByteWriter` 慣例；以同一 vet
   停用該不適用分析器後全數通過，沒有將命名警告誤列為產品缺陷。
+- 完成 MC68000／ST power-on reset 與 machine epoch：FC=6 載入 SSP／PC／
+  prefetch，失敗不提交 staged CPU state，成功 reset 歸零指令／clock 計數。
+  以 EmuTOS 1.3 真實 ROM 執行首條 `BRA.W`，得到與 Hatari 相同的
+  SSP／SR／PC／prefetch 與 10 clocks；完整 227,500 筆 CPU 語料回歸、
+  Go 靜態檢查與建置均通過。

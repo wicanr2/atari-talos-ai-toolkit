@@ -33,9 +33,10 @@
 | 68000 NOT／NEG.B／W／L | Dn／memory、邏輯／borrow 旗標、RMW bus 次序測試 | 六份語料 15,000 筆完整 state／RAM／clock／bus／fault frame | 通過 |
 | 68000 Scc.B | 16 conditions、Dn 真／假 clock、memory RMW、SR 不變測試 | Scc 2,500 筆完整 state／RAM／clock／bus trace | 通過 |
 | 68000 DBcc.W | 16 conditions、低 16-bit 計數、三條正常時序與奇數目標測試 | DBcc 2,500 筆完整 state／RAM／clock／bus／vector-3 frame | 通過 |
-| ST／STF 基礎 memory map | RAM 容量／邊界、reset shadow、ROM、FC 權限、word 與 fault 測試 | 自建非原版 pattern；Atari 1986 hardware spec 第 25–27 頁 | 通過；CPU vector 2／I/O 待補 |
+| ST／STF 基礎 memory map | RAM 容量／邊界、reset shadow、ROM、FC 權限、word 與 fault 測試 | 自建非原版 pattern；Atari 1986 hardware spec 第 25–27 頁 | 通過；CPU vector 2 其餘路徑／I/O 待補 |
+| MC68000／ST power-on reset | FC=6 vector 讀取、SR／SSP／PC／prefetch、failure staging、machine counters 與首指令 | synthetic ROM；EmuTOS 1.3 UK 192 KiB；Hatari 2.4.1 同狀態 | 通過；首條 `BRA.W` 後 10 clocks／PC／prefetch 一致 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | 待建立 | Hatari 同版本／同 ROM | 未開始 |
+| TOS 開機 | reset 與首指令已建立；後續 opcode／I/O 待擴充 | Hatari 2.4.1／EmuTOS 1.3 同 ROM | 進行中 |
 | 畫面 | 待建立 | Hatari 同幀原生 framebuffer | 未開始 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

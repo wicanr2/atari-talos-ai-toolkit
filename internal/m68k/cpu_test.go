@@ -1,9 +1,79 @@
 package m68k
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
+
+type resetRead struct {
+	address uint32
+	fc      uint8
+}
+
+type resetRecordingBus struct {
+	SparseMemory
+	reads       []resetRead
+	failAddress uint32
+}
+
+func (b *resetRecordingBus) ReadWord(address uint32, fc uint8) (uint16, error) {
+	b.reads = append(b.reads, resetRead{address: address, fc: fc})
+	if b.failAddress != 0 && address == b.failAddress {
+		return 0, fmt.Errorf("forced reset read failure at 0x%x", address)
+	}
+	return b.SparseMemory.ReadWord(address, fc)
+}
+
+func TestResetReadsVectorsAndPrefetchWithSupervisorProgramFC(t *testing.T) {
+	memory := SparseMemory{
+		0: 0x00, 1: 0x01, 2: 0x00, 3: 0x00,
+		4: 0x00, 5: 0xfc, 6: 0x00, 7: 0x30,
+		0xfc0030: 0x60, 0xfc0031: 0x00, 0xfc0032: 0x00, 0xfc0033: 0x1c,
+	}
+	bus := &resetRecordingBus{SparseMemory: memory}
+	cpu := CPU{Bus: bus, State: State{D: [8]uint32{0x12345678}, A: [7]uint32{0x87654321},
+		USP: 0xabcdef, SSP: 1, SR: 2, PC: 3, Prefetch: [2]uint16{4, 5}}}
+	if err := cpu.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	wantReads := []resetRead{{0, 6}, {2, 6}, {4, 6}, {6, 6}, {0xfc0030, 6}, {0xfc0032, 6}}
+	if !reflect.DeepEqual(bus.reads, wantReads) {
+		t.Fatalf("reset reads=%+v want %+v", bus.reads, wantReads)
+	}
+	if cpu.State.SSP != 0x00010000 || cpu.State.SR != 0x2700 || cpu.State.PC != 0xfc0034 ||
+		cpu.State.Prefetch != [2]uint16{0x6000, 0x001c} || cpu.State.D[0] != 0x12345678 ||
+		cpu.State.A[0] != 0x87654321 || cpu.State.USP != 0xabcdef {
+		t.Fatalf("reset state=%+v", cpu.State)
+	}
+}
+
+func TestResetFailureDoesNotCommitStagedState(t *testing.T) {
+	memory := SparseMemory{
+		0: 0x00, 1: 0x01, 2: 0x00, 3: 0x00,
+		4: 0x00, 5: 0xfc, 6: 0x00, 7: 0x30,
+		0xfc0030: 0x60, 0xfc0031: 0x00, 0xfc0032: 0x00, 0xfc0033: 0x1c,
+	}
+	initial := State{D: [8]uint32{1}, A: [7]uint32{2}, USP: 3, SSP: 4,
+		SR: 5, PC: 6, Prefetch: [2]uint16{7, 8}}
+	cpu := CPU{Bus: &resetRecordingBus{SparseMemory: memory, failAddress: 0xfc0032}, State: initial}
+	if err := cpu.Reset(); err == nil {
+		t.Fatal("reset unexpectedly succeeded")
+	}
+	if cpu.State != initial {
+		t.Fatalf("failed reset committed state: %+v", cpu.State)
+	}
+
+	odd := SparseMemory{0: 0, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0xfc, 6: 0, 7: 0x31}
+	cpu = CPU{Bus: odd, State: initial}
+	if err := cpu.Reset(); err == nil || cpu.State != initial {
+		t.Fatalf("odd-PC reset err=%v state=%+v", err, cpu.State)
+	}
+	cpu = CPU{State: initial}
+	if err := cpu.Reset(); err == nil || cpu.State != initial {
+		t.Fatalf("nil-bus reset err=%v state=%+v", err, cpu.State)
+	}
+}
 
 func TestNOPPipelineAndFunctionCode(t *testing.T) {
 	memory := SparseMemory{0x1004: 0x12, 0x1005: 0x34}
