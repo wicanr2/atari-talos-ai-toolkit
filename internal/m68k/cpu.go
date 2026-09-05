@@ -121,6 +121,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepSUBToMemory(opcode)
 	case opcode&0xff00 == 0x0c00 && opcode>>6&3 <= 2:
 		return c.stepCMPImmediate(opcode)
+	case opcode&0xf1c0 == 0xb0c0:
+		return c.stepCMPA(opcode, false)
+	case opcode&0xf1c0 == 0xb1c0:
+		return c.stepCMPA(opcode, true)
 	case opcode&0xf138 == 0xb108:
 		return c.stepCMPMemory(opcode)
 	case opcode&0xf000 == 0xb000 && opcode>>6&7 <= 2:
@@ -165,6 +169,10 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepADDAWord(opcode)
 	case opcode&0xf1c0 == 0xd1c0:
 		return c.stepADDALong(opcode)
+	case opcode&0xf1c0 == 0x90c0:
+		return c.stepSUBAWord(opcode)
+	case opcode&0xf1c0 == 0x91c0:
+		return c.stepSUBALong(opcode)
 	case opcode&0xf000 == 0x2000 && opcode>>6&7 == 1:
 		return c.stepMOVEALong(opcode)
 	case opcode&0xf000 == 0x1000:
@@ -2036,6 +2044,43 @@ func (c *CPU) stepCMP(opcode uint16) (StepResult, error) {
 	}
 }
 
+func (c *CPU) stepCMPA(opcode uint16, long bool) (StepResult, error) {
+	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
+	if c.State.SR&supervisor != 0 {
+		stream.dataFC = 5
+	}
+	destination := c.addressRegister(uint8(opcode >> 9 & 7))
+	mode, reg := uint8(opcode>>3&7), uint8(opcode&7)
+	if !long {
+		step := moveWordStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+		source, cost, _, fault, err := step.readWordSource(mode, reg)
+		if err != nil {
+			return StepResult{}, err
+		}
+		if fault != nil {
+			return *fault, nil
+		}
+		c.setCompareFlags(destination, uint32(int32(int16(source))), 32)
+		if err := step.refill(); err != nil {
+			return StepResult{}, err
+		}
+		return StepResult{Clocks: 6 + cost, Transactions: step.transactions}, nil
+	}
+	step := moveLongStep{moveByteStep: stream, opcode: opcode, initialPC: c.State.PC}
+	source, cost, _, fault, err := step.readLongSource(mode, reg)
+	if err != nil {
+		return StepResult{}, err
+	}
+	if fault != nil {
+		return *fault, nil
+	}
+	c.setCompareFlags(destination, source, 32)
+	if err := step.refill(); err != nil {
+		return StepResult{}, err
+	}
+	return StepResult{Clocks: 6 + cost, Transactions: step.transactions}, nil
+}
+
 func (c *CPU) stepCMPMemory(opcode uint16) (StepResult, error) {
 	sourceReg, destinationReg := uint8(opcode&7), uint8(opcode>>9&7)
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
@@ -3626,6 +3671,14 @@ func (c *CPU) stepMOVEALong(opcode uint16) (StepResult, error) {
 }
 
 func (c *CPU) stepADDAWord(opcode uint16) (StepResult, error) {
+	return c.stepAddressArithmeticWord(opcode, false)
+}
+
+func (c *CPU) stepSUBAWord(opcode uint16) (StepResult, error) {
+	return c.stepAddressArithmeticWord(opcode, true)
+}
+
+func (c *CPU) stepAddressArithmeticWord(opcode uint16, subtract bool) (StepResult, error) {
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
 	if c.State.SR&supervisor != 0 {
 		stream.dataFC = 5
@@ -3639,7 +3692,7 @@ func (c *CPU) stepADDAWord(opcode uint16) (StepResult, error) {
 		return *fault, nil
 	}
 	destination := uint8(opcode >> 9 & 7)
-	c.setAddressRegister(destination, c.addressRegister(destination)+uint32(int32(int16(value))))
+	c.setAddressRegister(destination, arithmeticLong(c.addressRegister(destination), uint32(int32(int16(value))), subtract))
 	if err := step.refill(); err != nil {
 		return StepResult{}, err
 	}
@@ -3647,6 +3700,14 @@ func (c *CPU) stepADDAWord(opcode uint16) (StepResult, error) {
 }
 
 func (c *CPU) stepADDALong(opcode uint16) (StepResult, error) {
+	return c.stepAddressArithmeticLong(opcode, false)
+}
+
+func (c *CPU) stepSUBALong(opcode uint16) (StepResult, error) {
+	return c.stepAddressArithmeticLong(opcode, true)
+}
+
+func (c *CPU) stepAddressArithmeticLong(opcode uint16, subtract bool) (StepResult, error) {
 	stream := moveByteStep{cpu: c, programFC: c.programFunctionCode(), dataFC: 1}
 	if c.State.SR&supervisor != 0 {
 		stream.dataFC = 5
@@ -3660,7 +3721,7 @@ func (c *CPU) stepADDALong(opcode uint16) (StepResult, error) {
 		return *fault, nil
 	}
 	destination := uint8(opcode >> 9 & 7)
-	c.setAddressRegister(destination, c.addressRegister(destination)+value)
+	c.setAddressRegister(destination, arithmeticLong(c.addressRegister(destination), value, subtract))
 	if err := step.refill(); err != nil {
 		return StepResult{}, err
 	}
