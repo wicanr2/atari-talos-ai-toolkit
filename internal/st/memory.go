@@ -56,6 +56,9 @@ const (
 	MFPUDR             = 0x00ff_fa2f
 	STDiskController   = 0x00ff_8604
 	STDMAControl       = 0x00ff_8606
+	STDMAAddressHigh   = 0x00ff_8609
+	STDMAAddressMiddle = 0x00ff_860b
+	STDMAAddressLow    = 0x00ff_860d
 	STVoidDMAByte      = 0x00ff_860f
 	STVoidRTCBase      = 0x00ff_fc21
 	STVoidRTCEnd       = 0x00ff_fc3f
@@ -109,6 +112,8 @@ type Memory struct {
 	psgRegisters            [16]byte
 	psgDriveStage           uint8
 	dmaMode                 uint16
+	dmaAddress              uint32
+	dmaAddressWriteStage    uint8
 	fdcCommand              byte
 	fdcStatus               byte
 	fdcStatusTypeI          bool
@@ -217,6 +222,11 @@ func (m *Memory) isModeledMFPByte(address uint32) bool {
 		address == MFPSCR || address == MFPUCR || address == MFPRSR || address == MFPTSR
 }
 
+func isDMAAddressByte(address uint32) bool {
+	address &= AddressMask
+	return address == STDMAAddressHigh || address == STDMAAddressMiddle || address == STDMAAddressLow
+}
+
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
 	if ramSize != RAM512K && ramSize != RAM1M {
 		return nil, fmt.Errorf("st: RAM size %d is not 512 KiB or 1 MiB", ramSize)
@@ -248,6 +258,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.videoSyncMode | 0xfc, nil
 	case address == ShifterResolution:
 		return m.shifterResolution | 0xfc, nil
+	case address == STDMAAddressHigh:
+		return byte(m.dmaAddress >> 16), nil
+	case address == STDMAAddressMiddle:
+		return byte(m.dmaAddress >> 8), nil
+	case address == STDMAAddressLow:
+		return byte(m.dmaAddress), nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 1 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7:
 		m.psgDriveStage = 2
@@ -483,6 +499,34 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	if address == ShifterResolution {
 		if m.shifterResolution != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		return nil
+	}
+	if isDMAAddressByte(address) {
+		candidate := m.dmaAddress
+		switch address {
+		case STDMAAddressHigh:
+			candidate = candidate&0x00ffff | uint32(value)<<16
+		case STDMAAddressMiddle:
+			candidate = candidate&0xff00ff | uint32(value)<<8
+		case STDMAAddressLow:
+			candidate = candidate&0xffff00 | uint32(value)
+		}
+		if m.dmaAddress&0x80 != 0 && candidate&0x80 == 0 {
+			candidate += 0x100
+		} else if m.dmaAddress&0x8000 != 0 && candidate&0x8000 == 0 {
+			candidate += 0x10000
+		}
+		m.dmaAddress = candidate & 0x003ffffe
+		if m.fdcProbeDrive == 1 && m.fdcInitStage == 14 {
+			switch {
+			case m.dmaAddressWriteStage == 0 && address == STDMAAddressLow && value == 0x04:
+				m.dmaAddressWriteStage = 1
+			case m.dmaAddressWriteStage == 1 && address == STDMAAddressMiddle && value == 0x10:
+				m.dmaAddressWriteStage = 2
+			case m.dmaAddressWriteStage == 2 && address == STDMAAddressHigh && value == 0x00:
+				m.dmaAddressWriteStage = 3
+			}
 		}
 		return nil
 	}
@@ -1099,6 +1143,8 @@ func (m *Memory) ColdReset() {
 	m.psgRegisters = [16]byte{}
 	m.psgDriveStage = 0
 	m.dmaMode = 0
+	m.dmaAddress = 0
+	m.dmaAddressWriteStage = 0
 	m.fdcCommand = 0
 	m.fdcStatus = 0
 	m.fdcStatusTypeI = false

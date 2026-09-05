@@ -1253,6 +1253,90 @@ func TestFDCDriveOneRestartsProbeWithoutDriveZeroReceipts(t *testing.T) {
 	}
 }
 
+func TestSTFloppyDMAAddressRegisters(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{STDMAAddressHigh, STDMAAddressMiddle, STDMAAddressLow} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != 0 {
+			t.Fatalf("reset DMA byte %06x=%02x err=%v", address, got, err)
+		}
+	}
+	if err := memory.WriteByte(STDMAAddressLow, 0xff, 5); err != nil || memory.dmaAddress != 0xfe {
+		t.Fatalf("low alignment err/address=%v/%06x", err, memory.dmaAddress)
+	}
+	if err := memory.WriteByte(STDMAAddressMiddle, 0x34, 5); err != nil || memory.dmaAddress != 0x34fe {
+		t.Fatalf("middle write err/address=%v/%06x", err, memory.dmaAddress)
+	}
+	if err := memory.WriteByte(STDMAAddressHigh, 0xff, 5); err != nil || memory.dmaAddress != 0x3f34fe {
+		t.Fatalf("high mask err/address=%v/%06x", err, memory.dmaAddress)
+	}
+	for address, want := range map[uint32]byte{
+		STDMAAddressHigh: 0x3f, STDMAAddressMiddle: 0x34, STDMAAddressLow: 0xfe,
+	} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != want {
+			t.Fatalf("DMA byte %06x=%02x err=%v want %02x", address, got, err, want)
+		}
+	}
+	if err := memory.WriteByte(STDMAAddressLow, 0, 1); err == nil || memory.dmaAddress != 0x3f34fe {
+		t.Fatalf("user write err/address=%v/%06x", err, memory.dmaAddress)
+	}
+	if _, err := memory.ReadByte(STDMAAddressLow, 1); err == nil {
+		t.Fatal("user DMA address read unexpectedly accepted")
+	}
+	if err := memory.WriteWord(0x00ff8608, 0, 5); err == nil || memory.dmaAddress != 0x3f34fe {
+		t.Fatalf("word write err/address=%v/%06x", err, memory.dmaAddress)
+	}
+
+	lowRipple, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lowRipple.WriteByte(STDMAAddressLow, 0x80, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := lowRipple.WriteByte(STDMAAddressLow, 0, 5); err != nil || lowRipple.dmaAddress != 0x100 {
+		t.Fatalf("low ripple err/address=%v/%06x", err, lowRipple.dmaAddress)
+	}
+
+	middleRipple, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := middleRipple.WriteByte(STDMAAddressMiddle, 0x80, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := middleRipple.WriteByte(STDMAAddressMiddle, 0, 5); err != nil || middleRipple.dmaAddress != 0x10000 {
+		t.Fatalf("middle ripple err/address=%v/%06x", err, middleRipple.dmaAddress)
+	}
+
+	memory.fdcProbeDrive = 1
+	memory.fdcInitStage = 14
+	memory.fdcCommand = 0x13
+	memory.fdcStatus = 0xe4
+	memory.dmaMode = 0x0080
+	if err := memory.WriteByte(STDMAAddressLow, 4, 5); err != nil || memory.dmaAddressWriteStage != 1 {
+		t.Fatalf("boot low err/stage=%v/%d", err, memory.dmaAddressWriteStage)
+	}
+	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err != nil || memory.dmaAddressWriteStage != 2 {
+		t.Fatalf("boot middle err/stage=%v/%d", err, memory.dmaAddressWriteStage)
+	}
+	if err := memory.WriteByte(STDMAAddressHigh, 0, 5); err != nil ||
+		memory.dmaAddressWriteStage != 3 || memory.dmaAddress != 0x1004 ||
+		memory.fdcCommand != 0x13 || memory.fdcStatus != 0xe4 || memory.dmaMode != 0x0080 {
+		t.Fatalf("boot high err/stage/address/FDC=%v/%d/%06x/%02x/%02x/%04x", err,
+			memory.dmaAddressWriteStage, memory.dmaAddress, memory.fdcCommand,
+			memory.fdcStatus, memory.dmaMode)
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.dmaAddress != 0 || memory.dmaAddressWriteStage != 0 {
+		t.Fatalf("reset address/stage=%06x/%d", memory.dmaAddress, memory.dmaAddressWriteStage)
+	}
+}
+
 func TestIKBDACIAControlInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

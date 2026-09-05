@@ -368,6 +368,11 @@
   完整stage1→14。固定ROM於290,970 instructions／2,997,708 clocks完成，
   restore與seek各九次inactive poll，兩次status `$E4`均清IRQ。下一gate是
   291,291 instructions／3,001,516 clocks的`$FF860D` supervisor byte write。
+- ST floppy／ACSI DMA位址暫存器已CONFORMED：`$FF8609/$FF860B/$FF860D`
+  實作byte R/W、22-bit high mask、even-address mask與ST ripple carry。固定EmuTOS
+  依low→middle→high寫成`$001004`，Talos於291,294 instructions／
+  3,001,576 clocks完成。下一gate是291,343 instructions／3,002,130 clocks的
+  `$FF8606=$0190`；固定Hatari trace顯示它會reset DMA。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -378,6 +383,7 @@
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步依固定Hatari／EmuTOS
-   證據建模DMA位址暫存器`$FF860D`開始的byte-write序列；RGB／PNG
+   證據建模`$FF8606=$0190→$0090`的DMA reset／mode切換與後續sector-count
+   寫入；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

@@ -481,3 +481,10 @@
   下一gate為291,291 instructions／3,001,516 clocks的DMA位址暫存器
   `$FF860D` byte write。完整240,000筆corpus、固定ROM、全測試、vet與build
   通過，規格109升CONFORMED。
+- 完成ST floppy／ACSI DMA位址暫存器：依Hatari固定原始碼實作
+  `$FF8609/$FF860B/$FF860D` byte R/W、high `$3F` mask、low bit 0對齊與ST
+  low／middle ripple carry。固定EmuTOS依low→middle→high寫`$04/$10/$00`，
+  Talos於291,294 instructions／3,001,576 clocks形成`$001004`，三條指令各
+  20 clocks。下一gate為291,343 instructions／3,002,130 clocks的
+  `$FF8606=$0190` DMA reset。完整240,000筆corpus、固定ROM、全測試、
+  vet與build通過，規格110升CONFORMED。

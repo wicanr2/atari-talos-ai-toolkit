@@ -1630,19 +1630,42 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.fdcRestoreStartClock, machine.Memory.fdcStatusReadClock,
 			machine.Memory.fdcSeekStartClock, machine.Memory.fdcSeekStatusReadClock)
 	}
+	for steps := 0; steps < 512 && machine.Memory.dmaAddressWriteStage < 3; steps++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("DMA address instructions=%d interrupts=%d clocks=%d state=%+v stage/address=%d/%06x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+				machine.Memory.dmaAddressWriteStage, machine.Memory.dmaAddress, err)
+		}
+	}
+	if machine.Memory.dmaAddressWriteStage != 3 || machine.Memory.dmaAddress != 0x001004 {
+		t.Fatalf("DMA address boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/address=%d/%06x",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.dmaAddressWriteStage, machine.Memory.dmaAddress)
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{9, 0, 0, 0, 0x1004, 0x00100000, 0, 1}
+	wantA = [7]uint32{0x0eb6, 2, 0x0e9c, 0x00fcd074, 0x00fc1116, 0x0e9c, 0x0eba}
+	if machine.Instructions != 291294 || machine.Interrupts != 234 || machine.Clocks != 3001576 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0e30 ||
+		state.SR != 0x2314 || state.PC != 0x00fc360e ||
+		state.Prefetch != [2]uint16{0x4e75, 0x326f} {
+		t.Fatalf("DMA address exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state)
+	}
 	var nextGate error
 	for steps := 0; steps < 10_000 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	var busFault *BusFault
-	if !errors.As(nextGate, &busFault) || busFault.Address != 0x00ff860d || !busFault.Write ||
-		busFault.Size != 1 || busFault.FunctionCode != 5 || busFault.Reason != FaultReservedIO ||
-		machine.Instructions != 291291 || machine.Interrupts != 234 || machine.Clocks != 3001516 ||
-		machine.CPU.State.D != [8]uint32{9, 0, 0, 0, 0x1004, 0x00100000, 0, 1} ||
-		machine.CPU.State.A != [7]uint32{0x0eb6, 2, 0x0e9c, 0x00fcd074, 0x00fc1116, 0x0e9c, 0x0eba} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e30 ||
-		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc3600 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x860d, 0x11ef} {
+	if !errors.As(nextGate, &busFault) || busFault.Address != STDMAControl || !busFault.Write ||
+		busFault.Size != 2 || busFault.FunctionCode != 5 ||
+		busFault.Reason != FaultUnsupportedDeviceState || machine.Instructions != 291343 ||
+		machine.Interrupts != 234 || machine.Clocks != 3002130 ||
+		machine.CPU.State.D != [8]uint32{0x90, 0x190, 6, 0, 0x1004, 0x00100080, 0, 1} ||
+		machine.CPU.State.A != [7]uint32{0x0eb6, 0x0e69, 0x0e9c, 6, 0x00fc1116, 0x0e9c, 0x0eba} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0e38 ||
+		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc122a ||
+		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2239} {
 		t.Fatalf("next gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
