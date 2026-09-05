@@ -120,6 +120,7 @@ type Memory struct {
 	midiACIAStatus          byte
 	midiACIAConfigured      bool
 	mfpACIAEnableStage      uint8
+	mfpTimerDSystemStage    uint8
 	mfpGPIP                 byte
 	mfpGPIPIn               byte
 	mfpAER                  byte
@@ -497,6 +498,17 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.mfpACIAEnableStage = 4
 			return nil
 		}
+		if m.mfpACIAEnableStage == 5 && m.mfpTimerDSystemStage == 0 &&
+			m.mfpIERB == 0x60 && m.mfpIMRB == 0x60 && value == 0x60 {
+			m.mfpTimerDSystemStage = 1
+			return nil
+		}
+		if m.mfpTimerDSystemStage == 5 && m.mfpIERB == 0x60 && value == 0x70 &&
+			m.mfpIPRB&0x10 == 0 && m.mfpISRB&0x10 == 0 {
+			m.mfpIERB = value
+			m.mfpTimerDSystemStage = 6
+			return nil
+		}
 		if m.mfpIERB != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -511,6 +523,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		if m.mfpACIAEnableStage == 1 && value == 0xbf {
 			m.mfpACIAEnableStage = 2
 		}
+		if m.mfpTimerDSystemStage == 1 && value == 0xef {
+			m.mfpTimerDSystemStage = 2
+		}
 		return nil
 	}
 	if address == MFPISRA {
@@ -521,6 +536,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mfpISRB &= value
 		if m.mfpACIAEnableStage == 2 && value == 0xbf {
 			m.mfpACIAEnableStage = 3
+		}
+		if m.mfpTimerDSystemStage == 2 && value == 0xef {
+			m.mfpTimerDSystemStage = 3
 		}
 		return nil
 	}
@@ -538,6 +556,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mfpIMRB = value
 		if m.mfpACIAEnableStage == 4 && value == 0x60 {
 			m.mfpACIAEnableStage = 5
+		}
+		if m.mfpTimerDSystemStage == 6 && value == 0x70 {
+			m.mfpTimerDSystemStage = 7
 		}
 		return nil
 	}
@@ -579,6 +600,20 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.mfpTimerDStart = true
 			return nil
 		}
+		if m.mfpTimerDSystemStage == 3 && m.mfpTCDCR == 0x51 && value == 0x50 &&
+			m.mfpTDDR == 2 && m.mfpTDMain == 2 {
+			m.mfpTCDCR = value
+			m.mfpTimerDStart = false
+			m.mfpTimerDSystemStage = 4
+			return nil
+		}
+		if m.mfpTimerDSystemStage == 7 && m.mfpTCDCR == 0x50 && value == 0x52 &&
+			m.mfpTDDR == 0 && m.mfpTDMain == 0 {
+			m.mfpTCDCR = value
+			m.mfpTimerDStart = true
+			m.mfpTimerDSystemStage = 8
+			return nil
+		}
 		if m.mfpTCDCR != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
@@ -610,6 +645,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		m.mfpTDDR, m.mfpTDMain = value, value
+		if m.mfpTimerDSystemStage == 4 && value == 0 {
+			m.mfpTimerDSystemStage = 5
+		}
 		return nil
 	}
 	if address == MFPSCR {
@@ -763,6 +801,7 @@ func (m *Memory) ColdReset() {
 	m.midiACIAStatus = 0
 	m.midiACIAConfigured = false
 	m.mfpACIAEnableStage = 0
+	m.mfpTimerDSystemStage = 0
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0

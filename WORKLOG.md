@@ -395,3 +395,9 @@
   正常路徑抵達136,182 instructions／1,578,882 clocks，下一gate是channel 4／Timer D
   重設的IERB同值`$60`。完整目前corpus、全測試、vet與CLI build通過後，
   規格094–096升CONFORMED。
+- 完成MFP Timer D系統時鐘重設：固定Hatari trace確認channel 4先以`$EF`清IPRB/ISRB，
+  TCDCR從`$51`停至`$50`，TDDR由`$02`寫成`$00`（MC68901語意256），IERB/IMRB升為
+  `$70/$70`，最後TCDCR=`$52`。Hatari記錄`data=256 ctrl=2 timer_cyc=2560`；Talos以
+  八段stage防止跳步，固定ROM在136,210 instructions／1,579,228 clocks完成啟動。
+  完整目前corpus、全測試、vet與CLI build通過後，規格097升CONFORMED；recurrence、
+  pending與MFP IACK明列為下一切片。

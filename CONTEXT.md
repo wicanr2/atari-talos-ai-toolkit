@@ -268,6 +268,11 @@
   而不產生新RX。MFP依序保留IERB/IMRB=`$20`、以`$BF`清IPRB/ISRB bit6，再升為
   `$60/$60`。正常路徑抵達136,182 instructions、8 interrupts、1,578,882 clocks，
   下一gate是channel 4／Timer D序列的IERB同值`$60`。
+- MFP Timer D系統時鐘重設已CONFORMED：channel 4序列以`$EF`清IPRB/ISRB，停止
+  TCDCR `$51→$50`，把TDDR/main由`$02`重載為`$00`（typed語意256），IERB/IMRB升至
+  `$70/$70`後以TCDCR=`$52`啟動control 2（÷10）。正常路徑在136,210 instructions、
+  8 interrupts、1,579,228 clocks抵達啟動邊界；2560 MFP ticks recurrence、pending、
+  MFP IACK與CPU handler尚未接線，故不宣稱系統時鐘已運作。
 - MFP SCR／UCR／RSR／TSR `$FFFA27/$FFFA29/$FFFA2B/$FFFA2D` reset write 已
   CONFORMED：依 NXP 手冊保留 TSR 硬體 reset 未定的事實，只接受固定 EmuTOS 的
   軟體 `$00` 初始化；非零 USART 狀態與 UDR 仍失敗即關閉。四次 MOVE 各 16 clocks，
@@ -323,7 +328,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理 1,578,882 clocks 的MFP channel 4／
-   Timer D重新設定，再依正常路徑補Timer C countdown／timeout／IRQ；RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，先處理Timer D 2560 MFP ticks recurrence、
+   channel 4 pending與MFP IACK，再補Timer C countdown／timeout／IRQ；RGB／PNG
    色階契約與正常 50 Hz HBL310 提前重載仍須各自 READY，不得由 palette index或
    VBL 保底提交外推。

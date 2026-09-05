@@ -1138,6 +1138,24 @@ func TestMachineEmuTOSStartsTimerCDelayMode(t *testing.T) {
 			}
 			sawResetResponse = true
 		}
+		if machine.Memory.mfpTimerDSystemStage == 8 {
+			state = machine.CPU.State
+			wantD = [8]uint32{0x2f8, 0x11d00, 0x128e0, 0, 0x0008_0000, 0x0010_0000, 5, 1}
+			wantA = [7]uint32{0xffff_fa1d, 0x00fc_03ea, 0, 0x00fc_615e, 0, 0x00fc_01f4, 0x0000_0ffc}
+			if machine.Instructions != 136210 || machine.Interrupts != 8 || machine.Clocks != 1579228 ||
+				state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f76 ||
+				state.SR != 0x2300 || state.PC != 0x00fc7848 ||
+				state.Prefetch != [2]uint16{0x202f, 4} || machine.Memory.mfpIERB != 0x70 ||
+				machine.Memory.mfpIMRB != 0x70 || machine.Memory.mfpTCDCR != 0x52 ||
+				machine.Memory.mfpTDDR != 0 || machine.Memory.mfpTDMain != 0 ||
+				!machine.Memory.mfpTimerDStart {
+				t.Fatalf("Timer D system start boundary instructions=%d interrupts=%d clocks=%d state=%+v IERB/IMRB/control/data/main/start=%02x/%02x/%02x/%02x/%02x/%v",
+					machine.Instructions, machine.Interrupts, machine.Clocks, state,
+					machine.Memory.mfpIERB, machine.Memory.mfpIMRB, machine.Memory.mfpTCDCR,
+					machine.Memory.mfpTDDR, machine.Memory.mfpTDMain, machine.Memory.mfpTimerDStart)
+			}
+			return
+		}
 	}
 	t.Fatalf("no typed successor gate before 200000 instructions: interrupts=%d clocks=%d state=%+v ACIA=%02x/%02x/%v/%d",
 		machine.Interrupts, machine.Clocks, machine.CPU.State, machine.Memory.ikbdACIATDR,

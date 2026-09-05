@@ -1150,6 +1150,64 @@ func TestMFPACIAInterruptChannelEnable(t *testing.T) {
 	}
 }
 
+func TestMFPTimerDSystemClockStart(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpACIAEnableStage = 5
+	memory.mfpIERB = 0x60
+	memory.mfpIMRB = 0x60
+	memory.mfpTCDCR = 0x51
+	memory.mfpTDDR = 2
+	memory.mfpTDMain = 2
+	memory.mfpTimerDStart = true
+	for _, step := range []struct {
+		address uint32
+		value   byte
+		stage   uint8
+	}{
+		{MFPIERB, 0x60, 1},
+		{MFPIPRB, 0xef, 2},
+		{MFPISRB, 0xef, 3},
+		{MFPTCDCR, 0x50, 4},
+		{MFPTDDR, 0, 5},
+		{MFPIERB, 0x70, 6},
+		{MFPIMRB, 0x70, 7},
+		{MFPTCDCR, 0x52, 8},
+	} {
+		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+			t.Fatalf("write %06x=%02x: %v", step.address, step.value, err)
+		}
+		if memory.mfpTimerDSystemStage != step.stage {
+			t.Fatalf("write %06x=%02x stage=%d want %d", step.address, step.value,
+				memory.mfpTimerDSystemStage, step.stage)
+		}
+	}
+	if memory.mfpIERB != 0x70 || memory.mfpIMRB != 0x70 || memory.mfpTCDCR != 0x52 ||
+		memory.mfpTDDR != 0 || memory.mfpTDMain != 0 || !memory.mfpTimerDStart {
+		t.Fatalf("IERB/IMRB/TCDCR/TDDR/main/start=%02x/%02x/%02x/%02x/%02x/%v",
+			memory.mfpIERB, memory.mfpIMRB, memory.mfpTCDCR, memory.mfpTDDR,
+			memory.mfpTDMain, memory.mfpTimerDStart)
+	}
+
+	invalid, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid.mfpACIAEnableStage = 5
+	invalid.mfpIERB = 0x60
+	invalid.mfpIMRB = 0x60
+	invalid.mfpTCDCR = 0x51
+	invalid.mfpTDDR = 2
+	invalid.mfpTDMain = 2
+	if err := invalid.WriteByte(MFPTCDCR, 0x50, 5); err == nil || invalid.mfpTCDCR != 0x51 ||
+		invalid.mfpTimerDSystemStage != 0 {
+		t.Fatalf("skipped clears err/control/stage=%v %02x/%d", err, invalid.mfpTCDCR,
+			invalid.mfpTimerDSystemStage)
+	}
+}
+
 func TestIKBDACIAFirstTransmitData(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {
