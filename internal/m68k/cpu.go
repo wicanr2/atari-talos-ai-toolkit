@@ -382,6 +382,13 @@ func (c *CPU) readWordAt(address uint32, functionCode uint8, offset uint32) (uin
 	return value, 0, err
 }
 
+func (c *CPU) writeWordAt(address uint32, value uint16, functionCode uint8, offset uint32) (uint32, error) {
+	if bus, ok := c.Bus.(TimedBus); ok {
+		return bus.WriteWordAt(address, value, BusAccess{Clock: c.epoch + uint64(offset), FunctionCode: functionCode})
+	}
+	return 0, c.Bus.WriteWord(address, value, functionCode)
+}
+
 func (c *CPU) stepMOVEToUSP(opcode uint16) (StepResult, error) {
 	if c.State.SR&supervisor == 0 {
 		return c.enterStandardException(8, c.State.PC-4, nil, 34)
@@ -3564,6 +3571,9 @@ func (c *CPU) stepMOVELong(opcode uint16) (StepResult, error) {
 	if destinationMode == 1 || destinationMode == 7 && destinationReg > 1 {
 		return StepResult{}, fmt.Errorf("m68k: invalid MOVE.L destination mode %d:%d", destinationMode, destinationReg)
 	}
+	if sourceMode == 7 && sourceReg == 4 && destinationMode == 7 && destinationReg == 0 {
+		return c.stepMOVELongImmediateAbsoluteShort(opcode, stream)
+	}
 
 	value, sourceCost, sourceMemory, fault, err := step.readLongSource(sourceMode, sourceReg)
 	if err != nil {
@@ -3581,6 +3591,84 @@ func (c *CPU) stepMOVELong(opcode uint16) (StepResult, error) {
 	}
 	c.setLogicalFlags(value, 32)
 	return StepResult{Clocks: 4 + sourceCost + destinationCost, Transactions: step.transactions}, nil
+}
+
+func (c *CPU) stepMOVELongImmediateAbsoluteShort(opcode uint16, stream moveByteStep) (StepResult, error) {
+	var transactions []Transaction
+	var timeline []BusPhase
+	var offset uint32
+
+	appendWait := func(wait uint32) {
+		if wait != 0 {
+			timeline = append(timeline, BusPhase{Offset: offset, Cycles: wait})
+			offset += wait
+		}
+	}
+	readWord := func(address uint32, fc uint8) (uint16, error) {
+		word, wait, err := c.readWordAt(address&addressMask, fc, offset)
+		if err != nil {
+			return 0, err
+		}
+		appendWait(wait)
+		transaction := readTransaction(address&addressMask, fc, word)
+		transactions = append(transactions, transaction)
+		timeline = append(timeline, BusPhase{Offset: offset, Cycles: 4, Transaction: &transaction})
+		offset += 4
+		return word, nil
+	}
+	consumeExtension := func() (uint16, error) {
+		extension := c.State.Prefetch[1]
+		word, err := readWord(c.State.PC, stream.programFC)
+		if err != nil {
+			return 0, err
+		}
+		c.State.Prefetch = [2]uint16{extension, word}
+		c.State.PC += 2
+		return extension, nil
+	}
+	writeWord := func(address uint32, value uint16) error {
+		wait, err := c.writeWordAt(address&addressMask, value, stream.dataFC, offset)
+		if err != nil {
+			return err
+		}
+		appendWait(wait)
+		transaction := writeTransaction(address&addressMask, stream.dataFC, value)
+		transactions = append(transactions, transaction)
+		timeline = append(timeline, BusPhase{Offset: offset, Cycles: 4, Transaction: &transaction})
+		offset += 4
+		return nil
+	}
+
+	high, err := consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	low, err := consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	destination, err := consumeExtension()
+	if err != nil {
+		return StepResult{}, err
+	}
+	address := uint32(int32(int16(destination)))
+	value := uint32(high)<<16 | uint32(low)
+	if address&1 != 0 {
+		result, faultErr := c.enterAddressError(opcode, address, c.State.PC-2, transactions,
+			70+offset-12, stream.dataFC, "we", false)
+		return result, faultErr
+	}
+	if err := writeWord(address, high); err != nil {
+		return StepResult{}, err
+	}
+	if err := writeWord(address+2, low); err != nil {
+		return StepResult{}, err
+	}
+	if _, err := consumeExtension(); err != nil {
+		return StepResult{}, err
+	}
+	c.setLogicalFlags(value, 32)
+	return StepResult{Clocks: offset, Transactions: transactions, Timeline: timeline}, nil
 }
 
 func (s *moveLongStep) readLongSource(mode, reg uint8) (uint32, uint32, bool, *StepResult, error) {

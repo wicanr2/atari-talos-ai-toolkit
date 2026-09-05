@@ -1,6 +1,6 @@
 # 056 — Atari ST CPU 外部 bus slot 對齊
 
-狀態：**READY**。
+狀態：**CONFORMED**（`MOVE.L immediate→absolute-short` 正常偶數 destination 切片）。
 
 ## 問題與範圍
 
@@ -80,3 +80,20 @@ phase 2 的 2-clock wait 插在第一個 access 前，後續 offsets 連帶成 6
 3. 固定 EmuTOS 必須重現第 14 條 390→416，且 RAM `$10..$13=$00FC00B2`、next prefetch
    與 Hatari 相同；不得寫 `$0010`、opcode `$21FC` 或 clock 390 的 wait 特例。
 4. 本切片通過只能升該 addressing form 為 CONFORMED；其他 MOVE／CPU 指令仍逐族遷移。
+
+## CONFORMED 收據
+
+- 2026-09-05：ST timed Bus 對所有 CPU external byte／word access 依絕對 clock 對齊；
+  phase 0／2 分別回 0／2 clocks，phase 1／3 失敗即關閉。規則不含 opcode、`$0010`
+  或 clock 390 特例。
+- `MOVE.L immediate→absolute-short` 以六個連續 phases 接線。synthetic phase 0／2
+  測試分別得到 24／26 clocks；transaction kind／FC／address／data、RAM 結果、PC、
+  prefetch 與 flags 一致，timeline 為 `0,4,8,12,16,20` 及
+  `idle@0,access@2,6,10,14,18,22`。
+- 固定 EmuTOS 第 14 條由 390→416；RAM `$10..$13=$00FC00B2`，state PC=`$FC00AC`、
+  prefetch=`$203C,$0000`、SR=`$2700`，與 Hatari 收據一致。
+- 繼續到第 18 條的逐步總 clocks 為 416／428／464／488／496；line-F 前 state
+  PC=`$FC00C2`、prefetch=`$F010,$0800`、D0=`$00000808`、A0=`$FC0152`、
+  SSP=`$0FE6`、SR=`$2700`。新的第一停點確定為尚未實作的 line-F／vector 11。
+- 完整 227,500 筆既有 CPU 語料、Go 測試、固定 ROM 測試、靜態檢查與建置通過。
+  Odd destination 的 exception timeline 與其他 addressing forms 不在本次 CONFORMED 範圍。

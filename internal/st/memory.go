@@ -93,8 +93,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 }
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
+	wait, err := busSlotWait(access.Clock)
+	if err != nil {
+		return 0, 0, err
+	}
 	value, err := m.ReadByte(address, access.FunctionCode)
-	return value, 0, err
+	return value, wait, err
 }
 
 func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
@@ -114,8 +118,12 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 }
 
 func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint32, error) {
+	wait, err := busSlotWait(access.Clock)
+	if err != nil {
+		return 0, 0, err
+	}
 	value, err := m.ReadWord(address, access.FunctionCode)
-	return value, 0, err
+	return value, wait, err
 }
 
 func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error {
@@ -140,7 +148,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 }
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
-	return 0, m.WriteByte(address, value, access.FunctionCode)
+	wait, err := busSlotWait(access.Clock)
+	if err != nil {
+		return 0, err
+	}
+	return wait, m.WriteByte(address, value, access.FunctionCode)
 }
 
 func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) error {
@@ -163,7 +175,22 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 }
 
 func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess) (uint32, error) {
-	return 0, m.WriteWord(address, value, access.FunctionCode)
+	wait, err := busSlotWait(access.Clock)
+	if err != nil {
+		return 0, err
+	}
+	return wait, m.WriteWord(address, value, access.FunctionCode)
+}
+
+func busSlotWait(clock uint64) (uint32, error) {
+	phase := clock & 3
+	if phase&1 != 0 {
+		return 0, fmt.Errorf("st: odd CPU bus clock %d (phase %d)", clock, phase)
+	}
+	if phase == 2 {
+		return 2, nil
+	}
+	return 0, nil
 }
 
 func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uint8) (uint32, *BusFault) {

@@ -188,3 +188,8 @@
   結合 MAME microcoded `$2B7C`／`$257C` 六個連續 bus phases，確認 `$21FC` offsets
   0／4／8／12／16／20；並確認對齊位於 CPU external access 外層，不是 RAM 位址特例。
   規格 056 升 READY，production 實作留待下一切片。
+- 依 READY 規格 056 實作 ST CPU external 四 clock bus slot 對齊，並將
+  `MOVE.L immediate→absolute-short` 六個 phases 接入 timed Bus。synthetic phase 0／2
+  為 24／26 clocks；固定 EmuTOS 第 14 條由 390→416，RAM／state／prefetch 全同，
+  再逐步驗至第 18 條／496 clocks 的 line-F 邊界。完整 227,500 筆語料、固定 ROM、
+  靜態檢查與建置通過；規格 056 的正常偶數 destination 切片升 CONFORMED。

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
@@ -42,6 +43,50 @@ func TestMachinePassesCurrentClockAsInstructionEpoch(t *testing.T) {
 	}
 	if result.Clocks != 6 || machine.Instructions != 10 || machine.Clocks != 396 {
 		t.Fatalf("result=%+v counters=%d/%d", result, machine.Instructions, machine.Clocks)
+	}
+}
+
+func TestMOVELongImmediateAbsoluteShortBusPhases(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		epoch       uint64
+		wantClocks  uint32
+		wantOffsets []uint32
+	}{
+		{name: "phase0", epoch: 12, wantClocks: 24, wantOffsets: []uint32{0, 4, 8, 12, 16, 20}},
+		{name: "phase2", epoch: 10, wantClocks: 26, wantOffsets: []uint32{0, 2, 6, 10, 14, 18, 22}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rom := make([]byte, TOSROMSize)
+			copy(rom[0x44:], []byte{0x00, 0xb2, 0x00, 0x10, 0x4e, 0x71, 0x60, 0xfe})
+			machine, err := NewMachine(RAM1M, rom)
+			if err != nil {
+				t.Fatal(err)
+			}
+			machine.CPU.State = m68k.State{SR: 0x2000, PC: TOSROMBase + 0x44,
+				Prefetch: [2]uint16{0x21fc, 0x00fc}}
+			result, err := machine.CPU.StepAt(test.epoch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Clocks != test.wantClocks || machine.CPU.State.PC != TOSROMBase+0x4c ||
+				machine.CPU.State.Prefetch != [2]uint16{0x4e71, 0x60fe} {
+				t.Fatalf("result=%+v state=%+v", result, machine.CPU.State)
+			}
+			if got, err := machine.Memory.ReadWord(0x10, 5); err != nil || got != 0x00fc {
+				t.Fatalf("RAM[10]=%04x err=%v", got, err)
+			}
+			if got, err := machine.Memory.ReadWord(0x12, 5); err != nil || got != 0x00b2 {
+				t.Fatalf("RAM[12]=%04x err=%v", got, err)
+			}
+			gotOffsets := make([]uint32, len(result.Timeline))
+			for i, phase := range result.Timeline {
+				gotOffsets[i] = phase.Offset
+			}
+			if !reflect.DeepEqual(gotOffsets, test.wantOffsets) {
+				t.Fatalf("timeline offsets=%v want %v", gotOffsets, test.wantOffsets)
+			}
+		})
 	}
 }
 
@@ -271,6 +316,82 @@ func TestMachineEmuTOSEmptyCartridgeProbe(t *testing.T) {
 		state.Prefetch != [2]uint16{0x660a, 0x4dfa} || state.SSP != 0x0fec ||
 		state.USP != 0 || state.SR != 0x2700 || state.D != [8]uint32{} || state.A != [7]uint32{} {
 		t.Fatalf("cartridge-probe boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+}
+
+func TestMachineEmuTOSAlignsFourteenthInstructionToBusSlot(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 14; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	state := machine.CPU.State
+	if machine.Instructions != 14 || machine.Clocks != 416 || state.PC != 0x00fc00ac ||
+		state.Prefetch != [2]uint16{0x203c, 0x0000} || state.SSP != 0x0fec || state.SR != 0x2700 {
+		t.Fatalf("instruction-14 boundary instructions=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Clocks, state)
+	}
+	for address, want := range map[uint32]uint16{0x10: 0x00fc, 0x12: 0x00b2} {
+		got, readErr := machine.Memory.ReadWord(address, 5)
+		if readErr != nil || got != want {
+			t.Fatalf("RAM[%x]=%04x/%v want %04x", address, got, readErr, want)
+		}
+	}
+}
+
+func TestMachineEmuTOSReachesLineFBoundary(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := "ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135"
+	if got := fmt.Sprintf("%x", sha256.Sum256(rom)); got != wantHash {
+		t.Fatalf("EmuTOS SHA-256=%s want %s", got, wantHash)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	wantClocks := []uint64{416, 428, 464, 488, 496}
+	for i := 0; i < 18; i++ {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+		if i >= 13 && machine.Clocks != wantClocks[i-13] {
+			t.Fatalf("step %d clocks=%d want %d", i+1, machine.Clocks, wantClocks[i-13])
+		}
+	}
+	state := machine.CPU.State
+	if state.PC != 0x00fc00c2 || state.Prefetch != [2]uint16{0xf010, 0x0800} ||
+		state.D[0] != 0x00000808 || state.A[0] != 0x00fc0152 || state.SSP != 0x0fe6 || state.SR != 0x2700 {
+		t.Fatalf("line-F boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
 }

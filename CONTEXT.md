@@ -164,11 +164,14 @@
   RAM write 首次出現 Hatari 26／Atari Talos 24 clocks。Hatari 固定原始碼將差異
   收窄為依全機與指令內 clock 對齊四 clock 的 ST CPU external bus slot，而非已證實的
   即時 Shifter 搶占；它仍不是該 MOVE opcode 的固定 timing。phase 0／2 相鄰探針已
-  確認 24／26 clocks，規格 056 已升 READY。
+  確認 24／26 clocks，`$21FC` 正常偶數 destination 切片已依規格 056 CONFORMED。
 - cycle-aware Bus 首個 runtime 切片已接線：machine 將 64-bit 全機 epoch 傳入 CPU，
   `TimedBus` 在 access 前收到絕對 clock 並回傳 wait；NOP／MOVEQ／SWAP／EXT 共用的
   4-clock prefetch 已遷移。NOP 2,500 筆完整 phase timeline 全同，synthetic 2-clock
-  wait 與 machine epoch 整合測試通過；其他指令尚未遷移，共用 bus 對齊仍未實作。
+  wait 與 machine epoch 整合測試通過；`$21FC` 六 phases 已遷移，其他指令尚未遷移。
+- 固定 EmuTOS 第 14 條現在由 390→416，並繼續與 Hatari 同 clocks 至第 18 條／496；
+  line-F 前 PC=`$FC00C2`、prefetch=`$F010,$0800` 及 D0／A0／SSP／SR 均一致。
+  新的第一停點是 `$FC00BE` line-F／vector 11，前置 bus clocks 已不再阻塞。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -182,6 +185,5 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 依 READY 規格 055 建立 CPU／machine／bus runtime cycle-aware access，實作 ST RAM／
-   ST CPU external bus slot alignment 的動態 wait state；恢復第 14 條同 clocks 後，再處理
-   `$FC00BE` line-F vector 11 與後續開機。
+4. 依 READY 規格 055 逐族遷移 cycle-aware access；下一切片先規格化並實作
+   `$FC00BE` line-F vector 11，再繼續固定 EmuTOS 開機找下一個停點。

@@ -9,6 +9,30 @@ import (
 )
 
 var _ m68k.Bus = (*Memory)(nil)
+var _ m68k.TimedBus = (*Memory)(nil)
+
+func TestBusSlotWaitRejectsOddClockDomain(t *testing.T) {
+	for _, test := range []struct {
+		clock uint64
+		wait  uint32
+		ok    bool
+	}{
+		{clock: 0, wait: 0, ok: true},
+		{clock: 2, wait: 2, ok: true},
+		{clock: 4, wait: 0, ok: true},
+		{clock: 6, wait: 2, ok: true},
+		{clock: 1},
+		{clock: 3},
+	} {
+		wait, err := busSlotWait(test.clock)
+		if test.ok && (err != nil || wait != test.wait) {
+			t.Fatalf("clock %d: wait=%d err=%v want %d", test.clock, wait, err, test.wait)
+		}
+		if !test.ok && err == nil {
+			t.Fatalf("clock %d: odd phase unexpectedly accepted", test.clock)
+		}
+	}
+}
 
 func testROM() []byte {
 	rom := make([]byte, TOSROMSize)
