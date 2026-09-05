@@ -122,6 +122,7 @@ type Memory struct {
 	mfpACIAEnableStage      uint8
 	mfpTimerDSystemStage    uint8
 	mfpTimerDStopStage      uint8
+	mfpUSARTReconfigStage   uint8
 	mfpGPIP                 byte
 	mfpGPIPIn               byte
 	mfpAER                  byte
@@ -299,7 +300,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		if !m.mfpTSRSet {
 			return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 		}
-		return m.mfpTSR, nil
+		return m.mfpTSR | 0x80, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -621,6 +622,21 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.mfpTimerCStart = true
 			return nil
 		}
+		if m.mfpTimerDStopStage == 7 && m.mfpUSARTReconfigStage == 0 &&
+			m.mfpTCDCR == 0x50 && m.mfpTDDR == 0 && m.mfpTDMain == 0 && value == 0x50 {
+			m.mfpUSARTReconfigStage = 1
+			return nil
+		}
+		if m.mfpUSARTReconfigStage == 2 && m.mfpTCDCR == 0x50 && value == 0x51 &&
+			m.mfpTDDR == 2 && m.mfpTDMain == 2 {
+			m.mfpTCDCR = value
+			m.mfpTimerDStart = true
+			m.mfpUSARTReconfigStage = 3
+			return nil
+		}
+		if m.mfpTimerDStopStage == 7 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		if m.mfpTCDCR == 0x50 && value == 0x50 {
 			return nil
 		}
@@ -681,6 +697,14 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		if m.mfpTCDCR&0x07 != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
+		if m.mfpTimerDStopStage == 7 {
+			if m.mfpUSARTReconfigStage != 1 || value != 2 {
+				return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+			}
+			m.mfpTDDR, m.mfpTDMain = value, value
+			m.mfpUSARTReconfigStage = 2
+			return nil
+		}
 		m.mfpTDDR, m.mfpTDMain = value, value
 		if m.mfpTimerDSystemStage == 4 && value == 0 {
 			m.mfpTimerDSystemStage = 5
@@ -688,12 +712,26 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPSCR {
+		if m.mfpUSARTReconfigStage == 6 && m.mfpSCR == 0 && value == 0 {
+			m.mfpUSARTReconfigStage = 7
+			return nil
+		}
+		if m.mfpTimerDStopStage == 7 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		if m.mfpSCR != 0 || value != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		return nil
 	}
 	if address == MFPUCR {
+		if m.mfpUSARTReconfigStage == 3 && m.mfpUCR == 0x88 && value == 0x88 {
+			m.mfpUSARTReconfigStage = 4
+			return nil
+		}
+		if m.mfpTimerDStopStage == 7 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		if m.mfpUCR == 0 && value == 0x88 && m.mfpTCDCR == 0x51 &&
 			m.mfpTDDR == 2 && m.mfpTDMain == 2 {
 			m.mfpUCR = value
@@ -705,6 +743,13 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPRSR {
+		if m.mfpUSARTReconfigStage == 4 && m.mfpRSR == 1 && value == 1 {
+			m.mfpUSARTReconfigStage = 5
+			return nil
+		}
+		if m.mfpTimerDStopStage == 7 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		if m.mfpRSR == 0 && value == 1 && m.mfpUCR == 0x88 {
 			m.mfpRSR = value
 			return nil
@@ -715,6 +760,13 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == MFPTSR {
+		if m.mfpUSARTReconfigStage == 5 && m.mfpTSRSet && m.mfpTSR == 1 && value == 1 {
+			m.mfpUSARTReconfigStage = 6
+			return nil
+		}
+		if m.mfpTimerDStopStage == 7 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		if m.mfpTSRSet && m.mfpTSR == 0 && value == 1 && m.mfpUCR == 0x88 && m.mfpRSR == 1 {
 			m.mfpTSR = value
 			return nil
@@ -749,7 +801,8 @@ func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) 
 		if err == nil && !wasTimerC && m.mfpTimerCStart {
 			m.mfpTimerCStartClock = access.Clock
 		}
-		if err == nil && !wasSystemTimerD && m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart {
+		if err == nil && !wasSystemTimerD && m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart &&
+			m.mfpTCDCR&0x07 == 2 {
 			m.mfpTimerDStartClock = access.Clock
 		}
 		return 4, err
@@ -849,6 +902,7 @@ func (m *Memory) ColdReset() {
 	m.mfpACIAEnableStage = 0
 	m.mfpTimerDSystemStage = 0
 	m.mfpTimerDStopStage = 0
+	m.mfpUSARTReconfigStage = 0
 	m.mfpGPIP = 0
 	m.mfpAER = 0
 	m.mfpDDR = 0

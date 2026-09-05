@@ -29,7 +29,8 @@ serial clock、狀態旗標、收發資料與 UDR 均不在範圍。
   `c0214b586bdd32a1f3d50f91827ce6b84f1fd6411b417838193b03eadde4f631`。
   `src/rs232.c:517-610` 的四個 handler 均增加 4 wait clocks；檔案 SHA-256
   `c03dff57107cdc6989fa3dbd38b2c2e32004d2d5b06c3622cf9511d456e1faa3`。
-  Hatari 的 TSR read 強制 buffer-empty bit 是相容性政策，不是本切片硬體契約。
+  TSR bit 7 是唯讀的 transmit buffer empty 狀態；本專案尚未送出 UDR 時，依此硬體
+  契約回傳空緩衝區狀態，而不是把 bit 7 存入可寫 control latch。
 - **已確認（Hatari 外部 oracle）**：固定 image／ROM 下，SCR FrameCycles
   `44958→44974`、UCR `45002→45018`、RSR `45046→45062`、TSR
   `45090→45106`，各 **16 clocks**；每次寫入前後四個 register 均顯示 `$00`。
@@ -41,8 +42,8 @@ serial clock、狀態旗標、收發資料與 UDR 均不在範圍。
 2. supervisor data byte 對四個位址只接受「目前為 `$00`／未知 TSR → 寫 `$00`」；
    成功後 register 為已知 `$00`。任何非零寫入均回
    `unsupported_device_state`，且不改狀態。
-3. 只有已知零值可 byte read；TSR 在軟體初始化前 read 失敗即關閉。user access 與
-   word access 仍 fault。
+3. 只有已知值可 byte read；TSR 在軟體初始化前 read 失敗即關閉，軟體寫零後讀回
+   `$80`（control=`$00`、buffer empty=`$80`）。user access 與 word access 仍 fault。
 4. 四位址 byte access 各增加 4 wait clocks；EmuTOS 同形 MOVE 各 16 clocks。
 5. UDR `$FFFA2F` 維持未映射；本切片不建立 serial clock、資料 buffer、IRQ 或外部 I/O。
 

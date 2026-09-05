@@ -426,3 +426,10 @@
   未放寬其他mask改寫。固定ROM在289,256 instructions／234 interrupts／2,978,730 clocks
   完成，下一gate為289,332／2,979,596的UCR `$88→$88`。完整240,000筆corpus、固定ROM、
   全測試、vet與CLI build通過，規格100升CONFORMED。
+- 完成MFP USART第二次設定與baud Timer D重啟：MC68901契約與固定Hatari trace確認
+  TSR bit7為transmit-buffer-empty，EmuTOS依序寫TCDCR `$50`、TDDR `$02`、TCDCR
+  `$51`及UCR／RSR／TSR／SCR `$88/$01/$01/$00`。Talos以七段stage接線，並把
+  control1 baud timer與control2 system Timer D IRQ scheduler分離。固定ROM在289,342
+  instructions／234 interrupts／2,979,680 clocks完成；後續有界探測將下一gate定位為
+  289,520 instructions／2,982,748 clocks的DMA／FDC `$FF860F` byte write。完整240,000
+  筆corpus、固定ROM、全測試、vet與CLI build通過，規格101升CONFORMED。

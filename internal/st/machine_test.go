@@ -1385,6 +1385,32 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 	if err != nil || uint32(high)<<16|uint32(low) != 0x00fc03ea {
 		t.Fatalf("vector 68=%04x%04x err=%v want 00fc03ea", high, low, err)
 	}
+	for machine.Instructions < 400_000 && machine.Memory.mfpUSARTReconfigStage < 7 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("USART reconfigure instructions=%d interrupts=%d clocks=%d PC=%08x prefetch=%04x,%04x stage=%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1],
+				machine.Memory.mfpUSARTReconfigStage, err)
+		}
+	}
+	if machine.Memory.mfpUSARTReconfigStage != 7 || !machine.Memory.mfpTimerDStart ||
+		machine.Memory.mfpTCDCR != 0x51 || machine.Memory.mfpTDDR != 2 ||
+		machine.Memory.mfpUCR != 0x88 || machine.Memory.mfpRSR != 1 ||
+		machine.Memory.mfpTSR != 1 || machine.Memory.mfpSCR != 0 ||
+		machine.timerDClockStarted || machine.nextTimerDClock != 0 {
+		t.Fatalf("USART boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/start/TCDCR/TDDR/UCR/RSR/TSR/SCR/scheduler/next=%d/%v/%02x/%02x/%02x/%02x/%02x/%02x/%v/%d",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
+			machine.Memory.mfpUSARTReconfigStage, machine.Memory.mfpTimerDStart,
+			machine.Memory.mfpTCDCR, machine.Memory.mfpTDDR, machine.Memory.mfpUCR,
+			machine.Memory.mfpRSR, machine.Memory.mfpTSR, machine.Memory.mfpSCR,
+			machine.timerDClockStarted, machine.nextTimerDClock)
+	}
+	if machine.Instructions != 289342 || machine.Interrupts != 234 || machine.Clocks != 2979680 ||
+		machine.CPU.State.PC != 0x00fc6b58 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x2002, 0x4cdf} {
+		t.Fatalf("USART exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State)
+	}
 }
 
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
@@ -1458,8 +1484,12 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPSCR, MFPUCR, MFPRSR, MFPTSR} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
-			t.Fatalf("MFP USART %06x=%02x/%v want 00", address, got, err)
+		want := byte(0)
+		if address == MFPTSR {
+			want = 0x80
+		}
+		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != want {
+			t.Fatalf("MFP USART %06x=%02x/%v want %02x", address, got, err, want)
 		}
 	}
 	for machine.CPU.State.Prefetch[0] != 0x4e72 {

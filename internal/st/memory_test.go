@@ -933,10 +933,70 @@ func TestMFPUSARTFixedSerialEnable(t *testing.T) {
 		t.Fatalf("USART state UCR/RSR/TSR/set=%02x/%02x/%02x/%v",
 			memory.mfpUCR, memory.mfpRSR, memory.mfpTSR, memory.mfpTSRSet)
 	}
+	for address, value := range map[uint32]byte{MFPUCR: 0x88, MFPRSR: 1, MFPTSR: 0x81} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != value {
+			t.Fatalf("USART read %06x=%02x/%v want %02x", address, got, err, value)
+		}
+	}
 	for address, value := range map[uint32]byte{MFPUCR: 0x88, MFPRSR: 1, MFPTSR: 1} {
 		if err := memory.WriteByte(address, value, 5); err == nil {
 			t.Fatalf("repeat USART write %06x unexpectedly accepted", address)
 		}
+	}
+}
+
+func TestMFPUSARTReconfigureAfterTimerDStop(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.mfpTimerDStopStage = 7
+	memory.mfpIERB, memory.mfpIMRB, memory.mfpTCDCR = 0x60, 0x60, 0x50
+	memory.mfpUCR, memory.mfpRSR = 0x88, 1
+	memory.mfpTSR, memory.mfpTSRSet = 1, true
+
+	if err := memory.WriteByte(MFPTDDR, 2, 5); err == nil || memory.mfpUSARTReconfigStage != 0 ||
+		memory.mfpTDDR != 0 || memory.mfpTDMain != 0 {
+		t.Fatalf("out-of-order TDDR err/stage/data/main=%v/%d/%02x/%02x", err,
+			memory.mfpUSARTReconfigStage, memory.mfpTDDR, memory.mfpTDMain)
+	}
+	steps := []struct {
+		address uint32
+		value   byte
+		stage   uint8
+	}{
+		{MFPTCDCR, 0x50, 1},
+		{MFPTDDR, 2, 2},
+		{MFPTCDCR, 0x51, 3},
+		{MFPUCR, 0x88, 4},
+		{MFPRSR, 1, 5},
+		{MFPTSR, 1, 6},
+		{MFPSCR, 0, 7},
+	}
+	if err := memory.WriteByte(steps[0].address, steps[0].value, 5); err != nil ||
+		memory.mfpUSARTReconfigStage != 1 {
+		t.Fatalf("stage 1 start err/stage=%v/%d", err, memory.mfpUSARTReconfigStage)
+	}
+	if err := memory.WriteByte(MFPTDDR, 3, 5); err == nil || memory.mfpUSARTReconfigStage != 1 ||
+		memory.mfpTDDR != 0 || memory.mfpTDMain != 0 {
+		t.Fatalf("wrong TDDR err/stage/data/main=%v/%d/%02x/%02x", err,
+			memory.mfpUSARTReconfigStage, memory.mfpTDDR, memory.mfpTDMain)
+	}
+	for _, step := range steps[1:] {
+		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+			t.Fatalf("stage %d write %06x=%02x: %v", step.stage, step.address, step.value, err)
+		}
+		if memory.mfpUSARTReconfigStage != step.stage {
+			t.Fatalf("write %06x=%02x stage=%d want %d", step.address, step.value,
+				memory.mfpUSARTReconfigStage, step.stage)
+		}
+	}
+	if got, err := memory.ReadByte(MFPTSR, 5); err != nil || got != 0x81 {
+		t.Fatalf("enabled TSR=%02x/%v want 81", got, err)
+	}
+	if !memory.mfpTimerDStart || memory.mfpTCDCR != 0x51 || memory.mfpTDDR != 2 {
+		t.Fatalf("baud Timer D start/control/data=%v/%02x/%02x",
+			memory.mfpTimerDStart, memory.mfpTCDCR, memory.mfpTDDR)
 	}
 }
 
@@ -1436,8 +1496,12 @@ func TestMFPUSARTResetZeroWrites(t *testing.T) {
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
-				t.Fatalf("initialized %s=%02x/%v want 00", test.name, got, err)
+			want := byte(0)
+			if test.address == MFPTSR {
+				want = 0x80
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != want {
+				t.Fatalf("initialized %s=%02x/%v want %02x", test.name, got, err, want)
 			}
 			test.set(memory, 0x5a)
 			if err := memory.WriteByte(test.address, 0, 5); err == nil {

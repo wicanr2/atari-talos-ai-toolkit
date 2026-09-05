@@ -142,13 +142,13 @@ func (m *Machine) advanceClockedDevices() {
 		m.nextTimerCClock = timerCDeadline(m.Memory.mfpTimerCStartClock, m.timerCPeriods)
 	}
 	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDStart &&
-		m.Memory.mfpTimerDStartClock != 0 {
+		m.Memory.mfpTCDCR&0x07 == 2 && m.Memory.mfpTimerDStartClock != 0 {
 		m.timerDClockStarted = true
 		m.timerDPeriods = 1
 		m.nextTimerDClock = timerDDeadline(m.Memory.mfpTimerDStartClock, m.timerDPeriods)
 	}
 	if !m.timerDClockStarted && m.Memory != nil && m.Memory.mfpTimerDSystemStage == 8 &&
-		m.Memory.mfpTimerDStart {
+		m.Memory.mfpTimerDStart && m.Memory.mfpTCDCR&0x07 == 2 {
 		// MOVE.B has not yet migrated every effective-address path to TimedBus.
 		// Keep this fallback local until that CPU slice supplies the access clock.
 		m.Memory.mfpTimerDStartClock = m.Clocks
