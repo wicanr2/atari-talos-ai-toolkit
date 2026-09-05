@@ -11,6 +11,13 @@ const (
 	TOSROMEnd   = 0x00fe_ffff
 	IOBase      = 0x00ff_0000
 	MMUConfig   = 0x00ff_8001
+
+	// Cartridge (ROM) port. With no cartridge plugged in nothing drives the data
+	// bus there, so reads see the idle bus rather than a fault (spec 057).
+	CartridgeBase = 0x00fa_0000
+	CartridgeEnd  = 0x00fb_ffff
+	// CartridgeIdleByte is what an undriven ST data bus reads back.
+	CartridgeIdleByte = 0xff
 )
 
 type FaultReason string
@@ -76,6 +83,8 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 			return m.ram[physical], nil
 		}
 		return 0, m.fault(address, functionCode, false, 1, FaultUnmapped)
+	case address >= CartridgeBase && address <= CartridgeEnd:
+		return CartridgeIdleByte, nil
 	case address >= TOSROMBase && address <= TOSROMEnd:
 		return m.rom[address-TOSROMBase], nil
 	default:

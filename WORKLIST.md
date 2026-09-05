@@ -52,7 +52,9 @@
 | 68000 `MOVEC` illegal instruction／vector 4 | **CONFORMED** | `$4E7A/$4E7B`、36 clocks；EmuTOS 以 8 條／128 clocks 到 `$FC0074`，frame／state 全同 |
 | vector 2 absolute-short fault address | **CONFORMED** | frame 保存 CPU 內部的 32-bit 有效位址；EmuTOS `$FC0080` `TST.W $8006` 端到端得 `$FFFF8006`、匯流排 `$FF8006`；含暫存器高位元的負對照與三條鑑別力驗證 |
 | MC68000 `RESET` | **CONFORMED** | `RESET.json.bin` 2,500 筆（supervisor 132 clocks／user vector 8 34 clocks）全同；EmuTOS `$FC0088` 端到端執行成功，CPU 狀態不變、PC 前進一個 word。外部 `RESET` 線對周邊的效果待 I/O 接入後各自定義 |
-| ST cartridge port `$FA0000`–`$FBFFFF` | 待規格 | EmuTOS 第 12 條指令在 `$FC008E` 探測插卡；目前 memory map 不涵蓋該區，回 unmapped fault |
+| ST cartridge port `$FA0000`–`$FBFFFF` | **CONFORMED** | 沒插卡時讀回 `$FF`、不 fault（Hatari trace 的 `cmp.l #$fa52235f,$00fa0000 [ffffffff]` 直接證實）；EmuTOS 比對失敗後取分支，`$FC0094` 380、`$FC00A0` 390 clocks 與 Hatari 相同。寫入該區維持 fault——沒有證據 |
+| `MOVE.L #imm,(xxx).W` 的 cycle 數 | 待裁決 | Hatari 26、Atari Talos 24。**外部語料沒有這個定址組合的案例**（只有 `(xxx).L` 一筆 28），所以沒有第三方可裁決。Atari Talos 的 24 是由 `(xxx).L` 的 28 減一個 extension word 推導的，不是語料證實的。要嘛找到涵蓋它的語料、要嘛查 Motorola timing 表原文，不能靠放寬期望值吸收 |
+| 68000 line-F emulator（vector 11）| 待規格 | EmuTOS 第 19 條指令在 `$FC00C2` 執行 `$F010`；目前 opcode 未實作，開機停在該處 |
 | bus fault → vector 2 的指令涵蓋面 | 待規格 | 目前只有 `MOVE.W` 來源讀取會轉成 vector 2；其餘路徑的 bus fault 直接往外傳，開機路徑因此停在第一個非 `MOVE.W` 的失敗存取 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
