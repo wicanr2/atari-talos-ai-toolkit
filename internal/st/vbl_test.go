@@ -251,4 +251,48 @@ func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
 		after.Prefetch != [2]uint16{0x0c40, 0x0001} || machine.Memory.shifterPalette != wantPalette {
 		t.Fatalf("palette loop final machine=%+v palette=%#v", machine, machine.Memory.shifterPalette)
 	}
+	for machine.CPU.State.Prefetch != [2]uint16{0x11c1, 0x8201} {
+		if machine.Instructions > 7920 {
+			t.Fatal("EmuTOS framebuffer base write was not reached")
+		}
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("pre-video-base step %d clocks=%d: %v", machine.Instructions+1, machine.Clocks, err)
+		}
+	}
+	wantBaseD := [8]uint32{0x000f8000, 0x0f, 0, 0, 0x00080000, 0x00100000, 5, 1}
+	wantBaseA := [7]uint32{0x00100000, 0x000f2358, 0, 0, 0, 0x00fc01f4, 0x0ffc}
+	before = machine.CPU.State
+	if machine.Instructions != 7896 || machine.Clocks != 403900 || before.D != wantBaseD ||
+		before.A != wantBaseA || before.SSP != 0x0f86 || before.SR != 0x2700 ||
+		before.PC != 0x00fc67fe {
+		t.Fatalf("video-base high pre-state machine=%+v", machine)
+	}
+	result, err = machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 12 || machine.Clocks != 403912 || machine.Memory.ProgrammedVideoBase() != 0x0f0000 ||
+		machine.CPU.State.PC != 0x00fc6802 || machine.CPU.State.Prefetch != [2]uint16{0xe088, 0x11c0} {
+		t.Fatalf("video-base high post-state result=%+v machine=%+v", result, machine)
+	}
+	result, err = machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBaseD[0] = 0x00000f80
+	if result.Clocks != 24 || machine.Clocks != 403936 || machine.CPU.State.D != wantBaseD ||
+		machine.CPU.State.PC != 0x00fc6804 || machine.CPU.State.Prefetch != [2]uint16{0x11c0, 0x8203} {
+		t.Fatalf("video-base shift post-state result=%+v machine=%+v", result, machine)
+	}
+	result, err = machine.Step()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Clocks != 12 || machine.Instructions != 7899 || machine.Clocks != 403948 ||
+		machine.CPU.State.D != wantBaseD || machine.CPU.State.A != wantBaseA ||
+		machine.CPU.State.SSP != 0x0f86 || machine.CPU.State.SR != 0x2708 ||
+		machine.CPU.State.PC != 0x00fc6808 || machine.CPU.State.Prefetch != [2]uint16{0x5c8f, 0x4e75} ||
+		machine.Memory.ProgrammedVideoBase() != 0x0f8000 {
+		t.Fatalf("video-base middle post-state result=%+v machine=%+v", result, machine)
+	}
 }

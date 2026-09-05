@@ -261,8 +261,10 @@
   60→50 Hz transition，12 clocks 後把第四 VBL deadline 從 534,480 修正為 Hatari 的
   535,528，之後 period 為 160,256。規格 079 已接 `$FF8240–$FF825E` 16 色 word bank；
   EmuTOS `$FC671A` 首筆 8 clocks，完整迴圈在 7,749 instructions／402,052 clocks 結束，
-  palette、A0/A1、D1 與 Hatari 相同。再續跑至 7,896 instructions／403,900 clocks，
-  對 `$FF8201` framebuffer base high byte write 失敗即關閉，這是目前真實 gate。
+  palette、A0/A1、D1 與 Hatari 相同。規格 080 已接 `$FF8201/$FF8203` 程式化
+  framebuffer base：Talos 在 7,896 instructions／403,900 clocks 進入，依序以
+  12／24／12 clocks 完成 high write、`LSR.L #8` 與 middle write，最後為 `$0F8000`；
+  Hatari 同段為 403,924→403,972，且 active `VideoBase` 在兩次寫後仍為 0。
 - CPU vector 2 已完成第一條 Hatari 對拍切片：`MOVE.W` absolute-long user word source
   讀取低記憶體保護區時，72 clocks 後進入 handler；SSW、fault address、opcode、原 SR、
   saved PC、14-byte frame、supervisor 切換與預取皆有整合測試。其他 bus-error 讀寫路徑、
@@ -276,5 +278,6 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 下一個整機切片先查 Atari Shifter video base 規格與固定 Hatari trace，規格化
-   `$FF8201/$FF8203` latched framebuffer base；不得在 address 生效時點未明前直接取 RAM。
+4. 下一個整機切片規格化第四幀前的 Shifter active base reload：以 Hatari 固定 trace
+   確認 50 Hz HBL 310／cycle 48 的生效點，再將 programmed `$0F8000` 與 active base
+   分離接線；不得在 reload event 前直接取 RAM。

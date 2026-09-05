@@ -330,3 +330,10 @@
   palette state 已可供未來 framebuffer 消費，但尚未宣稱像素輸出。下一 gate 為
   7,896 instructions／403,900 clocks 的 `$FF8201` framebuffer base high byte write。
   規格 079 升 CONFORMED。
+- 完成 ST Shifter `$FF8201/$FF8203` 程式化 framebuffer base registers：依一手
+  hardware map 與固定 Hatari source 接入 high `$3F` mask、middle byte、reset、readback、
+  alias、權限、寬度、bus wait 與 `ProgrammedVideoBase()`。固定 EmuTOS 在 Talos
+  403,900→403,948 clocks 依序完成兩筆 write 與中間位移，所得 `$0F8000`、完整 CPU
+  state 與 Hatari 403,924→403,972 的同路徑一致；兩邊皆未把 write 當成 active base
+  立即切換。有界續跑至 68,079 instructions／962,832 clocks 才遇 `$FFFA1D` 非零 timer
+  control，但時間序上先處理第四幀前 active base reload。規格 080 升 CONFORMED。

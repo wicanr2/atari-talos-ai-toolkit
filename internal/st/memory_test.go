@@ -173,6 +173,59 @@ func TestVideoSyncResetAndFixed50HzTransition(t *testing.T) {
 	}
 }
 
+func TestProgrammedVideoBaseRegisters(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range []uint32{VideoBaseHigh, VideoBaseMiddle, 0xffff8201, 0xffff8203} {
+		if got, err := memory.ReadByte(address, 5); err != nil || got != 0 {
+			t.Fatalf("video base %08x reset=%02x/%v", address, got, err)
+		}
+	}
+	if err := memory.WriteByte(VideoBaseHigh, 0xcf, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteByte(VideoBaseMiddle, 0x80, 5); err != nil {
+		t.Fatal(err)
+	}
+	if got := memory.ProgrammedVideoBase(); got != 0x0f8000 {
+		t.Fatalf("programmed video base=%06x want 0f8000", got)
+	}
+	if got, err := memory.ReadByte(VideoBaseHigh, 5); err != nil || got != 0x0f {
+		t.Fatalf("high=%02x/%v want 0f", got, err)
+	}
+	if got, err := memory.ReadByte(VideoBaseMiddle, 5); err != nil || got != 0x80 {
+		t.Fatalf("middle=%02x/%v want 80", got, err)
+	}
+	for _, address := range []uint32{VideoBaseHigh, VideoBaseMiddle} {
+		if _, err := memory.ReadByte(address, 1); err == nil {
+			t.Fatalf("user read %06x unexpectedly succeeded", address)
+		}
+		if err := memory.WriteByte(address, 0, 1); err == nil {
+			t.Fatalf("user write %06x unexpectedly succeeded", address)
+		}
+		if _, err := memory.ReadWord(address, 5); err == nil {
+			t.Fatalf("word read %06x unexpectedly succeeded", address)
+		}
+		if err := memory.WriteWord(address, 0, 5); err == nil {
+			t.Fatalf("word write %06x unexpectedly succeeded", address)
+		}
+	}
+	for _, address := range []uint32{VideoBaseHigh - 1, VideoBaseHigh + 1, VideoBaseMiddle + 1} {
+		if _, err := memory.ReadByte(address, 5); err == nil {
+			t.Fatalf("adjacent byte %06x unexpectedly mapped", address)
+		}
+	}
+	if wait, err := memory.WriteByteAt(VideoBaseHigh, 0x12, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 2 {
+		t.Fatalf("timed video-base write wait=%d err=%v want 2", wait, err)
+	}
+	memory.ColdReset()
+	if got := memory.ProgrammedVideoBase(); got != 0 {
+		t.Fatalf("reset programmed video base=%06x", got)
+	}
+}
+
 func TestShifterPaletteWordBank(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

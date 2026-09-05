@@ -77,7 +77,8 @@
 | ST Shifter `$FF8260` reset／low-res 同值寫入 | **CONFORMED** | STF read `$FC`、非零 fail-closed；EmuTOS `$FC69E6` 12 clocks 與 Hatari 全狀態同 |
 | ST GLUE `$FF820A` 第 0 線 60→50 Hz | **CONFORMED** | `$FC6A02` 12 clocks、register `$00→$02`；第四 deadline 535,528 對 Hatari CycleCounter |
 | ST Shifter `$FF8240–$FF825E` 16 色 palette | **CONFORMED** | ST `$0777` mask、word bank；EmuTOS 16 色迴圈完整 state／值同 Hatari |
+| ST Shifter `$FF8201/$FF8203` 程式化 framebuffer 基址 | **CONFORMED** | 22-bit DMA mask、256-byte alignment；EmuTOS `$0F8000` 兩筆寫入完整 state／clock 同 Hatari |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video mode 與 16 色 palette 已接；下一 gate 是 `$FF8201` framebuffer base high byte write |
+| ST／STF I/O memory map | 進行中 | recurring VBL、video mode、palette 與 programmed base 已接；下一影像切片是第四幀前 active base reload |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

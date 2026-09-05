@@ -18,6 +18,8 @@ const (
 	CartridgeSize      = 128 * 1024
 	IOBase             = 0x00ff_0000
 	MMUConfig          = 0x00ff_8001
+	VideoBaseHigh      = 0x00ff_8201
+	VideoBaseMiddle    = 0x00ff_8203
 	VideoSyncMode      = 0x00ff_820a
 	ShifterPaletteBase = 0x00ff_8240
 	ShifterPaletteEnd  = 0x00ff_825e
@@ -88,6 +90,8 @@ type Memory struct {
 	ram                   []byte
 	rom                   []byte
 	mmuConfig             byte
+	videoBaseHigh         byte
+	videoBaseMiddle       byte
 	videoSyncMode         byte
 	videoSync50Transition bool
 	shifterPalette        [16]uint16
@@ -159,6 +163,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	switch {
 	case address == MMUConfig:
 		return m.mmuConfig, nil
+	case address == VideoBaseHigh:
+		return m.videoBaseHigh, nil
+	case address == VideoBaseMiddle:
+		return m.videoBaseMiddle, nil
 	case address == VideoSyncMode:
 		return m.videoSyncMode | 0xfc, nil
 	case address == ShifterResolution:
@@ -299,6 +307,14 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	}
 	if address == MMUConfig {
 		m.mmuConfig = value
+		return nil
+	}
+	if address == VideoBaseHigh {
+		m.videoBaseHigh = value & 0x3f
+		return nil
+	}
+	if address == VideoBaseMiddle {
+		m.videoBaseMiddle = value
 		return nil
 	}
 	if address == VideoSyncMode {
@@ -547,6 +563,8 @@ func (m *Memory) writableRAMAddress(address uint32, functionCode uint8, size uin
 
 func (m *Memory) ColdReset() {
 	m.mmuConfig = 0
+	m.videoBaseHigh = 0
+	m.videoBaseMiddle = 0
 	m.videoSyncMode = 0
 	m.videoSync50Transition = false
 	m.shifterPalette = [16]uint16{}
@@ -579,6 +597,12 @@ func (m *Memory) ColdReset() {
 	m.mfpRSR = 0
 	m.mfpTSR = 0
 	m.mfpTSRSet = false
+}
+
+// ProgrammedVideoBase returns the address selected for the next Shifter base reload.
+// It is not the base currently used by an active scanout.
+func (m *Memory) ProgrammedVideoBase() uint32 {
+	return uint32(m.videoBaseHigh)<<16 | uint32(m.videoBaseMiddle)<<8
 }
 
 func (m *Memory) M68KReset() error {

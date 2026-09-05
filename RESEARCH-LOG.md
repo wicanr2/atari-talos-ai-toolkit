@@ -406,3 +406,11 @@
 - 同狀態測試另揭露 autovector saved-PC 必須區分 running 與 stopped：running pipeline
   保存 `State.PC-4`，STOP 已將 PC 推進則保存 `State.PC`。修正後第一 VBL frame
   `$2300,$00FC,$6904` 與第二 VBL frame `$2300,$00FC,$D09E` 各自成立。
+- Atari hardware map 與固定 Hatari source 確認 `$FF8201/$FF8203` 是 Shifter display
+  base high／middle bytes。`DMA_MaskAddressHigh()` 對普通、最多 4 MiB 的 ST／STE 回
+  `$3F`；ST 組址忽略 low byte，因此 programmed base 固定 256-byte aligned。
+- 固定 Hatari 在 `$FC67FA: MOVE.B D1,$8201` 前 CycleCounter=403,924、D1=`$0F`；
+  12 clocks 後 high=`$0F`，但 `info video` 的 active base 仍為 0。`$FC67FE`
+  `LSR.L #8,D0` 用 24 clocks 將 `$000F8000` 變 `$00000F80`；`$FC6800`
+  `MOVE.B D0,$8203` 再用 12 clocks 得 programmed `$0F8000`，active base 仍為 0。
+  因此暫存器 write 與掃描基址 reload 必須是兩個切片。
