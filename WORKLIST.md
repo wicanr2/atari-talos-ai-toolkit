@@ -58,6 +58,7 @@
 | ST CPU external bus slot alignment | **CONFORMED（首切片）** | `$21FC` 正常偶數 destination 六 phases、phase 0／2=24／26、EmuTOS 390→416；其他指令逐族遷移 |
 | MC68000 line-F／vector 11 | **CONFORMED** | `$Fxxx` 2,500 筆全同；核心 34／ST 36 clocks，EmuTOS 第 19 條／532 clocks 的 frame／state／prefetch 對上 Hatari |
 | ST Ricoh `$FF860F` void byte read | **CONFORMED** | read `$FF`、8-clock `TST.B`；EmuTOS 第 6,851 條 state／prefetch 對上 Hatari |
+| ST Ricoh `$FF860F` void byte write | **CONFORMED** | 任意byte忽略、24-bit alias、無裝置狀態；289,521條／2,982,760 clocks |
 | ST 無 Mega-RTC `$FFFC21–$FFFC3F` | **CONFORMED** | byte read `$FF`／write discard；EmuTOS 第 6,879 條 state／prefetch 對上 Hatari |
 | 68000 `TST.B (An)` bus error／vector 2 | **CONFORMED** | `$FF8A3C` Blitter probe 64 clocks；byte lane、14-byte frame、state／prefetch 對上 Hatari |
 | ST MFP GPIP `$FFFA01` reset write | **CONFORMED** | DDR=0 masking、4 wait clocks；EmuTOS 第 7,475 條／176,638 clocks 對拍，下一停點 `$FFFA03` |
@@ -76,6 +77,7 @@
 | ST MFP USART fixed enable | **CONFORMED** | UCR／RSR／TSR=`$88/$01/$01`；68,451 條／967,594 clocks 抵達 IERA gate |
 | ST MFP USART interrupt channels | **CONFORMED** | RBF／TBE 令 IERA／IMRA=`$14/$14`，無 pending；68,518 條／968,318 clocks |
 | ST YM2149 boot mixer／port A | **CONFORMED** | `$FF8800/$FF8802` 四筆固定 write，selected/R7/R14=`$0E/$C0/$07`；68,528 條／968,510 clocks 抵達 ACIA |
+| ST YM2149 port A首次drive-select更新 | **CONFORMED** | 同值選R14、讀`$07`、寫`$05`；289,556條／2,983,132 clocks |
 | ST IKBD ACIA control init | **CONFORMED** | `$03→$96`、status TDRE=`$02`；68,551 條／968,772 clocks 抵達首筆 data write |
 | ST IKBD ACIA first transmit deadline | **CONFORMED** | TDR=`$80`、TDRE clear／1024-clock restore；68,645 條／969,640 clocks 抵達第二 byte `$01` |
 | ST IKBD ACIA second TX／reset response | **CONFORMED** | `$01`雙buffer、10-tick frame、513,024-clock `$F1` response；128,378條／21 IRQ／1,509,022 clocks讀取 `$F1` |
@@ -98,5 +100,5 @@
 | ST low-res 320×200 4-plane 索引畫面 | **CONFORMED** | 32,000-byte DMA snapshot→64,000 indices；Hatari VBL7 raw／decoded SHA-256 與 histogram 通過 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video mode、palette、programmed／active base、low-res planar、MFP Timer C/D與stop、PSG／ACIA／USART init已接；下一步DMA／FDC `$FF860F` byte write |
+| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP Timer C/D、PSG／ACIA／USART與ST void access已接；下一步DMA mode/status `$FF8606=$0080`與FDC access |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

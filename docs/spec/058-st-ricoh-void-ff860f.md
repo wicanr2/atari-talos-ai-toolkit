@@ -36,8 +36,8 @@
 2. 24-bit address masking 保留，因此 `$FFFF860F` 與 `$00FF860F` 指向同一 access。
 3. `TST.B (A0)` 沿用既有 MC68000 行為：結果 `$FF` 令 N=1、Z=0，X 保留，8 clocks。
 4. user-mode I/O protection仍先於位址特例，user data FC=1 必須回 `FaultProtected`。
-5. `$FF860F` write、word/long access、Mega-ST IMP chipset、STE／MegaSTE／Falcon 的
-   register 行為與其他 void I/O 位址均不在本切片，維持既有失敗即關閉。
+5. `$FF860F` byte write後由規格102證實為普通ST void write；word/long access、
+   Mega-ST IMP chipset、STE／MegaSTE／Falcon register行為與其他void I/O位址仍不在本切片。
 
 ## 驗收與停止線
 
@@ -49,8 +49,8 @@
 
 ## CONFORMED 收據
 
-- memory 測試通過 `$00FF860F`／`$FFFF860F` read `$FF`、user protection、相鄰
-  reserved I/O fault 與 write 失敗即關閉。
+- memory 測試通過 `$00FF860F`／`$FFFF860F` read `$FF`、user protection與相鄰
+  reserved I/O fault；byte write的後續契約見規格102。
 - 固定 EmuTOS 第 6,851 條為 8 clocks；完成後 D/A、SSP=`$0F84`、SR=`$2708`、
   PC=`$FC063C`、prefetch=`$4E71,$7001` 對上 Hatari tracepoint。
 - 後續成功執行到第 6,878 條；下一停點 `$FFFC21` 已由規格 059 接手。

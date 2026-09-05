@@ -105,6 +105,7 @@ type Memory struct {
 	shifterResolution       byte
 	psgRegisterSelect       byte
 	psgRegisters            [16]byte
+	psgDriveStage           uint8
 	ikbdACIAControl         byte
 	ikbdACIAStatus          byte
 	ikbdACIAConfigured      bool
@@ -217,6 +218,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.videoSyncMode | 0xfc, nil
 	case address == ShifterResolution:
 		return m.shifterResolution | 0xfc, nil
+	case address == PSGRegisterSelect && m.psgDriveStage == 1 &&
+		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7:
+		m.psgDriveStage = 2
+		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == IKBDACIAControl:
@@ -402,6 +407,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == PSGRegisterSelect {
+		if m.psgDriveStage == 0 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7 && value == 14 {
+			m.psgDriveStage = 1
+			return nil
+		}
 		if m.psgRegisterSelect == 0 && m.psgRegisters[7] == 0 && m.psgRegisters[14] == 0 && value == 7 ||
 			m.psgRegisterSelect == 7 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0 && value == 14 {
 			m.psgRegisterSelect = value
@@ -410,6 +420,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
 	if address == PSGRegisterData {
+		if m.psgDriveStage == 2 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7 && value == 5 {
+			m.psgRegisters[14] = value
+			m.psgDriveStage = 3
+			return nil
+		}
 		if m.psgRegisterSelect == 7 && m.psgRegisters[7] == 0 && value == 0xc0 ||
 			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0 && value == 7 {
 			m.psgRegisters[m.psgRegisterSelect] = value
@@ -778,6 +794,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mfpTSRSet = true
 		return nil
 	}
+	if address == STVoidDMAByte {
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -885,6 +904,7 @@ func (m *Memory) ColdReset() {
 	m.shifterResolution = 0
 	m.psgRegisterSelect = 0
 	m.psgRegisters = [16]byte{}
+	m.psgDriveStage = 0
 	m.ikbdACIAControl = 0
 	m.ikbdACIAStatus = 0
 	m.ikbdACIAConfigured = false

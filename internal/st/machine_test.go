@@ -1411,6 +1411,43 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		t.Fatalf("USART exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State)
 	}
+	for machine.Instructions < 289521 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("void DMA write instructions=%d interrupts=%d clocks=%d PC=%08x prefetch=%04x,%04x: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1], err)
+		}
+	}
+	state := machine.CPU.State
+	wantD := [8]uint32{0x0000ff00, 200, 436, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA := [7]uint32{0, 1, 0x3008, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 289521 || machine.Interrupts != 234 || machine.Clocks != 2982760 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f3c ||
+		state.SR != 0x2304 || state.PC != 0x00fc3790 ||
+		state.Prefetch != [2]uint16{0x0c2a, 0x0003} {
+		t.Fatalf("void DMA exact boundary instructions=%d interrupts=%d clocks=%d state=%+v",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state)
+	}
+	for machine.Instructions < 400_000 && machine.Memory.psgDriveStage < 3 {
+		if _, err := machine.Step(); err != nil {
+			t.Fatalf("PSG drive update instructions=%d interrupts=%d clocks=%d PC=%08x prefetch=%04x,%04x stage=%d: %v",
+				machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State.PC,
+				machine.CPU.State.Prefetch[0], machine.CPU.State.Prefetch[1],
+				machine.Memory.psgDriveStage, err)
+		}
+	}
+	state = machine.CPU.State
+	wantD = [8]uint32{7, 5, 0x2300, 0, 0x00080000, 0x00100000, 5, 1}
+	wantA = [7]uint32{0xffff8800, 1, 0x00fc3924, 0, 0, 0x00fc01f4, 0x00000ffc}
+	if machine.Instructions != 289556 || machine.Interrupts != 234 || machine.Clocks != 2983132 ||
+		state.D != wantD || state.A != wantA || state.USP != 0 || state.SSP != 0x0f34 ||
+		state.SR != 0x2700 || state.PC != 0x00fc36e4 ||
+		state.Prefetch != [2]uint16{0x40c1, 0x46c2} || machine.Memory.psgDriveStage != 3 ||
+		machine.Memory.psgRegisterSelect != 14 || machine.Memory.psgRegisters[14] != 5 {
+		t.Fatalf("PSG drive exact boundary instructions=%d interrupts=%d clocks=%d state=%+v stage/select/R14=%d/%02x/%02x",
+			machine.Instructions, machine.Interrupts, machine.Clocks, state,
+			machine.Memory.psgDriveStage, machine.Memory.psgRegisterSelect, machine.Memory.psgRegisters[14])
+	}
 }
 
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {

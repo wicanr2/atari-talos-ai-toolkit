@@ -1073,6 +1073,48 @@ func TestPSGFixedBootPortWrites(t *testing.T) {
 	}
 }
 
+func TestPSGFirstDriveSelectUpdate(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 7
+	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil || memory.psgDriveStage != 0 {
+		t.Fatal("out-of-order PSG read unexpectedly accepted")
+	}
+	if err := memory.WriteByte(PSGRegisterData, 5, 5); err == nil ||
+		memory.psgDriveStage != 0 || memory.psgRegisters[14] != 7 {
+		t.Fatal("out-of-order PSG data write unexpectedly accepted")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterSelect, 14,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 || memory.psgDriveStage != 1 {
+		t.Fatalf("PSG reselect wait/err/stage=%d/%v/%d", wait, err, memory.psgDriveStage)
+	}
+	if got, wait, err := memory.ReadByteAt(PSGRegisterSelect,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 || got != 7 ||
+		memory.psgDriveStage != 2 {
+		t.Fatalf("PSG port read value/wait/err/stage=%02x/%d/%v/%d", got, wait, err, memory.psgDriveStage)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 3, 5); err == nil ||
+		memory.psgDriveStage != 2 || memory.psgRegisters[14] != 7 {
+		t.Fatal("wrong PSG port value unexpectedly accepted")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterData, 5,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.psgDriveStage != 3 || memory.psgRegisters[14] != 5 {
+		t.Fatalf("PSG port update wait/err/stage/R14=%d/%v/%d/%02x", wait, err,
+			memory.psgDriveStage, memory.psgRegisters[14])
+	}
+	if err := memory.M68KReset(); err != nil {
+		t.Fatal(err)
+	}
+	if memory.psgDriveStage != 0 || memory.psgRegisterSelect != 0 || memory.psgRegisters != [16]byte{} {
+		t.Fatalf("PSG reset stage/select/registers=%d/%02x/%v", memory.psgDriveStage,
+			memory.psgRegisterSelect, memory.psgRegisters)
+	}
+}
+
 func TestIKBDACIAControlInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {
@@ -1660,6 +1702,21 @@ func TestSTRicohVoidDMAByteRead(t *testing.T) {
 		if readErr != nil || got != 0xff {
 			t.Fatalf("ReadByte(%08x)=%02x/%v want ff", address, got, readErr)
 		}
+		for _, value := range []byte{0, 0x12, 0xff} {
+			if err := memory.WriteByte(address, value, 5); err != nil {
+				t.Fatalf("WriteByte(%08x,%02x): %v", address, value, err)
+			}
+			if got, readErr := memory.ReadByte(address, 5); readErr != nil || got != 0xff {
+				t.Fatalf("void state after write %08x=%02x/%v want ff", address, got, readErr)
+			}
+		}
+	}
+	if wait, err := memory.WriteByteAt(STVoidDMAByte, 0x5a,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 2 {
+		t.Fatalf("timed void write wait=%d err=%v want 2/<nil>", wait, err)
+	}
+	if err := memory.WriteWord(STVoidDMAByte-1, 0, 5); err == nil {
+		t.Fatal("word access spanning void byte unexpectedly succeeded")
 	}
 	for _, test := range []struct {
 		name    string
@@ -1671,7 +1728,7 @@ func TestSTRicohVoidDMAByteRead(t *testing.T) {
 		{name: "user protection", address: STVoidDMAByte, fc: 1, reason: FaultProtected},
 		{name: "preceding reserved byte", address: STVoidDMAByte - 1, fc: 5, reason: FaultReservedIO},
 		{name: "following reserved byte", address: STVoidDMAByte + 1, fc: 5, reason: FaultReservedIO},
-		{name: "write remains unsupported", address: STVoidDMAByte, fc: 5, write: true, reason: FaultReservedIO},
+		{name: "user write protection", address: STVoidDMAByte, fc: 1, write: true, reason: FaultProtected},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var accessErr error

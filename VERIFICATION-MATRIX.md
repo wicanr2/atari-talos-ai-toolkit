@@ -58,9 +58,11 @@
 | ST MFP Timer D system-clock start／IRQ | `$EF` clear、`$51→$50→$52`、TDDR=256、有理數 recurrence、IPRB/ISRB、level 6 vector 68 | MC68901契約；Hatari MFP start／exception／IACK trace；固定EmuTOS ROM | 通過；136,285條啟動，137,213條／24 IRQ／1,589,660 clocks進`$FC7884`並由guest清ISRB |
 | ST MFP Timer D正常停止 | IERB／IMRB bit4 disable、TCDCR stop、scheduler清除、vector `$110`、channel clear、Timer C pending保留 | MC68901契約；Hatari `$FC7862–$FC61AC` CPU／MFP trace；固定EmuTOS ROM | 通過；289,256條／234 IRQ／2,978,730 clocks，下一gate UCR同值`$88` |
 | ST MFP USART第二次設定 | TSR empty bit、TCDCR/TDDR baud restart、UCR／RSR／TSR／SCR同值重寫、system scheduler隔離 | MC68901契約；EmuTOS `rsconf_mfp`；Hatari MFP trace；固定EmuTOS ROM | 通過；289,342條／234 IRQ／2,979,680 clocks，下一gate DMA／FDC `$FF860F` write |
+| ST Ricoh `$FF860F` void byte write | 任意byte忽略、24-bit alias、user／width邊界、無裝置狀態 | Hatari `IoMem_FixVoidAccessForST/IoMem_VoidWrite`；固定EmuTOS ROM | 通過；289,521條／234 IRQ／2,982,760 clocks |
+| ST YM2149 port A首次drive-select更新 | R14同值選擇、read `$07`、write `$05`、錯序拒絕與reset | Atari PSG map；Hatari CPU／I/O trace；固定EmuTOS ROM | 通過；289,556條／234 IRQ／2,983,132 clocks |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至289,342條／2,979,680 clocks完成USART重設，下一gate是DMA／FDC `$FF860F` write |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑至289,556條／2,983,132 clocks完成PSG drive-select，下一gate是DMA `$FF8606=$0080` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

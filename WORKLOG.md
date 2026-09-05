@@ -433,3 +433,12 @@
   instructions／234 interrupts／2,979,680 clocks完成；後續有界探測將下一gate定位為
   289,520 instructions／2,982,748 clocks的DMA／FDC `$FF860F` byte write。完整240,000
   筆corpus、固定ROM、全測試、vet與CLI build通過，規格101升CONFORMED。
+- 完成普通ST／Ricoh `$FF860F` void byte write：固定Hatari原始碼證實該位址同時
+  安裝void read/write handler，write不建立register state；固定CPU／I/O trace在
+  `$FC3788`寫`$00`後自然繼續。Talos在289,521 instructions／2,982,760 clocks完成，
+  規格102升CONFORMED。
+- 完成YM2149 port A首次drive-select更新：固定EmuTOS依序同值選register 14、讀回
+  `$07`、寫成`$05`；以三段stage避免放寬未證實PSG行為。正常路徑在289,556
+  instructions／2,983,132 clocks完成，下一gate定位為DMA mode/status
+  `$FF8606=$0080`。完整240,000筆corpus、固定ROM、全測試、vet與CLI build通過，
+  規格103升CONFORMED。

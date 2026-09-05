@@ -6,7 +6,7 @@
 
 本切片只處理固定 EmuTOS 1.3 UK 開機時對 YM2149 的四筆 byte write：選 register 7、
 寫 `$C0`，選 register 14、寫 `$07`。tone/noise/envelope、音訊合成、port I/O side effects、
-byte mirror、word access與其他 registers 不在範圍，遇到時失敗即關閉。
+  byte mirror、word access與其他 registers 不在範圍；後續R14讀改寫由規格103接手。
 
 - **已確認（Atari ST hardware map）**：YM2149 register select/read 位於 `$FF8800`，
   selected-register data write 位於 `$FF8802`；此專案沿用規格 035 固定的 supervisor
@@ -24,8 +24,8 @@ byte mirror、word access與其他 registers 不在範圍，遇到時失敗即�
 1. reset 將 selected register與 16 個 data bytes清零。
 2. 固定序列只允許 select `$07` → data `$C0` → select `$0E` → data `$07`；每一步
    原子提交，最後 selected=`$0E`、R7=`$C0`、R14=`$07`。
-3. 順序、register 或 value 不符，其他 PSG 位址／寬度、user access與未建模 read
-   都失敗即關閉且不改 state。
+3. 本切片完成點當時，順序、register或value不符，其他PSG位址／寬度、user access
+   與未建模read都失敗即關閉；規格103已窄幅開放後續R14序列。
 4. synthetic test與固定 ROM已完成四筆 write，最後 selected/R7/R14=`$0E/$C0/$07`。
    正常路徑抵達 68,528 instructions、4 interrupts、968,510 clocks；下一 gate 是
    ACIA `$FFFC00`，完整 state 為 SSP=`$0F88`、SR=`$2304`、pipeline PC=`$FC51BC`、
