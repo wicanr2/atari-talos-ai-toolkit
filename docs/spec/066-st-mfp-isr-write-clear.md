@@ -43,7 +43,8 @@ Register 的 EOI mode 切換及 interrupt source 仍未接線。
    in-service，bit 1 保留既有值，不能由 software 將 0 設成 1。測試可注入 latch
    以驗證此局部轉換，但 production 尚無 IACK 路徑能設位。
 4. 兩位址 byte access各增加 4 wait clocks；EmuTOS 同形 MOVE各 16 clocks。
-5. 完成 ISRB 後，下一次迴圈在 `$FFFA13` IMRA write 維持 reserved-I/O fault。
+5. 本規格驗收時以 `$FFFA13` IMRA write 的 reserved-I/O fault 作為停止線；
+   後續規格 067 只取代這條停止線，不改變 ISR 契約。
 
 ## 驗收與停止線
 
@@ -51,7 +52,8 @@ Register 的 EOI mode 切換及 interrupt source 仍未接線。
   wait、user protection、word access及 IMRA 未映射。
 - 固定 EmuTOS 應完成第 7,507 條、累計 176,990 clocks，state、prefetch、
   ISRA／ISRB 對上 Hatari；再三條控制指令後，第 7,511 次嘗試在 `$FFFA13`
-  明確停止，成功完成數維持 7,510。
+  明確停止，成功完成數維持 7,510。該停止線其後由規格 067 取代，其他未規格化
+  register 仍未泛化。
 - 完整 230,000 筆 CPU corpus、固定 ROM、Go 測試、靜態檢查與建置均已通過。
 
 ## 玩家路徑、存檔與權利邊界

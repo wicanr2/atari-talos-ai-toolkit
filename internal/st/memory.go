@@ -27,6 +27,8 @@ const (
 	MFPIPRB       = 0x00ff_fa0d
 	MFPISRA       = 0x00ff_fa0f
 	MFPISRB       = 0x00ff_fa11
+	MFPIMRA       = 0x00ff_fa13
+	MFPIMRB       = 0x00ff_fa15
 	STVoidDMAByte = 0x00ff_860f
 	STVoidRTCBase = 0x00ff_fc21
 	STVoidRTCEnd  = 0x00ff_fc3f
@@ -78,6 +80,8 @@ type Memory struct {
 	mfpIPRB   byte
 	mfpISRA   byte
 	mfpISRB   byte
+	mfpIMRA   byte
+	mfpIMRB   byte
 }
 
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
@@ -88,7 +92,7 @@ func (m *Memory) isModeledMFPByte(address uint32) bool {
 	address &= AddressMask
 	return address == MFPGPIP || address == MFPAER || address == MFPDDR ||
 		address == MFPIERA || address == MFPIERB || address == MFPIPRA || address == MFPIPRB ||
-		address == MFPISRA || address == MFPISRB
+		address == MFPISRA || address == MFPISRB || address == MFPIMRA || address == MFPIMRB
 }
 
 func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
@@ -127,6 +131,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		return m.mfpISRA, nil
 	case address == MFPISRB:
 		return m.mfpISRB, nil
+	case address == MFPIMRA:
+		return m.mfpIMRA, nil
+	case address == MFPIMRB:
+		return m.mfpIMRB, nil
 	case address == STVoidDMAByte:
 		return 0xff, nil
 	case address >= STVoidRTCBase && address <= STVoidRTCEnd:
@@ -241,6 +249,20 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		m.mfpISRB &= value
 		return nil
 	}
+	if address == MFPIMRA {
+		if m.mfpIPRA != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		m.mfpIMRA = value
+		return nil
+	}
+	if address == MFPIMRB {
+		if m.mfpIPRB != 0 {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		m.mfpIMRB = value
+		return nil
+	}
 	if address >= STVoidRTCBase && address <= STVoidRTCEnd {
 		return nil
 	}
@@ -331,6 +353,8 @@ func (m *Memory) ColdReset() {
 	m.mfpIPRB = 0
 	m.mfpISRA = 0
 	m.mfpISRB = 0
+	m.mfpIMRA = 0
+	m.mfpIMRB = 0
 }
 
 func (m *Memory) M68KReset() error {

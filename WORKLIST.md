@@ -65,6 +65,7 @@
 | ST MFP IERA／IERB reset zero writes | **CONFORMED** | disable/reset、非零 enable fail-closed、4 wait clocks；第 7,491 條／176,814 clocks 對拍 |
 | ST MFP IPRA／IPRB write-zero-to-clear | **CONFORMED** | `pending &= value`、reset／read、4 wait clocks；第 7,499 條／176,902 clocks 對拍 |
 | ST MFP ISRA／ISRB write-zero-to-clear | **CONFORMED** | `in_service &= value`、reset／read、4 wait clocks；第 7,507 條／176,990 clocks 對拍 |
+| ST MFP IMRA／IMRB mask latch | **CONFORMED** | 無 pending 時完整 byte latch、pending 非零 fail-closed、4 wait clocks；第 7,515 條／177,078 clocks 對拍 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區與 MFP GPIP／AER／DDR／IER／IPR／ISR 已接；下一停點 `$FFFA13` IMRA byte write 需先規格化 |
+| ST／STF I/O memory map | 進行中 | 兩個普通 ST void 區與 MFP GPIP／AER／DDR／IER／IPR／ISR／IMR 已接；下一停點 `$FFFA17` Vector Register byte write 需先規格化 |
 | Hatari 外部 oracle | **DRAFT** | 同輸入 metadata、狀態與截圖收據可重跑；公開契約載體待使用者定案 |

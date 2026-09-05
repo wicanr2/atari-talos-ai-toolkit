@@ -396,10 +396,66 @@ func TestMFPISRWriteZeroToClear(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMFPIMRMaskLatchWithoutPending(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		address     uint32
+		pending     func(*Memory, byte)
+		readMask    func(*Memory) byte
+		readPending func(*Memory) byte
+	}{
+		{name: "IMRA", address: MFPIMRA,
+			pending:  func(m *Memory, value byte) { m.mfpIPRA = value },
+			readMask: func(m *Memory) byte { return m.mfpIMRA }, readPending: func(m *Memory) byte { return m.mfpIPRA }},
+		{name: "IMRB", address: MFPIMRB,
+			pending:  func(m *Memory, value byte) { m.mfpIPRB = value },
+			readMask: func(m *Memory) byte { return m.mfpIMRB }, readPending: func(m *Memory) byte { return m.mfpIPRB }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			memory, err := NewMemory(RAM1M, testROM())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []byte{0xa5, 0x3c, 0xff, 0x00} {
+				if wait, err := memory.WriteByteAt(test.address|0xff000000, value,
+					m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
+					t.Fatalf("timed %s write %02x wait=%d err=%v", test.name, value, wait, err)
+				}
+				if got, err := memory.ReadByte(test.address, 5); err != nil || got != value {
+					t.Fatalf("%s=%02x/%v want %02x", test.name, got, err, value)
+				}
+			}
+			test.pending(memory, 1)
+			beforeMask, beforePending := test.readMask(memory), test.readPending(memory)
+			if err := memory.WriteByte(test.address, 0xff, 5); err == nil {
+				t.Fatalf("%s write with pending unexpectedly succeeded", test.name)
+			}
+			if test.readMask(memory) != beforeMask || test.readPending(memory) != beforePending {
+				t.Fatalf("%s failed write changed mask/pending", test.name)
+			}
+			if _, err := memory.ReadByte(test.address, 1); err == nil {
+				t.Fatalf("user %s read unexpectedly succeeded", test.name)
+			}
+			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+				t.Fatalf("user %s write unexpectedly succeeded", test.name)
+			}
+			if _, err := memory.ReadWord(test.address, 5); err == nil {
+				t.Fatalf("odd %s word read unexpectedly succeeded", test.name)
+			}
+			if err := memory.M68KReset(); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+				t.Fatalf("%s after M68K reset=%02x/%v want 00", test.name, got, err)
+			}
+		})
+	}
 	if memory, err := NewMemory(RAM1M, testROM()); err != nil {
 		t.Fatal(err)
-	} else if _, err := memory.ReadByte(MFPISRB+2, 5); err == nil {
-		t.Fatal("neighboring IMRA unexpectedly mapped")
+	} else if _, err := memory.ReadByte(MFPIMRB+2, 5); err == nil {
+		t.Fatal("neighboring Vector Register unexpectedly mapped")
 	}
 }
 

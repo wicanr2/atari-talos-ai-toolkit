@@ -334,3 +334,10 @@
 - 固定 Hatari ISRA trace為 FrameCycles `44430→44446`，ISRB 為
   `44474→44490`，各 16 clocks；兩 register 前後皆 `$00`。固定 EmuTOS 第 7,507 條／
   176,990 clocks 對拍後，下一輪停在 `$FFFA13` IMRA write。
+- NXP MC68901 manual §4.3.3 確認 IMRA／IMRB reset=`$00`；0 mask、1 unmask，
+  mask 不清 pending，但會即時撤除該 channel 的 IRQ，重新 unmask 時既有 pending
+  依 priority 再請求服務。固定 Hatari handlers 完整保存 byte、加 4 wait clocks，
+  再重新評估 IRQ。
+- 固定 Hatari IMRA trace為 FrameCycles `44518→44534`，IMRB 為
+  `44562→44578`，各 16 clocks；兩 register 前後皆 `$00`。固定 EmuTOS 第 7,515 條／
+  177,078 clocks 對拍後，下一輪停在 `$FFFA17` Vector Register write。

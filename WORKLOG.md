@@ -242,3 +242,9 @@
   Hatari 兩次 trace 各 16 clocks；固定 EmuTOS 第 7,507 條／176,990 clocks 全狀態
   對拍，下一停點 `$FFFA13` IMRA。完整 230,000 筆 corpus、固定 ROM、全測試、
   vet 與 build 通過，規格 066 升 CONFORMED。
+- 完成 MFP IMRA／IMRB `$FFFA13/$FFFA15` mask latch：依 NXP manual 的
+  mask／pending／IRQ 契約，在 pending 為 0 時接完整 byte latch；pending 非零時
+  因 IRQ 尚未建模而 typed fail-closed，失敗不改 IMR／IPR。Hatari 兩次 trace 各
+  16 clocks；固定 EmuTOS 第 7,515 條／177,078 clocks 全狀態對拍，下一停點
+  `$FFFA17` Vector Register。完整 230,000 筆 corpus、固定 ROM、全測試、vet 與
+  build 通過，規格 067 升 CONFORMED。
