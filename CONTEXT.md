@@ -382,6 +382,11 @@
   寫`$0080`。該同值mode已與drive-1 FDC初次probe明確分流，FDC保持stage14。
   第二次DMA setup後，下一gate是361,268 instructions／4,062,736 clocks的
   target-1 `$FF8606=$0088`。
+- 空ACSI bus target 1–7掃描已CONFORMED：八筆command為
+  `$00/$20/$40/$60/$80/$A0/$C0/$E0`，各自有typed timeout clock收據，期間
+  IRQ保持inactive且FDC維持stage14。target 7於866,723 instructions／461 interrupts／
+  11,591,284 clocks完成；下一gate是867,255 instructions／11,598,096 clocks的
+  YM2149 `$FF8800` byte write。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -391,8 +396,7 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步將已證實的空ACSI
-   timeout attempt參數化到target 1–7，每次仍由固定Hatari／EmuTOS trace驗收；
-   RGB／PNG
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步先為空ACSI掃描後的
+   YM2149 `$FF8800` byte write建立固定Hatari／EmuTOS證據與READY規格；RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

@@ -1460,7 +1460,9 @@ func TestEmptyACSITargetZeroCommandStart(t *testing.T) {
 		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
 		memory.acsiStage != 4 || memory.dmaMode != 0x0080 || memory.dmaInitStage != 0 ||
 		memory.dmaResetCount != 0 || memory.fdcInitStage != 14 || memory.fdcProbeDrive != 1 ||
-		memory.mfpGPIPIn&0x20 == 0 || memory.fdcIRQ || memory.acsiTimeoutReturnClock != 2 {
+		memory.mfpGPIPIn&0x20 == 0 || memory.fdcIRQ || memory.acsiTimeoutReturnClock != 2 ||
+		memory.acsiAttemptMask != 1 || memory.acsiCommandReceipts[0] != 0 ||
+		memory.acsiTimeoutReturnClocks[0] != 2 {
 		t.Fatalf("ACSI return wait/err/stage/mode/init/resets/FDC/drive/GPIP/IRQ/clock=%d/%v/%d/%04x/%d/%d/%d/%d/%02x/%v/%d",
 			wait, err, memory.acsiStage, memory.dmaMode, memory.dmaInitStage,
 			memory.dmaResetCount, memory.fdcInitStage, memory.fdcProbeDrive,
@@ -1473,9 +1475,81 @@ func TestEmptyACSITargetZeroCommandStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	if memory.acsiStage != 0 || memory.acsiTarget != -1 || memory.acsiCommand != 0 ||
-		memory.acsiTimeoutReturnClock != 0 {
+		memory.acsiAttemptMask != 0 || memory.acsiCommandReceipts != [8]byte{} ||
+		memory.acsiTimeoutReturnClock != 0 || memory.acsiTimeoutReturnClocks != [8]uint64{} {
 		t.Fatalf("reset ACSI stage/target/command/clock=%d/%d/%02x/%d", memory.acsiStage,
 			memory.acsiTarget, memory.acsiCommand, memory.acsiTimeoutReturnClock)
+	}
+}
+
+func TestEmptyACSITargetScan(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.fdcProbeDrive = 1
+	memory.fdcInitStage = 14
+	memory.dmaAddressWriteStage = 3
+	memory.dmaMode = 0x0080
+	memory.acsiStage = 4
+	memory.acsiTarget = 0
+	memory.acsiAttemptMask = 1
+	memory.mfpGPIPIn |= 0x20
+
+	for target := int8(1); target <= 7; target++ {
+		for _, write := range []struct {
+			address uint32
+			value   uint16
+		}{
+			{STDMAControl, 0x0190},
+			{STDMAControl, 0x0090},
+			{STDiskController, 0},
+			{STDMAControl, 0x0088},
+		} {
+			if err := memory.WriteWord(write.address, write.value, 5); err != nil {
+				t.Fatalf("target %d setup %06x=%04x: %v", target, write.address, write.value, err)
+			}
+		}
+		command := uint16(uint8(target) << 5)
+		if err := memory.WriteWord(STDiskController, command|1, 5); err == nil ||
+			memory.acsiStage != 1 || memory.acsiAttemptMask != byte((1<<uint8(target))-1) {
+			t.Fatalf("target %d wrong command mutated stage/mask=%d/%02x", target,
+				memory.acsiStage, memory.acsiAttemptMask)
+		}
+		if err := memory.WriteWord(STDiskController, command, 5); err != nil {
+			t.Fatalf("target %d command %02x: %v", target, command, err)
+		}
+		if err := memory.WriteWord(STDMAControl, 0x008a, 5); err != nil {
+			t.Fatalf("target %d next mode: %v", target, err)
+		}
+		clock := uint64(target) * 100
+		if _, err := memory.WriteWordAt(STDMAControl, 0x0080,
+			m68k.BusAccess{Clock: clock, FunctionCode: 5}); err != nil {
+			t.Fatalf("target %d timeout return: %v", target, err)
+		}
+		wantStage := uint8(4)
+		if target == 7 {
+			wantStage = 5
+		}
+		if memory.acsiStage != wantStage || memory.acsiTarget != target ||
+			memory.acsiCommandReceipts[target] != byte(command) ||
+			memory.acsiTimeoutReturnClocks[target] != clock || memory.dmaMode != 0x0080 ||
+			memory.dmaInitStage != 0 || memory.mfpGPIPIn&0x20 == 0 || memory.fdcIRQ {
+			t.Fatalf("target %d stage/command/clock/mode/init/GPIP/IRQ=%d/%02x/%d/%04x/%d/%02x/%v",
+				target, memory.acsiStage, memory.acsiCommandReceipts[target],
+				memory.acsiTimeoutReturnClocks[target], memory.dmaMode, memory.dmaInitStage,
+				memory.mfpGPIPIn, memory.fdcIRQ)
+		}
+	}
+
+	wantCommands := [8]byte{0x00, 0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0}
+	if memory.acsiAttemptMask != 0xff || memory.acsiCommandReceipts != wantCommands ||
+		memory.acsiTimeoutReturnClock != 700 {
+		t.Fatalf("final mask/commands/latest clock=%02x/%v/%d", memory.acsiAttemptMask,
+			memory.acsiCommandReceipts, memory.acsiTimeoutReturnClock)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0088, 5); err == nil || memory.acsiStage != 5 {
+		t.Fatal("ninth ACSI target unexpectedly accepted or mutated completed scan")
 	}
 }
 

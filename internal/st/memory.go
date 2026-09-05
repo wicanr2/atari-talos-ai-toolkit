@@ -120,7 +120,10 @@ type Memory struct {
 	acsiStage               uint8
 	acsiTarget              int8
 	acsiCommand             byte
+	acsiAttemptMask         byte
+	acsiCommandReceipts     [8]byte
 	acsiTimeoutReturnClock  uint64
+	acsiTimeoutReturnClocks [8]uint64
 	fdcCommand              byte
 	fdcStatus               byte
 	fdcStatusTypeI          bool
@@ -1007,31 +1010,41 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.dmaInitStage = 3
 			return nil
 		}
-		if address == STDMAControl && m.dmaInitStage == 3 && m.acsiStage == 0 &&
-			m.dmaMode == 0x0090 && value == 0x0088 {
+		if address == STDMAControl && m.dmaInitStage == 3 && m.dmaMode == 0x0090 &&
+			value == 0x0088 && ((m.acsiStage == 0 && m.acsiTarget == -1) ||
+			(m.acsiStage == 4 && m.acsiTarget >= 0 && m.acsiTarget < 7)) {
 			m.dmaMode = value
-			m.acsiTarget = 0
+			m.acsiTarget++
 			m.acsiStage = 1
 			return nil
 		}
-		if address == STDiskController && m.acsiStage == 1 && m.acsiTarget == 0 &&
-			m.dmaMode == 0x0088 && value == 0 {
+		expectedACSICommand := uint16(uint8(m.acsiTarget) << 5)
+		if address == STDiskController && m.acsiStage == 1 && m.acsiTarget >= 0 &&
+			m.acsiTarget <= 7 && m.dmaMode == 0x0088 && value == expectedACSICommand {
 			m.acsiCommand = byte(value)
+			m.acsiAttemptMask |= 1 << uint8(m.acsiTarget)
+			m.acsiCommandReceipts[m.acsiTarget] = byte(value)
 			m.acsiStage = 2
 			return nil
 		}
-		if address == STDMAControl && m.acsiStage == 2 && m.acsiTarget == 0 &&
-			m.acsiCommand == 0 && m.dmaMode == 0x0088 && value == 0x008a {
+		if address == STDMAControl && m.acsiStage == 2 && m.acsiTarget >= 0 &&
+			m.acsiTarget <= 7 && uint16(m.acsiCommand) == expectedACSICommand &&
+			m.dmaMode == 0x0088 && value == 0x008a {
 			m.dmaMode = value
 			m.acsiStage = 3
 			return nil
 		}
-		if address == STDMAControl && m.acsiStage == 3 && m.acsiTarget == 0 &&
-			m.acsiCommand == 0 && m.dmaMode == 0x008a && value == 0x0080 {
+		if address == STDMAControl && m.acsiStage == 3 && m.acsiTarget >= 0 &&
+			m.acsiTarget <= 7 && uint16(m.acsiCommand) == expectedACSICommand &&
+			m.dmaMode == 0x008a && value == 0x0080 {
 			m.dmaMode = value
 			m.dmaResetCount = 0
 			m.dmaInitStage = 0
-			m.acsiStage = 4
+			if m.acsiTarget == 7 {
+				m.acsiStage = 5
+			} else {
+				m.acsiStage = 4
+			}
 			return nil
 		}
 		if address == STDMAControl && m.fdcInitStage == 2 && m.dmaMode == 0x0080 && value == 0x0080 {
@@ -1158,8 +1171,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if !wasSeekPending && m.fdcSeekPending {
 			m.fdcSeekStartClock = access.Clock
 		}
-		if acsiStage == 3 && m.acsiStage == 4 {
+		if acsiStage == 3 && (m.acsiStage == 4 || m.acsiStage == 5) {
 			m.acsiTimeoutReturnClock = access.Clock
+			m.acsiTimeoutReturnClocks[m.acsiTarget] = access.Clock
 		}
 	}
 	return wait, err
@@ -1212,7 +1226,10 @@ func (m *Memory) ColdReset() {
 	m.acsiStage = 0
 	m.acsiTarget = -1
 	m.acsiCommand = 0
+	m.acsiAttemptMask = 0
+	m.acsiCommandReceipts = [8]byte{}
 	m.acsiTimeoutReturnClock = 0
+	m.acsiTimeoutReturnClocks = [8]uint64{}
 	m.fdcCommand = 0
 	m.fdcStatus = 0
 	m.fdcStatusTypeI = false

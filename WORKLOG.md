@@ -503,3 +503,10 @@
   FDC保持stage14。下一gate為361,268 instructions／4,062,736 clocks的
   target-1 `$FF8606=$0088`。完整240,000筆corpus、固定ROM、全測試、
   vet與build通過，規格112升CONFORMED。
+- 完成空ACSI bus target 1–7掃描：將規格112的單一attempt參數化，逐target
+  保存command與timeout clock收據，錯command與第九個target皆原子拒絕。
+  固定ROM自然送出`$20/$40/$60/$80/$A0/$C0/$E0`，於866,723 instructions／
+  461 interrupts／11,591,284 clocks完成target 7；八筆timeout-return clocks
+  與固定Hatari 65-VBL trace順序一致，全程不設IRQ且FDC保持stage14。下一gate為
+  867,255 instructions／11,598,096 clocks的YM2149 `$FF8800` byte write。
+  完整240,000筆corpus、固定ROM、全測試、vet與build通過，規格113升CONFORMED。
