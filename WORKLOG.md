@@ -672,3 +672,5 @@
   與標準`io.ByteReader`／`io.ByteWriter`相同但簽章不同而觸發`stdmethods`；純重命名為
   `ReadByteFC`／`WriteByteFC`，名稱也明示額外的function code參數。全程未改bus值、
   clock、fault或交易次序；完整`go test ./...`、`go vet ./...`與CLI建置均通過。
+  推送後再以完整68000外部語料回歸，並用SHA-256 `ad64942f…135`的EmuTOS 1.3 UK
+  固定ROM重跑`internal/st`正常路徑，兩者均通過；規格133既有錨點未受API重命名影響。
