@@ -61,6 +61,7 @@ EmuTOS 1.3 在 `$FC0070` 的 CPU 型號探測。
   prefetch=`$21FC,$00FC`，frame=`$2704,$00FC,$0070`。
 - 完整 Go 測試含 227,500 筆既有 CPU 外部語料、靜態檢查與建置全數通過。
 - 後續探針雖兩邊均在 220 clocks 到 `$FC0088` `RESET`，但 Hatari
-  中間 bus-error frame 保存 `$FFFF8006`，Atari Talos 目前為 `$00FF8006`。
-  這是 vector 2 absolute-short fault-address 保存缺口，不屬本 vector 4 切片；
-  `$FC0088` 不宣稱完全對拍。
+  中間 bus-error frame 保存 `$FFFF8006`，Atari Talos 當時為 `$00FF8006`。
+  **該缺口已由 spec 052 關閉**（2026-09-05）：frame 現在保存 CPU 內部的 32-bit
+  有效位址，端到端跑同一顆 ROM 到 `$FC0080` 得到 `$FFFF8006`。`$FC0088` 的
+  `RESET` 本身由 spec 053 補上（第 11 條／352 clocks），兩點現在都已對拍。

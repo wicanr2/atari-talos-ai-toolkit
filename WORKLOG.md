@@ -625,3 +625,41 @@
   synthetic連續12輪驗證ring wrap與RAM不變；固定ROM自然完成第四、第五輪，於
   6,779,282 instructions／3,656 interrupts／167,143,396 clocks才抵達新IKBD gate。
   完整CPU corpus、全測試、vet與build通過；前三輪固定stage尚待遷移，規格維持READY。
+
+- 新增 UCSD p-System 直譯器真實碼驗收（規格 134）。以 SunDog 的 `SYSTEM.INTERP`
+  作為與合成語料互補的驗收來源：合成語料窮舉單一指令，這裡跑一段指令彼此有真實資料
+  相依的程式。四組測試涵蓋分派表結構、短常數、區域變數與陣列索引，每條斷言都做過
+  負對照（期望值差 1、指令數差 1、活動記錄偏移差 2 都確認會失敗）。`tools/go.sh`
+  新增 `TALOS_UCSD_INTERP` 掛載，與既有的 `TALOS_M68000_TESTS` 可並存。原版素材
+  不進 repository，雜湊在測試裡釘死。完整 227,500 筆語料回歸與靜態檢查通過。
+- 接著完成分派迴圈（規格 135）。從單一常式提升到 fetch-execute 循環之後，可以執行任意
+  由已驗收常式組成的 p-code 序列——這是把 p-code 當成對拍載體的前提。兩組序列測試
+  （四條短常數、三條混合族）加三組負對照。同一輪查證後更正了 054 的論證基礎：原本
+  引用「`SYSTEM.INTERP` 零個 trap」的外部結論，實際上有一條由旗標保護的除錯 hook；
+  改成由 `SparseMemory` 的 fail-closed 自證，不依賴外部陳述。
+- 擴充 135 的覆蓋：解出分派表的完整形狀（107 支常式、45 個無效 opcode、`$9C` 是 NOP），
+  並把區域變數的存入與取址納入驗收。有了 `sstl` 之後可以做存取往返，期望值直接對記憶體
+  查而不只對堆疊查，擋掉「兩支常式互相自洽卻都算錯位址」。負對照累計六組。
+- 為 135 補上第二個實作的對拍。六組 p-code 另外餵給 laanwj/sundog 的獨立 C 直譯器，
+  結果與 Atari Talos 執行原版 68000 直譯器逐字相同，期望值因此不再是單方面算出來的。
+  那份程式碼的角色與 Hatari 相同——外部 oracle，不連結、不移植、不依賴。
+- 完成算術族（規格 136）。p-code 序列因此能表達實際運算式，驗收用的是原版 `check_exit`
+  的格座標換算——數值取自原版執行時的除錯器讀值，算出的欄 11、列 7 與當時讀到的格座標
+  一致。三方對上：原版直譯器（由 Atari Talos 執行）、獨立 C 重寫、原版實跑。
+- 056 再擴到分支與間接載入（`ujp`／`fjp`／`tjp`／`sind`／`ldb`），因此能表達原版的條件
+  邏輯。驗收用 `check_exit` 的地面碼正規化「大於 15 就減 16」，邊界 15 與 16 都查。
+
+- 完成布林族（規格 137）。`land`／`lor`／`bnot` 三支常式都是位元運算，配上 `fjp`／`tjp`
+  的 `btst #0`，p-system 的真假整套住在 bit 0——8 是假、9 是真。驗收用 SunDog
+  `XSTARTUP:0x31` 的初始損壞判斷式跑整張真值表。這解掉了 remake 專案掛著的一個矛盾：
+  `(欄 = 0) or random()` 當成邏輯或加「非零即真」讀時幾乎永遠成立，與原版實測的分布
+  不合；照位元或加 bit 0 讀，3/8 的比例與實測的 8/23 相符。負對照兩條。
+
+- 完成 line-F emulator（規格 059）。MC68000 的 `$Fxxx` 整段保留給 coprocessor 介面而這顆
+  CPU 沒有 coprocessor，所以那一段一條合法指令都沒有，全部走 vector 11——把整段路由過去
+  不是拿例外掩蓋未實作，這一點與 051 只能路由 `$4E7A`／`$4E7B` 兩個 opcode 的情況不同。
+- 合併回 main（2026-09-06）。這條線的 `MOVE.W` bus-error frame、`RESET`、cartridge port
+  與 line-F 四片，main 在同一段期間各自做過而且走得更完整（cycle-aware bus、MFP、
+  floppy 都疊在上面），所以合併時取 main 的實作，只留下這條線獨有的 UCSD p-System
+  四片，規格重編號成 134–137。`tools/hatari-oracle/` 一併留下，`bus_error_address_test.go`
+  的兩條 synthetic 負對照（sign-extend 與位址暫存器高位元）也留著——main 那邊沒有。

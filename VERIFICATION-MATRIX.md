@@ -76,6 +76,10 @@
 | ST floppy第三次dummy seek | 第三組data 0／seek `$13`、728-FDC-clock scheduler、九次poll、IRQ／status `$E4` read-clear、早先收據不變 | EmuTOS `flopunlk/dummy_seek`；既有Hatari seek契約；固定EmuTOS ROM | 通過；4,600,755條／2,903 IRQ／142,982,988 clocks完成；下一gate為YM2149 byte write |
 | ST IKBD可重入讀時鐘 | 重複`$1C`、10-tick request、16／10-tick response、MFP channel 6、每輪收據與backpressure | EmuTOS `igetregs/clockvec`；Hatari VBL77 ACIA／IKBD trace；固定EmuTOS ROM | 通過；第三輪於1,092,926條／558 IRQ／14,015,626 clocks收齊，下一gate為VBL90 `flopvbl()` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
+| UCSD p-System 直譯器真實碼 | 分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2`、變長運算元 | SunDog `SYSTEM.INTERP`（SHA-256 `a344edfb…`）真實出貨程式碼；每條配負對照 | 通過（規格 134）|
+| UCSD p-System 分派迴圈 | `$00DE` 的 fetch-execute 循環、107 支常式／45 個無效 opcode 的表形狀、存取往返、區域變數位址 | 同上 ROM；六組 p-code 另餵 laanwj/sundog 的獨立 C 直譯器，逐字相同 | 通過（規格 135）；六組負對照確認會失敗 |
+| UCSD p-System 算術與分支 | `ldcb`／`ldci`／`adi`／`sbi`／`dvi`／`modi`／`equi`／`leqi`／`dup1`／`swap`、`ujp`／`fjp`／`tjp`／`sind`／`ldb` | 同上 ROM；驗收用原版 `check_exit` 的格座標換算，數值取自原版執行時的除錯器讀值 | 通過（規格 136）；三方對上——原版直譯器、獨立 C 重寫、原版實跑 |
+| UCSD p-System 布林運算 | `land`／`lor`／`bnot` 的分派定位與位元語意、`fjp`／`tjp` 的 `btst #0`、SunDog `XSTARTUP:0x31` 初始損壞判斷式的整張真值表 | 同上 ROM；負對照兩條確認會失敗 | 通過（規格 137）；解掉 remake 專案「`(欄 = 0) or random()` 幾乎永遠成立」與實測分布的矛盾 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
 | TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑已於4,600,755條／142,982,988 clocks完成第三次dummy seek；下一gate為YM2149 byte write |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |

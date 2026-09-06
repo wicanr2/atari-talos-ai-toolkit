@@ -806,3 +806,94 @@ func TestOddBranchTargetEntersAddressError(t *testing.T) {
 		}
 	}
 }
+
+// TestLineFEntersEmulatorVector11 covers spec 057 from the CPU side. Line 1111
+// is reserved for the coprocessor interface and an MC68000 has none, so the
+// whole $Fxxx range is a line-F emulator exception — the three endpoints here
+// stand for the range, not for three special encodings.
+//
+// The core takes 34 clocks, which is what the external corpus records. On an ST
+// the same exception measures 36 because two bus waits land inside it; that is
+// the figure the EmuTOS end-to-end receipt in machine_test.go checks.
+func TestLineFEntersEmulatorVector11(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		opcode    uint16
+		initialSR uint16
+		finalSR   uint16
+	}{
+		{"low_end_supervisor_trace", 0xf000, 0xa704, 0x2704},
+		{"emutos_pmove_probe", 0xf010, 0x2700, 0x2700},
+		{"high_end_user_trace", 0xffff, 0x8004, 0x2004},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			memory := SparseMemory{
+				// Vector 11 lives at $2C, which is what EmuTOS writes $FC00D4
+				// into; here it points at $1000.
+				0x002c: 0x00, 0x002d: 0x00, 0x002e: 0x10, 0x002f: 0x00,
+				0x1000: 0x21, 0x1001: 0xfc, 0x1002: 0x00, 0x1003: 0xfc,
+			}
+			cpu := CPU{Bus: memory, State: State{
+				D: [8]uint32{0x12345678}, A: [7]uint32{0x87654321},
+				USP: 0x4000, SSP: 0x3000, SR: test.initialSR, PC: 0x2004,
+				Prefetch: [2]uint16{test.opcode, 0x0800},
+			}}
+			result, err := cpu.Step()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Clocks != 34 || cpu.State.SSP != 0x2ffa || cpu.State.USP != 0x4000 ||
+				cpu.State.SR != test.finalSR || cpu.State.PC != 0x1004 ||
+				cpu.State.Prefetch != [2]uint16{0x21fc, 0x00fc} ||
+				cpu.State.D[0] != 0x12345678 || cpu.State.A[0] != 0x87654321 {
+				t.Fatalf("result=%+v state=%+v", result, cpu.State)
+			}
+			// The saved PC is the opcode address, not the next one: $2004 - 4.
+			wantFrame := []uint16{test.initialSR, 0x0000, 0x2000}
+			for index, want := range wantFrame {
+				got, readErr := memory.ReadWord(0x2ffa+uint32(index*2), 5)
+				if readErr != nil || got != want {
+					t.Fatalf("frame[%d]=%04x/%v want %04x", index, got, readErr, want)
+				}
+			}
+			wantTransactions := []Transaction{
+				writeTransaction(0x2ffe, 5, 0x2000),
+				writeTransaction(0x2ffa, 5, test.initialSR),
+				writeTransaction(0x2ffc, 5, 0x0000),
+				readTransaction(0x002c, 5, 0x0000),
+				readTransaction(0x002e, 5, 0x1000),
+				readTransaction(0x1000, 6, 0x21fc),
+				readTransaction(0x1002, 6, 0x00fc),
+			}
+			if !reflect.DeepEqual(result.Transactions, wantTransactions) {
+				t.Fatalf("transactions=%+v want %+v", result.Transactions, wantTransactions)
+			}
+		})
+	}
+}
+
+// The extension word is not decoded: the exception is decided the moment the
+// opcode is fetched, so $F010 behaves the same whatever follows it.
+func TestLineFIgnoresTheExtensionWord(t *testing.T) {
+	var first State
+	for index, extension := range []uint16{0x0800, 0x0000, 0xffff} {
+		memory := SparseMemory{
+			0x002c: 0x00, 0x002d: 0x00, 0x002e: 0x10, 0x002f: 0x00,
+			0x1000: 0x21, 0x1001: 0xfc, 0x1002: 0x00, 0x1003: 0xfc,
+		}
+		cpu := CPU{Bus: memory, State: State{
+			SSP: 0x3000, SR: 0x2700, PC: 0x2004,
+			Prefetch: [2]uint16{0xf010, extension},
+		}}
+		if _, err := cpu.Step(); err != nil {
+			t.Fatal(err)
+		}
+		if index == 0 {
+			first = cpu.State
+			continue
+		}
+		if cpu.State != first {
+			t.Fatalf("extension %04x changed the outcome: %+v want %+v", extension, cpu.State, first)
+		}
+	}
+}
