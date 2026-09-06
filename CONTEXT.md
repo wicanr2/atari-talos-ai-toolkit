@@ -510,11 +510,12 @@
   遷入同型receipt，不保留永久相容層。先驗證資料模型，再分批遷移狀態分支。
 - 可重入媒體確認已接通第四輪以後：12輪synthetic與固定ROM第四／第五輪均通過，
   第五輪完成後下一gate為6,779,282 instructions／167,143,396 clocks的IKBD `$FFFC02`
-  write。前三輪仍在`floppyReadStage`／`floppyMediaLegacy[3]`遷移層，規格133保持READY；
+  write。前三輪仍在`floppyReadStage`遷移層，規格133保持READY；第一輪即時收據已直接
+  使用`floppyMediaCurrent`，`floppyMediaLegacy`已從三筆縮為只保存第二、第三輪的兩筆。
   共用phase現已補齊第一輪專有的track selector／track 0前綴，且交易開始後的PSG、
   DMA、FDC、IRQ與收據時序已不再依賴固定stage sentinel。正常ROM的前三輪完成時也已
   寫入同一ring，形成連續attempt 1–5；下一步將正式第一輪入口改用同一phase，再依序
-  刪除遷移層。
+  刪除剩餘遷移層。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

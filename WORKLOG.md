@@ -683,3 +683,8 @@
   另起1、2。固定EmuTOS ROM驗證前三筆除ring自行賦值的`Attempt`外逐欄等於既有精確
   錨點，且第五輪仍在6,779,282 instructions／167,143,396 clocks抵達同一IKBD gate。
   完整測試與vet通過；舊欄位尚未刪除，規格維持READY。
+- 規格133開始實際刪除legacy儲存：第一輪固定流程的所有即時欄位改用共用
+  `floppyMediaCurrent`，`floppyMediaLegacy`容量由3降為2，只保留尚未遷移的第二、第三輪。
+  ColdReset同時改為整體清空typed receipt，不再逐欄維護約50行清單。固定ROM證實第一輪
+  current與ring attempt 1逐欄一致、attempt 1–5連續且第五輪gate時序不變；完整68000
+  外部語料、全測試、vet與CLI建置通過。固定stage仍在，規格維持READY。
