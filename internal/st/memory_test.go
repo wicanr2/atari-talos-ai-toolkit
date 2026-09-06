@@ -1876,6 +1876,67 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		memory.floppyRetryTimeoutSelectorClock != 3202 || memory.floppyRetryForceInterruptClock != 3300 {
 		t.Fatal("third retry timeout modified DMA buffer or earlier timeout receipts")
 	}
+	for index, write := range []struct {
+		address uint32
+		value   uint16
+		stage   uint8
+		clock   uint64
+	}{
+		{STDMAControl, 0x0086, 62, 6200},
+		{STDiskController, 0, 63, 6300},
+		{STDMAControl, 0x0080, 64, 6400},
+		{STDiskController, 0x0013, 65, 6500},
+	} {
+		if wait, err := memory.WriteWordAt(write.address, write.value,
+			m68k.BusAccess{Clock: write.clock, FunctionCode: 5}); err != nil || wait != 4 ||
+			memory.floppyReadStage != write.stage {
+			t.Fatalf("third dummy seek setup[%d] wait/stage=%d/%d err=%v",
+				index, wait, memory.floppyReadStage, err)
+		}
+	}
+	if memory.floppyRetry3Data != 0 || memory.floppyRetry3SeekCommand != 0x13 ||
+		memory.floppyRetry3SeekStartClock != 6500 || !memory.fdcSeekPending ||
+		memory.fdcStatus != 0xe5 || !memory.fdcStatusTypeI || memory.fdcIRQ {
+		t.Fatalf("third dummy receipts data/command/start/pending/status/type/IRQ=%02x/%02x/%d/%v/%02x/%v/%v",
+			memory.floppyRetry3Data, memory.floppyRetry3SeekCommand,
+			memory.floppyRetry3SeekStartClock, memory.fdcSeekPending, memory.fdcStatus,
+			memory.fdcStatusTypeI, memory.fdcIRQ)
+	}
+	for index := 0; index < 9; index++ {
+		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+			t.Fatalf("third dummy inactive poll[%d]=%02x err=%v", index, got, err)
+		}
+	}
+	machine.Clocks = 7229
+	machine.advanceClockedDevices()
+	if memory.floppyReadStage != 66 || memory.fdcSeekPending || memory.fdcStatus != 0xe4 ||
+		!memory.fdcIRQ || memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatalf("third dummy complete stage/pending/status/IRQ/GPIP=%d/%v/%02x/%v/%02x",
+			memory.floppyReadStage, memory.fdcSeekPending, memory.fdcStatus,
+			memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+		!memory.floppyRetry3IRQObserved {
+		t.Fatalf("third dummy IRQ poll=%02x observed=%v err=%v", got,
+			memory.floppyRetry3IRQObserved, err)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 7400, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 67 {
+		t.Fatalf("third dummy status selector wait/stage=%d/%d err=%v", wait, memory.floppyReadStage, err)
+	}
+	if value, wait, err := memory.ReadWordAt(STDiskController,
+		m68k.BusAccess{Clock: 7500, FunctionCode: 5}); err != nil || wait != 4 ||
+		value != 0x00e4 || memory.floppyReadStage != 68 ||
+		memory.floppyRetry3StatusReadClock != 7500 || memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("third dummy status value/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
+			value, wait, memory.floppyReadStage, memory.floppyRetry3StatusReadClock,
+			memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	if memory.floppyRetry3InactivePolls != 9 || !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
+		memory.floppyRetry2SeekStartClock != 3700 || memory.floppyRetry2StatusReadClock != 4600 {
+		t.Fatal("third dummy seek modified DMA buffer or earlier dummy-seek receipts")
+	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
 		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
@@ -1898,7 +1959,10 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		memory.floppyRetry3Sector != 0 || memory.floppyRetry3DMAAddressStage != 0 ||
 		memory.floppyRetry3DMAResetCount != 0 || memory.floppyRetry3Command != 0 ||
 		memory.floppyRetry3CommandClock != 0 || memory.floppyRetry3TimeoutSelectorClock != 0 ||
-		memory.floppyRetry3ForceInterrupt != 0 || memory.floppyRetry3ForceInterruptClock != 0 {
+		memory.floppyRetry3ForceInterrupt != 0 || memory.floppyRetry3ForceInterruptClock != 0 ||
+		memory.floppyRetry3Data != 0 || memory.floppyRetry3SeekCommand != 0 ||
+		memory.floppyRetry3SeekStartClock != 0 || memory.floppyRetry3InactivePolls != 0 ||
+		memory.floppyRetry3IRQObserved || memory.floppyRetry3StatusReadClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

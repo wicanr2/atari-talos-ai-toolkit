@@ -608,3 +608,7 @@
   2,903 interrupts／142,979,752 clocks完成，下一gate為4,600,513／142,980,490的
   第三次dummy-seek `$0086` selector。synthetic、固定ROM、完整CPU corpus、全測試、
   vet與build均通過。
+- 完成規格132：第三次dummy seek重用728-FDC-clock scheduler，以第三組獨立收據記錄
+  `$0086/$0000/$0080/$0013`、九次poll、IRQ與status `$E4` read-clear。固定ROM於
+  4,600,755 instructions／2,903 interrupts／142,982,988 clocks完成；下一gate為
+  4,601,570／142,994,602的YM2149 byte write。完整CPU corpus、全測試、vet與build通過。

@@ -471,3 +471,7 @@
   並自然累積375次interrupt，與前兩輪75個50 Hz VBL期限一致。第三次`$0080/$D0`
   clocks為142,979,300／142,979,738，完成後下一筆`$FF8606=$0086`位於
   142,980,490 clocks，確認控制流再次進入`flopunlk()/dummy_seek()`。
+- 第三次dummy seek固定ROM收據再次得到九次inactive GPIP poll，`$13` start／status-read
+  clocks為142,981,658／142,982,974，完成狀態與前兩輪同型。跨裝置繼續執行後，真正
+  下一gate在142,994,602 clocks的YM2149 `$FF8800`，因此不能由FDC序列直接宣稱
+  retry迴圈已結束或猜測最終錯誤碼。

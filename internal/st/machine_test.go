@@ -2125,18 +2125,43 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts,
 			machine.Clocks, machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 10_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 10_000 && machine.Memory.floppyReadStage < 68 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 2-byte bus fault at 0xff8606 fc=5: unsupported_device_state" ||
-		machine.Memory.floppyReadStage != 61 || machine.Instructions != 4600513 ||
-		machine.Interrupts != 2903 || machine.Clocks != 142980490 ||
-		machine.CPU.State.D != [8]uint32{0, 0x721, 0, 0x1004, 0x00fcfffe, 0, 0x00fc37ea, 1} ||
+	if nextGate != nil || machine.Memory.floppyReadStage != 68 || machine.Memory.floppyRetry3Data != 0 ||
+		machine.Memory.floppyRetry3SeekCommand != 0x13 ||
+		machine.Memory.floppyRetry3SeekStartClock != 142981658 ||
+		machine.Memory.floppyRetry3InactivePolls != 9 || !machine.Memory.floppyRetry3IRQObserved ||
+		machine.Memory.floppyRetry3StatusReadClock != 142982974 ||
+		machine.Memory.fdcCommand != 0x13 || machine.Memory.fdcStatus != 0xe4 ||
+		!machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
+		machine.Instructions != 4600755 || machine.Interrupts != 2903 || machine.Clocks != 142982988 ||
+		machine.CPU.State.D != [8]uint32{0xffff00e4, 0x791, 0, 0x1004, 0x00fcfffe, 0, 0x00fc37ea, 1} ||
 		machine.CPU.State.A != [7]uint32{0, 0, 0x3008, 1, 0x1004, 0, 0x00fcccf0} ||
-		machine.CPU.State.USP != 0x7d22 || machine.CPU.State.SSP != 0x68a4 ||
-		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc3728 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
-		t.Fatalf("post-third-timeout gate stage=%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+		machine.CPU.State.USP != 0x7d22 || machine.CPU.State.SSP != 0x68a2 ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc38a0 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
+		t.Fatalf("third dummy stage=%d data=%02x command/start=%02x/%d polls=%d observed=%v status-read=%d FDC/status/type/IRQ/GPIP=%02x/%02x/%v/%v/%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyReadStage, machine.Memory.floppyRetry3Data,
+			machine.Memory.floppyRetry3SeekCommand, machine.Memory.floppyRetry3SeekStartClock,
+			machine.Memory.floppyRetry3InactivePolls, machine.Memory.floppyRetry3IRQObserved,
+			machine.Memory.floppyRetry3StatusReadClock, machine.Memory.fdcCommand,
+			machine.Memory.fdcStatus, machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ,
+			machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts, machine.Clocks,
+			machine.CPU.State, nextGate)
+	}
+	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xff8800 fc=5: unsupported_device_state" ||
+		machine.Memory.floppyReadStage != 68 || machine.Instructions != 4601570 ||
+		machine.Interrupts != 2903 || machine.Clocks != 142994602 ||
+		machine.CPU.State.D != [8]uint32{5, 5, 0x2300, 0x1004, 0, 0, 0, 0x0a} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 0x2f44, 6, 1, 0x1200, 5, 0x00fc413a} ||
+		machine.CPU.State.USP != 0x7d22 || machine.CPU.State.SSP != 0x6880 ||
+		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36d0 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
+		t.Fatalf("post-third-dummy gate stage=%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Memory.floppyReadStage, machine.Instructions, machine.Interrupts,
 			machine.Clocks, machine.CPU.State, nextGate)
 	}
