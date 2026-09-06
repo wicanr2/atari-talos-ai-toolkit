@@ -520,9 +520,12 @@
   fail-closed。第五輪完成後下一 gate 仍是 6,779,282 instructions／167,143,396 clocks
   的 IKBD `$FFFC02` write。
 
-- 下一 gate：IKBD `$FFFC02` 的 `$FC` ＋ 6 byte clock response（`igetregs()` 讀時鐘）。
-  依上一條，先用 synthetic 狀態把 ACIA 的 request／response 時序釘住，固定 ROM 只用來
-  確認 6,779,282 那個錨點之後接得上。
+- IKBD 的 `Initmous` 四條命令已接（規格 138 CONFORMED，2026-09-06）：`$08` 相對滑鼠、
+  `$0B 01 01` 門檻、`$10` Y 軸原點在上、`$07 00` button action。命令組裝器有長度表，
+  參數期間的位元組不重新解讀成命令，未知命令碼 fail-closed。四條都不回應（Hatari 的
+  `tx_state` 在整串期間是 0），所以沒有 response deadline。
+- 下一 gate：`$FC36DE` 的 PSG `$FF8802` write，在 8,058,248 instructions／4,088 interrupts／
+  180,984,736 clocks。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

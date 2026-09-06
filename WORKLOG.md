@@ -678,3 +678,15 @@
   167,143,396 clocks（第五輪之後的 IKBD gate），前三輪的 receipt 也逐欄位相同。
   測試改查同型 receipt：完成的一輪從 ring 取，還在跑的取 current；驅動迴圈的
   「跑到 stage N」改成「第 n 輪的 phase p」，因為 phase 每一輪都會重來。
+
+- 接上 IKBD 的 `Initmous` 四條命令（規格 138）。這一輪換了找法：先讓 IKBD data write
+  暫時接受一切並記錄，一次跑到下一個真正的 gate，拿到主機送出的整串
+  `08 0b 01 01 10 07 00`——七個位元組、四條命令，而不是一條一條撞 gate 再回頭改。
+  Hatari 的 `ikbd_cmds` trace 在 VBL 615 獨立解出同一串（`RelMouseMode`／
+  `SetMouseThreshold 1,1`／`SetYAxisUp`／`MouseAction 0`），兩邊的切法一致，
+  所以「`$0B` 吃兩個參數、`$07` 吃一個」不是猜的。同一份 trace 也證實這四條都不回應
+  （`tx_state` 全程 0），因此沒有 response deadline 要排。
+- 驗收的重心放在 synthetic：五條測試把序列、參數不當命令、未知碼 fail-closed、
+  TDRE 閘門與 cold reset 釘住；固定 ROM 的八百萬條只當回歸錨點，證明開機走得過去。
+  這是使用者當天給的對拍方法——把狀態設到事件觸發的那一刻，不從 reset 長跑去等。
+  開機因此推進到 8,058,248 條／180,984,736 clocks，下一 gate 是 PSG `$FF8802`。

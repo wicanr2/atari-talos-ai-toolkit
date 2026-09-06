@@ -2150,13 +2150,13 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts, machine.Clocks,
 			machine.CPU.State, nextGate)
 	}
-	// 前三輪現在也走同一條循環，所以第四、五輪是 ring 的第 4、5 筆。上界要跨過第五輪
-	// 才停得在 IKBD gate 上——停下來的是 gate，計數只是保險。
-	for steps := 0; steps < 5_000_000 && machine.Memory.floppyMediaReceipts.Total < 6 && nextGate == nil; steps++ {
+	// 前三輪現在也走同一條循環，所以第四、五輪是 ring 的第 4、5 筆。這裡停在第五輪
+	// 完成的那一刻——先前停下來的是它後面那個 IKBD gate，規格 138 已經把那個打通了。
+	for steps := 0; steps < 5_000_000 && machine.Memory.floppyMediaReceipts.Total < 5 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	last, ok := machine.Memory.floppyMediaReceipts.attempt(5)
-	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
+	if nextGate != nil ||
 		machine.Memory.floppyMediaPhase != floppyMediaIdle ||
 		machine.Memory.floppyMediaReceipts.Total != 5 || machine.Memory.floppyMediaReceipts.Count != 5 ||
 		machine.Memory.floppyMediaReceipts.Next != 5 || !ok || last.DrivePort != 0x25 ||
@@ -2165,8 +2165,8 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		last.TimeoutSelectorClock != 167083840 || last.ForceInterrupt != 0xd0 ||
 		last.ForceInterruptClock != 167084278 || last.SeekCommand != 0x13 ||
 		last.SeekStartClock != 167086198 || last.InactivePolls != 9 || !last.IRQObserved ||
-		last.StatusReadClock != 167087514 || machine.Instructions != 6779282 ||
-		machine.Interrupts != 3656 || machine.Clocks != 167143396 {
+		last.StatusReadClock != 167087514 || machine.Instructions != 6775690 ||
+		machine.Interrupts != 3655 || machine.Clocks != 167087528 {
 		t.Fatalf("recurring gate phase=%d total/count/next=%d/%d/%d current=%+v last=%+v present=%v instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Memory.floppyMediaPhase, machine.Memory.floppyMediaReceipts.Total,
 			machine.Memory.floppyMediaReceipts.Count, machine.Memory.floppyMediaReceipts.Next,

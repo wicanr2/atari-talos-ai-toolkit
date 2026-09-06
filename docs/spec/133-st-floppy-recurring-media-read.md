@@ -63,8 +63,10 @@
   第一輪靜靜地不推進；現在只要循環在跑（phase 不是 `Idle`），任何不合當下 phase 的
   位址寫入都 fault。這是規格「順序仍失敗即關閉」的直接後果，測試也改成期望 fault。
 - 固定 ROM 的錨點一個都沒動：第一輪 sector-read setup 仍在 1,286,164 instructions／
-  106,340,824 clocks，第三次 dummy seek 仍在 4,600,755／142,982,988，第五輪之後的
-  IKBD gate 仍在 6,779,282 instructions／3,656 interrupts／167,143,396 clocks。
+  106,340,824 clocks，第三次 dummy seek 仍在 4,600,755／142,982,988，第五輪完成仍在
+  6,775,690 instructions／3,655 interrupts／167,087,528 clocks。
+  （那之後原本是 IKBD `$FFFC02` 的 gate，規格 138 已經打通，所以回歸點改記在第五輪
+  完成的那一刻而不是 gate 上。）
   前三輪的 receipt 逐欄位與遷移前相同（`DriveWriteClock`、`ReadCommandClock`、
   `TimeoutSelectorClock`、`ForceInterruptClock`、`SeekStartClock`、`StatusReadClock`、
   `InactivePolls`、`IRQObserved`）。

@@ -159,6 +159,15 @@ type Memory struct {
 	ikbdACIATXShiftTicks            uint8
 	ikbdResetCommandDone            bool
 	ikbdResetCommandHandled         bool
+	ikbdCommandOpcode               byte
+	ikbdCommandRemaining            uint8
+	ikbdCommandParams               [2]byte
+	ikbdCommandParamCount           uint8
+	ikbdRelativeMouse               bool
+	ikbdMouseThreshold              [2]byte
+	ikbdYAxisUp                     bool
+	ikbdMouseButtonAction           byte
+	ikbdMouseButtonActionSet        bool
 	ikbdClockRequestDone            bool
 	ikbdClockRequestHandled         bool
 	ikbdACIARDR                     byte
@@ -240,6 +249,78 @@ type Memory struct {
 // floppyMediaDrivePort is what R14 reads back when the media check reselects the
 // drive. The first pass through flop_mediach() still has the flopvbl() port
 // ($23) latched; every pass after it re-selects the same $25 it already wrote.
+// ikbdCommandParamLength is how many parameter bytes each host command takes.
+// Only the four Initmous sends are known here; anything else fails closed
+// rather than being swallowed as a parameterless command (spec 138).
+func ikbdCommandParamLength(opcode byte) (uint8, bool) {
+	switch opcode {
+	case 0x08: // set relative mouse position reporting
+		return 0, true
+	case 0x10: // set Y=0 at top
+		return 0, true
+	case 0x07: // set mouse button action
+		return 1, true
+	case 0x0b: // set mouse threshold
+		return 2, true
+	}
+	return 0, false
+}
+
+// ikbdAcceptsCommandByte reports whether this byte belongs to the host command
+// stream: either a parameter the assembler is still waiting for, or a command
+// code it knows.
+func (m *Memory) ikbdAcceptsCommandByte(value byte) bool {
+	if m.ikbdCommandRemaining != 0 {
+		return true
+	}
+	_, known := ikbdCommandParamLength(value)
+	return known
+}
+
+// ikbdTakeCommandByte feeds one byte into the assembler and applies the command
+// once its parameters are complete.
+func (m *Memory) ikbdTakeCommandByte(value byte) {
+	if m.ikbdCommandRemaining != 0 {
+		if int(m.ikbdCommandParamCount) < len(m.ikbdCommandParams) {
+			m.ikbdCommandParams[m.ikbdCommandParamCount] = value
+		}
+		m.ikbdCommandParamCount++
+		m.ikbdCommandRemaining--
+		if m.ikbdCommandRemaining == 0 {
+			m.applyIKBDCommand()
+		}
+		return
+	}
+	length, _ := ikbdCommandParamLength(value)
+	m.ikbdCommandOpcode = value
+	m.ikbdCommandParams = [2]byte{}
+	m.ikbdCommandParamCount = 0
+	m.ikbdCommandRemaining = length
+	if length == 0 {
+		m.applyIKBDCommand()
+	}
+}
+
+// applyIKBDCommand records what the completed command asked for. None of these
+// four produce a response -- the Hatari trace shows tx_state flat at 0 through
+// all seven bytes -- so nothing is scheduled here.
+func (m *Memory) applyIKBDCommand() {
+	switch m.ikbdCommandOpcode {
+	case 0x08:
+		m.ikbdRelativeMouse = true
+	case 0x10:
+		m.ikbdYAxisUp = true
+	case 0x07:
+		m.ikbdMouseButtonAction = m.ikbdCommandParams[0]
+		m.ikbdMouseButtonActionSet = true
+	case 0x0b:
+		m.ikbdMouseThreshold = [2]byte{m.ikbdCommandParams[0], m.ikbdCommandParams[1]}
+	}
+	m.ikbdCommandOpcode = 0
+	m.ikbdCommandParamCount = 0
+	m.ikbdCommandParams = [2]byte{}
+}
+
 func (m *Memory) floppyMediaDrivePort() byte {
 	if m.floppyMediaCurrent.LockedTrack {
 		return 0x23
@@ -858,6 +939,17 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.ikbdACIATXShiftTicks == 0 && !m.ikbdClockPollRequestWritten &&
 			!m.ikbdClockPollResponseActive &&
 			m.ikbdClockPollRequestCount == m.ikbdClockPollCompleteCount
+		// Initmous 的四條設定命令（規格 138）。它們排在既有的 reset／set clock／
+		// interrogate 之後，所以那些分支仍然優先。
+		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
+			!(validFirst || validSecond || validClockRequest || validSetClock || validClockReadback || validClockPoll) &&
+			m.ikbdAcceptsCommandByte(value) {
+			m.ikbdACIATDR = value
+			m.ikbdACIATXPending = true
+			m.ikbdACIAStatus &^= 2
+			m.ikbdTakeCommandByte(value)
+			return nil
+		}
 		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
 			(validFirst || validSecond || validClockRequest || validSetClock || validClockReadback || validClockPoll) {
 			m.ikbdACIATDR = value
@@ -1626,6 +1718,15 @@ func (m *Memory) ColdReset() {
 	m.flopVBLMediaComplete = false
 	m.flopVBLMediaChecks = 0
 	m.flopVBLMediaDrive = -1
+	m.ikbdCommandOpcode = 0
+	m.ikbdCommandRemaining = 0
+	m.ikbdCommandParamCount = 0
+	m.ikbdCommandParams = [2]byte{}
+	m.ikbdRelativeMouse = false
+	m.ikbdMouseThreshold = [2]byte{}
+	m.ikbdYAxisUp = false
+	m.ikbdMouseButtonAction = 0
+	m.ikbdMouseButtonActionSet = false
 	m.floppyMediaLocked = false
 	m.floppyMediaPhase = floppyMediaIdle
 	m.floppyMediaCurrent = floppyMediaReceipt{}
