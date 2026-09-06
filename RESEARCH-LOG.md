@@ -424,3 +424,8 @@
   依 4 個 big-endian plane words、bit15→左、plane0→index bit0 解碼後 SHA-256
   `6157070b…10444`；64,000 pixels僅 color0=63,679、color15=321，首非零 `(1,0)`。
   Shifter DMA 必須繞過 CPU reset ROM shadow；base0 讀 RAM，不能重用 CPU `ReadByte`。
+- 固定Hatari 2.4.1／EmuTOS 1.3 UK的680-VBL FDC trace SHA-256
+  `9cb1d1ac50082934c7296b3b06fe53eada0ce9d8d20d9d9cea5bb4212924a9c0`證實：VBL235
+  送出Type-II `$80`後，無磁片不產生IRQ且command保持busy；EmuTOS到VBL310才送
+  `$D0` force-interrupt，恰為motor-on `MOTORON_TIMEOUT`的75個50 Hz VBL／1.5秒。
+  Hatari隨後清busy與IRQ並完成command；下一筆FDC transaction是`$0086` data register。

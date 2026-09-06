@@ -125,6 +125,9 @@ type Memory struct {
 	floppyReadDMAResetCount         uint8
 	floppyReadCommand               byte
 	floppyReadCommandClock          uint64
+	floppyReadTimeoutSelectorClock  uint64
+	floppyReadForceInterrupt        byte
+	floppyReadForceInterruptClock   uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -1267,6 +1270,23 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 15
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 15 && m.dmaMode == 0x0080 &&
+			m.floppyReadCommand == 0x80 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
+			!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x0080 {
+			m.floppyReadStage = 16
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 16 && m.dmaMode == 0x0080 &&
+			m.floppyReadCommand == 0x80 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
+			!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x00d0 {
+			m.floppyReadForceInterrupt = 0xd0
+			m.fdcCommand = 0xd0
+			m.fdcStatus = 0x80
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 17
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1467,6 +1487,12 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 14 && m.floppyReadStage == 15 {
 			m.floppyReadCommandClock = access.Clock
 		}
+		if floppyReadStage == 15 && m.floppyReadStage == 16 {
+			m.floppyReadTimeoutSelectorClock = access.Clock
+		}
+		if floppyReadStage == 16 && m.floppyReadStage == 17 {
+			m.floppyReadForceInterruptClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1523,6 +1549,9 @@ func (m *Memory) ColdReset() {
 	m.floppyReadDMAResetCount = 0
 	m.floppyReadCommand = 0
 	m.floppyReadCommandClock = 0
+	m.floppyReadTimeoutSelectorClock = 0
+	m.floppyReadForceInterrupt = 0
+	m.floppyReadForceInterruptClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0

@@ -566,3 +566,8 @@
   interrupts／106,340,824 clocks完成read stage 15，command clock為106,340,810；
   synthetic另驗證錯序拒絕、cold reset與無磁片時DMA buffer不變。無磁片timeout與
   force-interrupt留給獨立規格，沒有把command receipt寫成成功讀取證據。
+- 完成規格124：固定Hatari 680-VBL FDC trace證實無磁片Type-II `$80`保持busy，EmuTOS
+  依motor-on期限等待75個50 Hz VBL／1.5秒後才寫`$0080/$D0`。Talos沿既有Timer C／
+  `hz_200`自然抵達相同分支，於2,370,884 instructions／2,136 interrupts／
+  118,354,544 clocks完成force-interrupt；status `$80`、Type-II型別與inactive IRQ均
+  鎖入回歸測試。下一gate為`$0086` data-register selector。

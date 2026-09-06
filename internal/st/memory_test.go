@@ -1393,11 +1393,41 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
 		t.Fatal("no-disk command modified DMA buffer before successful transfer")
 	}
+	if err := memory.WriteWord(STDiskController, 0x00d0, 5); err == nil {
+		t.Fatal("force interrupt before timeout selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 300, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 16 || memory.floppyReadTimeoutSelectorClock != 300 {
+		t.Fatalf("timeout selector wait/stage/clock=%d/%d/%d err=%v", wait,
+			memory.floppyReadStage, memory.floppyReadTimeoutSelectorClock, err)
+	}
+	if err := memory.WriteWord(STDiskController, 0x00d8, 5); err == nil ||
+		memory.floppyReadStage != 16 || memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
+		t.Fatalf("wrong force interrupt mutated stage/command/status=%d/%02x/%02x err=%v",
+			memory.floppyReadStage, memory.fdcCommand, memory.fdcStatus, err)
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x00d0,
+		m68k.BusAccess{Clock: 400, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 17 || memory.floppyReadForceInterrupt != 0xd0 ||
+		memory.floppyReadForceInterruptClock != 400 || memory.fdcCommand != 0xd0 ||
+		memory.fdcStatus != 0x80 || memory.fdcStatusTypeI || memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("force interrupt wait/stage/receipt/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x err=%v",
+			wait, memory.floppyReadStage, memory.floppyReadForceInterrupt,
+			memory.floppyReadForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
+			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
+		t.Fatal("force interrupt modified DMA buffer")
+	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
 		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
 		memory.floppyReadDMAAddressStage != 0 || memory.floppyReadDMAResetCount != 0 ||
-		memory.floppyReadCommand != 0 || memory.floppyReadCommandClock != 0 {
+		memory.floppyReadCommand != 0 || memory.floppyReadCommandClock != 0 ||
+		memory.floppyReadTimeoutSelectorClock != 0 || memory.floppyReadForceInterrupt != 0 ||
+		memory.floppyReadForceInterruptClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

@@ -1929,6 +1929,43 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.floppyReadCommandClock, machine.Memory.flopVBLMediaChecks,
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
+	for steps := 0; steps < 1_500_000 && machine.Memory.floppyReadStage < 17 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate != nil || machine.Memory.floppyReadStage != 17 ||
+		machine.Memory.floppyReadTimeoutSelectorClock != 118354092 ||
+		machine.Memory.floppyReadForceInterrupt != 0xd0 ||
+		machine.Memory.floppyReadForceInterruptClock != 118354530 ||
+		machine.Memory.fdcCommand != 0xd0 || machine.Memory.fdcStatus != 0x80 ||
+		machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
+		machine.Instructions != 2370884 || machine.Interrupts != 2136 || machine.Clocks != 118354544 ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0x4bb, 0x12c, 0x1004, 0x00fc3a88, 0x00100000, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc37ea, 0x2f44, 0x00fc3720, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f2a ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc373a ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
+		t.Fatalf("force-interrupt complete stage=%d selector-clock=%d force=%02x force-clock=%d FDC/status/type/IRQ/GPIP=%02x/%02x/%v/%v/%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyReadStage, machine.Memory.floppyReadTimeoutSelectorClock,
+			machine.Memory.floppyReadForceInterrupt, machine.Memory.floppyReadForceInterruptClock,
+			machine.Memory.fdcCommand, machine.Memory.fdcStatus, machine.Memory.fdcStatusTypeI,
+			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn, machine.Instructions,
+			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
+	}
+	for steps := 0; steps < 1_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate == nil || nextGate.Error() != "st: write 2-byte bus fault at 0xff8606 fc=5: unsupported_device_state" ||
+		machine.Memory.floppyReadStage != 17 || machine.Memory.fdcCommand != 0xd0 ||
+		machine.Instructions != 2370962 || machine.Interrupts != 2136 || machine.Clocks != 118355282 ||
+		machine.CPU.State.D != [8]uint32{0, 0x4bb, 0, 0x1004, 0x00fcfffe, 0x00100000, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0, 0, 0x3008, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f2c ||
+		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc3728 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
+		t.Fatalf("post-force gate stage=%d FDC=%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyReadStage, machine.Memory.fdcCommand, machine.Instructions,
+			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
+	}
 }
 
 func TestMachineDeliversIKBDResetResponseAtDeadline(t *testing.T) {
