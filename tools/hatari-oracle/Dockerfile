@@ -8,7 +8,7 @@ ARG HATARI_SHA256=2a5da1932804167141de4bee6c1c5d8d53030260fe7fe7e31e5e71a4c00e05
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake pkg-config zlib1g-dev libpng-dev \
-      libsdl2-dev ca-certificates curl bzip2 \
+      libsdl2-dev ca-certificates curl bzip2 mtools dosfstools \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
