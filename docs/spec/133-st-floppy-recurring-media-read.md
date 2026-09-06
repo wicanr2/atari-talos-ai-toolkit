@@ -1,6 +1,6 @@
 # 133 — ST floppy可重入媒體確認讀取循環
 
-狀態：**READY**。
+狀態：**CONFORMED**。
 
 ## 決策與範圍
 
@@ -48,3 +48,27 @@
 - 固定ROM越過第四、第五輪，至少抵達700-VBL oracle涵蓋範圍，且前三輪CPU／clock錨點不變。
 - 固定ROM、完整240,000筆CPU corpus、全測試、vet與build通過才升 **CONFORMED**。
 - 本切片只泛化既有硬體錯誤路徑，不改遊戲、存檔、素材、protocol或發行權利。
+
+## CONFORMED 收據
+
+- 2026-09-06：前三輪的遷移層拆掉了。`floppyReadStage`（0–68 的固定 stage 機）與
+  `floppyMediaLegacy[3]`（約 50 個逐輪欄位）整組移除，三輪與之後的每一輪都走同一條
+  `mediaReadPhase` 循環。`internal/st` 淨減 499 行，其中 `memory.go` 少了約 550 行。
+- 第一輪與後續輪的兩個差異收進 receipt 的 `LockedTrack`：只有第一次呼叫
+  `flop_mediach()` 會鎖 track（DMA `$0082` ＋ track 0 兩筆交易），因此那一輪的
+  drive 重選讀回的是 `flopvbl()` 留下的 `$23`、sector selector 寫在 `$0082` 上；
+  之後每一輪都是 `$25` 同值重選、`$0080`。`floppyMediaLocked` 記住整台機器有沒有
+  鎖過，決定 `Idle` 那一步走 track lock 還是直接重選 drive。
+- **失敗即關閉的範圍變嚴了**：DMA 位址的三個位元組，先前只有第二輪起會拒絕亂序寫入，
+  第一輪靜靜地不推進；現在只要循環在跑（phase 不是 `Idle`），任何不合當下 phase 的
+  位址寫入都 fault。這是規格「順序仍失敗即關閉」的直接後果，測試也改成期望 fault。
+- 固定 ROM 的錨點一個都沒動：第一輪 sector-read setup 仍在 1,286,164 instructions／
+  106,340,824 clocks，第三次 dummy seek 仍在 4,600,755／142,982,988，第五輪之後的
+  IKBD gate 仍在 6,779,282 instructions／3,656 interrupts／167,143,396 clocks。
+  前三輪的 receipt 逐欄位與遷移前相同（`DriveWriteClock`、`ReadCommandClock`、
+  `TimeoutSelectorClock`、`ForceInterruptClock`、`SeekStartClock`、`StatusReadClock`、
+  `InactivePolls`、`IRQObserved`）。
+- 測試改查同型 receipt：完成的一輪從 ring 取（`mediaReceipt(m, n)`），還在跑的那一輪
+  取 `floppyMediaCurrent`；驅動迴圈的「跑到 stage N」改成「第 n 輪的 phase p」
+  （`reachedMedia`），因為 phase 每一輪都會重來。
+- 完整 CPU 語料、EmuTOS 端到端、UCSD 那一組、vet 與 build 全數通過。

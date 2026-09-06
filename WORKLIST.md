@@ -106,6 +106,7 @@
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe與IKBD `$1C` transmit已接；下一步IKBD `$FC + 6-byte` clock response |
+| ST floppy可重入媒體確認（規格 133）| **CONFORMED** | 前三輪的遷移層拆掉：`floppyReadStage`（0–68 固定 stage 機）與 `floppyMediaLegacy[3]`（約 50 個逐輪欄位）整組移除，每一輪都走同一條 phase 循環，`internal/st` 淨減 499 行。第一輪與後續輪的差異收進 receipt 的 `LockedTrack`（只有第一次呼叫會鎖 track）。DMA 位址的亂序寫入現在三輪一致 fail-closed。固定 ROM 的錨點一個都沒動 |
 | UCSD p-System 直譯器真實碼驗收（規格 134）| **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |
 | UCSD p-System 分派迴圈與序列執行（規格 135）| **CONFORMED** | `$00DE` 的 fetch-execute 循環與分派表全形狀（107 支常式、45 個無效 opcode）；短常數、混合族、存取往返、區域變數位址與 NOP 序列全部通過，六組負對照確認會失敗；六組 p-code 與 laanwj/sundog 的獨立 C 直譯器逐字相同 |
 | UCSD p-System 算術、分支與真實邏輯（規格 136）| **CONFORMED** | `ldcb`／`ldci`／`adi`／`sbi`／`dvi`／`modi`／`equi`／`leqi`／`dup1`／`swap`；並以原版 `check_exit` 的格座標換算驗收——數值取自原版執行時的除錯器讀值，算出的欄 11／列 7 與當時讀到的格座標一致 |

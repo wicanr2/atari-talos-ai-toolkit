@@ -33,7 +33,11 @@ const (
 )
 
 type floppyMediaReceipt struct {
-	Attempt              uint64
+	Attempt uint64
+	// LockedTrack marks the pass that locked the track. Only the first call to
+	// flop_mediach() does it, and it is what makes that pass two transactions
+	// longer than every pass after it.
+	LockedTrack          bool
 	Track                byte
 	Drive                int8
 	TrackWriteClock      uint64

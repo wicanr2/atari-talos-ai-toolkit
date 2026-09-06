@@ -129,12 +129,10 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	stepEpoch := m.Clocks
 	clockReads := uint8(0)
 	readbackReads := uint8(0)
-	floppyReadStage := uint8(0)
 	floppyMediaPhase := floppyMediaIdle
 	if m.Memory != nil {
 		clockReads = m.Memory.ikbdClockResponseReadCount
 		readbackReads = m.Memory.ikbdClockReadbackReadCount
-		floppyReadStage = m.Memory.floppyReadStage
 		floppyMediaPhase = m.Memory.floppyMediaPhase
 	}
 	result, err := m.CPU.StepAt(stepEpoch)
@@ -151,19 +149,9 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 		m.Memory.ikbdClockReadbackReadClocks[readbackReads] == 0 {
 		m.Memory.ikbdClockReadbackReadClocks[readbackReads] = stepEpoch
 	}
-	if m.Memory != nil && floppyReadStage == 26 && m.Memory.floppyReadStage == 27 &&
-		m.Memory.floppyMediaLegacy[1].DriveWriteClock == 0 {
-		// MOVE.B Dn,d(An) still uses the untimed byte bus path.  Preserve the
-		// instruction epoch until that CPU path exposes its exact bus phase.
-		m.Memory.floppyMediaLegacy[1].DriveWriteClock = stepEpoch
-	}
-	if m.Memory != nil && floppyReadStage == 48 && m.Memory.floppyReadStage == 49 &&
-		m.Memory.floppyMediaLegacy[2].DriveWriteClock == 0 {
-		// MOVE.B Dn,d(An) still uses the untimed byte bus path.  Preserve the
-		// instruction epoch until that CPU path exposes its exact bus phase.
-		m.Memory.floppyMediaLegacy[2].DriveWriteClock = stepEpoch
-	}
-	if m.Memory != nil && floppyReadStage == 68 && floppyMediaPhase == floppyMediaDriveWrite &&
+	// MOVE.B Dn,d(An) still uses the untimed byte bus path. Preserve the
+	// instruction epoch until that CPU path exposes its exact bus phase.
+	if m.Memory != nil && floppyMediaPhase == floppyMediaDriveWrite &&
 		m.Memory.floppyMediaPhase == floppyMediaSectorSelector &&
 		m.Memory.floppyMediaCurrent.DriveWriteClock == 0 {
 		m.Memory.floppyMediaCurrent.DriveWriteClock = stepEpoch

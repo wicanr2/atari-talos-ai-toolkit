@@ -663,3 +663,18 @@
   floppy 都疊在上面），所以合併時取 main 的實作，只留下這條線獨有的 UCSD p-System
   四片，規格重編號成 134–137。`tools/hatari-oracle/` 一併留下，`bus_error_address_test.go`
   的兩條 synthetic 負對照（sign-extend 與位址暫存器高位元）也留著——main 那邊沒有。
+
+- 拆掉媒體確認的遷移層（規格 133 升 CONFORMED）。`floppyReadStage` 那台 0–68 的固定
+  stage 機與 `floppyMediaLegacy[3]` 的約 50 個逐輪欄位整組移除，三輪與之後每一輪都走
+  同一條 `mediaReadPhase` 循環；`internal/st` 淨減 499 行，`memory.go` 少了約 550 行。
+  第一輪與後續輪只有兩個差異，收進 receipt 的 `LockedTrack`：只有第一次呼叫
+  `flop_mediach()` 會鎖 track（DMA `$0082` ＋ track 0 兩筆交易），所以那一輪的 drive
+  重選讀回 `flopvbl()` 留下的 `$23`、sector selector 寫在 `$0082` 上。
+- 這一輪順帶把失敗即關閉的範圍補齊：DMA 位址的三個位元組先前只有第二輪起會拒絕亂序
+  寫入，第一輪靜靜地不推進；現在只要循環在跑就一律 fault。那是規格「順序仍失敗即關閉」
+  本來就要求的，先前是遷移層的漏洞。
+- 固定 ROM 的錨點一個都沒動：1,286,164／106,340,824（第一輪 sector-read setup）、
+  4,600,755／142,982,988（第三次 dummy seek）、6,779,282 instructions／3,656 interrupts／
+  167,143,396 clocks（第五輪之後的 IKBD gate），前三輪的 receipt 也逐欄位相同。
+  測試改查同型 receipt：完成的一輪從 ring 取，還在跑的取 current；驅動迴圈的
+  「跑到 stage N」改成「第 n 輪的 phase p」，因為 phase 每一輪都會重來。

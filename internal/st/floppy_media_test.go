@@ -36,7 +36,7 @@ func TestFloppyMediaRecurringNoDiskTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memory.floppyReadStage = 68
+	memory.floppyMediaLocked = true
 	memory.psgDriveStage = 9
 	memory.psgRegisterSelect = 14
 	memory.psgRegisters[7] = 0xc0
@@ -130,4 +130,28 @@ func TestFloppyMediaRecurringNoDiskTransactions(t *testing.T) {
 		memory.floppyMediaReceipts != (floppyMediaReceipts{}) {
 		t.Fatal("cold reset retained recurring media transaction state")
 	}
+}
+
+// mediaReceipt is how the tests look at one media check now that the per-pass
+// fields are gone: a finished pass comes out of the ring, and the pass that is
+// still running is the current one. Attempts are 1-based, the way the ring
+// numbers them.
+func mediaReceipt(m *Memory, attempt uint64) floppyMediaReceipt {
+	if receipt, ok := m.floppyMediaReceipts.attempt(attempt); ok {
+		return receipt
+	}
+	if attempt == m.floppyMediaReceipts.Total+1 {
+		return m.floppyMediaCurrent
+	}
+	return floppyMediaReceipt{}
+}
+
+// reachedMedia says whether the machine has got as far as `phase` of the
+// `attempt`-th media check. Phases repeat every pass now, so "stage >= n" has
+// to be read as a pair: which pass, and how far into it.
+func reachedMedia(m *Memory, attempt uint64, phase floppyMediaPhase) bool {
+	if m.floppyMediaReceipts.Total >= attempt {
+		return true
+	}
+	return m.floppyMediaReceipts.Total == attempt-1 && m.floppyMediaPhase >= phase
 }
