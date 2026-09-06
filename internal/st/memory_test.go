@@ -1668,6 +1668,99 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		memory.floppyReadForceInterruptClock != 400 {
 		t.Fatal("retry timeout modified DMA buffer or first timeout receipts")
 	}
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil ||
+		memory.floppyReadStage != 39 || memory.floppyRetry2Data != 0 {
+		t.Fatalf("second dummy data before selector mutated stage/data=%d/%02x err=%v",
+			memory.floppyReadStage, memory.floppyRetry2Data, err)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0086,
+		m68k.BusAccess{Clock: 3400, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 40 || memory.dmaMode != 0x0086 {
+		t.Fatalf("second dummy data selector wait/stage/mode=%d/%d/%04x err=%v",
+			wait, memory.floppyReadStage, memory.dmaMode, err)
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0,
+		m68k.BusAccess{Clock: 3500, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 41 || memory.floppyRetry2Data != 0 || memory.fdcData != 0 {
+		t.Fatalf("second dummy data wait/stage/data/FDC=%d/%d/%02x/%02x err=%v", wait,
+			memory.floppyReadStage, memory.floppyRetry2Data, memory.fdcData, err)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 3600, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 42 || memory.dmaMode != 0x0080 {
+		t.Fatalf("second dummy command selector wait/stage/mode=%d/%d/%04x err=%v",
+			wait, memory.floppyReadStage, memory.dmaMode, err)
+	}
+	if err := memory.WriteWord(STDiskController, 0x0012, 5); err == nil ||
+		memory.floppyReadStage != 42 || memory.fdcSeekPending {
+		t.Fatal("wrong second dummy seek command unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x0013,
+		m68k.BusAccess{Clock: 3700, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 43 || memory.floppyRetry2SeekCommand != 0x13 ||
+		memory.floppyRetry2SeekStartClock != 3700 || memory.fdcSeekStartClock != 3700 ||
+		!memory.fdcSeekPending || memory.fdcStatus != 0xe5 || !memory.fdcStatusTypeI ||
+		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("second dummy seek wait/stage/command/clocks/pending/status/type/IRQ/GPIP=%d/%d/%02x/%d/%d/%v/%02x/%v/%v/%02x err=%v",
+			wait, memory.floppyReadStage, memory.floppyRetry2SeekCommand,
+			memory.floppyRetry2SeekStartClock, memory.fdcSeekStartClock,
+			memory.fdcSeekPending, memory.fdcStatus, memory.fdcStatusTypeI,
+			memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	for index := 0; index < 9; index++ {
+		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+			t.Fatalf("second dummy inactive poll %d=%02x err=%v", index, got, err)
+		}
+	}
+	if memory.floppyRetry2InactivePolls != 9 || !memory.fdcSeekPending {
+		t.Fatalf("second dummy polls/pending=%d/%v", memory.floppyRetry2InactivePolls,
+			memory.fdcSeekPending)
+	}
+	machine.Clocks = 4428
+	machine.advanceClockedDevices()
+	if !machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 4429 ||
+		memory.floppyReadStage != 43 || !memory.fdcSeekPending {
+		t.Fatalf("second dummy early scheduler/next/stage/pending=%v/%d/%d/%v",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock,
+			memory.floppyReadStage, memory.fdcSeekPending)
+	}
+	machine.Clocks = 4429
+	machine.advanceClockedDevices()
+	if machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 0 ||
+		memory.floppyReadStage != 44 || memory.fdcSeekPending || memory.fdcStatus != 0xe4 ||
+		!memory.fdcIRQ || memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatalf("second dummy complete scheduler/next/stage/pending/status/IRQ/GPIP=%v/%d/%d/%v/%02x/%v/%02x",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.floppyReadStage,
+			memory.fdcSeekPending, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+		!memory.floppyRetry2IRQObserved {
+		t.Fatalf("second dummy IRQ poll=%02x observed=%v err=%v", got,
+			memory.floppyRetry2IRQObserved, err)
+	}
+	if _, err := memory.ReadWord(STDiskController, 5); err == nil {
+		t.Fatal("second dummy status before selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 4500, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 45 {
+		t.Fatalf("second dummy status selector wait/stage=%d/%d err=%v", wait,
+			memory.floppyReadStage, err)
+	}
+	if value, wait, err := memory.ReadWordAt(STDiskController,
+		m68k.BusAccess{Clock: 4600, FunctionCode: 5}); err != nil || wait != 4 ||
+		value != 0x00e4 || memory.floppyReadStage != 46 ||
+		memory.floppyRetry2StatusReadClock != 4600 || memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("second dummy status value/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
+			value, wait, memory.floppyReadStage, memory.floppyRetry2StatusReadClock,
+			memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
+		memory.floppyReadRetrySeekStartClock != 800 || memory.floppyReadRetryInactivePolls != 9 ||
+		!memory.floppyReadRetryIRQObserved || memory.floppyReadRetryStatusReadClock != 1700 {
+		t.Fatal("second dummy seek modified DMA buffer or first dummy-seek receipts")
+	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
 		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
@@ -1682,7 +1775,10 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		memory.floppyReadRetryDMAAddressStage != 0 || memory.floppyReadRetryDMAResetCount != 0 ||
 		memory.floppyReadRetryCommand != 0 || memory.floppyReadRetryCommandClock != 0 ||
 		memory.floppyRetryTimeoutSelectorClock != 0 ||
-		memory.floppyRetryForceInterrupt != 0 || memory.floppyRetryForceInterruptClock != 0 {
+		memory.floppyRetryForceInterrupt != 0 || memory.floppyRetryForceInterruptClock != 0 ||
+		memory.floppyRetry2Data != 0 || memory.floppyRetry2SeekCommand != 0 ||
+		memory.floppyRetry2SeekStartClock != 0 || memory.floppyRetry2InactivePolls != 0 ||
+		memory.floppyRetry2IRQObserved || memory.floppyRetry2StatusReadClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

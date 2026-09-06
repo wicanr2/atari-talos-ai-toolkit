@@ -144,6 +144,12 @@ type Memory struct {
 	floppyRetryTimeoutSelectorClock uint64
 	floppyRetryForceInterrupt       byte
 	floppyRetryForceInterruptClock  uint64
+	floppyRetry2Data                byte
+	floppyRetry2SeekCommand         byte
+	floppyRetry2SeekStartClock      uint64
+	floppyRetry2InactivePolls       uint8
+	floppyRetry2IRQObserved         bool
+	floppyRetry2StatusReadClock     uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -453,6 +459,12 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		if m.floppyReadStage == 22 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.floppyReadRetryIRQObserved = true
 		}
+		if m.floppyReadStage == 43 && m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
+			m.floppyRetry2InactivePolls++
+		}
+		if m.floppyReadStage == 44 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
+			m.floppyRetry2IRQObserved = true
+		}
 		return m.mfpGPIP, nil
 	case address == MFPAER:
 		return m.mfpAER, nil
@@ -587,6 +599,15 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			m.floppyReadStage = 24
 			return value, nil
 		}
+		if m.floppyReadStage == 45 && m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
+			m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 {
+			m.fdcStatus = 0xe4
+			value := uint16(m.fdcStatus)
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 46
+			return value, nil
+		}
 		if (m.fdcInitStage != 6 && m.fdcInitStage != 13) || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
 			!m.fdcIRQ || m.mfpGPIPIn&0x20 != 0 {
 			return 0, m.fault(address, functionCode, false, 2, FaultUnsupportedDeviceState)
@@ -649,6 +670,9 @@ func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint
 		if floppyReadStage == 23 && m.floppyReadStage == 24 {
 			m.floppyReadRetryStatusReadClock = access.Clock
 		}
+		if floppyReadStage == 45 && m.floppyReadStage == 46 {
+			m.floppyRetry2StatusReadClock = access.Clock
+		}
 	}
 	return value, wait, err
 }
@@ -690,7 +714,7 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		validRetryAddressWrite := m.floppyReadStage == 29 && address == STDMAAddressLow && value == 0x04 ||
 			m.floppyReadStage == 30 && address == STDMAAddressMiddle && value == 0x10 ||
 			m.floppyReadStage == 31 && address == STDMAAddressHigh && value == 0
-		if m.floppyReadStage >= 27 && m.floppyReadStage <= 37 && !validRetryAddressWrite {
+		if m.floppyReadStage >= 27 && m.floppyReadStage <= 46 && !validRetryAddressWrite {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		candidate := m.dmaAddress
@@ -1452,6 +1476,41 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 39
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 39 && m.dmaMode == 0x0080 &&
+			m.fdcCommand == 0xd0 && m.fdcStatus == 0x80 && !m.fdcStatusTypeI &&
+			!m.fdcIRQ && value == 0x0086 {
+			m.dmaMode = value
+			m.floppyReadStage = 40
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 40 && m.dmaMode == 0x0086 && value == 0 {
+			m.floppyRetry2Data = 0
+			m.fdcData = 0
+			m.floppyReadStage = 41
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 41 && m.dmaMode == 0x0086 && value == 0x0080 {
+			m.dmaMode = value
+			m.floppyReadStage = 42
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 42 && m.dmaMode == 0x0080 &&
+			m.floppyRetry2Data == 0 && value == 0x0013 {
+			m.floppyRetry2SeekCommand = 0x13
+			m.fdcCommand = 0x13
+			m.fdcStatus = 0xe5
+			m.fdcStatusTypeI = true
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.fdcSeekPending = true
+			m.floppyReadStage = 43
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 44 && m.dmaMode == 0x0080 &&
+			m.fdcStatusTypeI && m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 && value == 0x0080 {
+			m.floppyReadStage = 45
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1670,6 +1729,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 38 && m.floppyReadStage == 39 {
 			m.floppyRetryForceInterruptClock = access.Clock
 		}
+		if floppyReadStage == 42 && m.floppyReadStage == 43 {
+			m.floppyRetry2SeekStartClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1745,6 +1807,12 @@ func (m *Memory) ColdReset() {
 	m.floppyRetryTimeoutSelectorClock = 0
 	m.floppyRetryForceInterrupt = 0
 	m.floppyRetryForceInterruptClock = 0
+	m.floppyRetry2Data = 0
+	m.floppyRetry2SeekCommand = 0
+	m.floppyRetry2SeekStartClock = 0
+	m.floppyRetry2InactivePolls = 0
+	m.floppyRetry2IRQObserved = false
+	m.floppyRetry2StatusReadClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0
@@ -1883,6 +1951,8 @@ func (m *Memory) completeFDCSeek() {
 	m.fdcSeekPending = false
 	if m.floppyReadStage == 21 {
 		m.floppyReadStage = 22
+	} else if m.floppyReadStage == 43 {
+		m.floppyReadStage = 44
 	} else {
 		m.fdcInitStage = 12
 	}

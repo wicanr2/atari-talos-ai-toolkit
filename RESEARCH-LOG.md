@@ -455,3 +455,10 @@
   75個50 Hz VBL；Hatari保留Type-II status型別、清IRQ並complete command。
   後續立即進`$0086/$0000/$0080/$0013`第二次dummy seek，因此Talos下一個typed
   gate應是`$0086`，不能跳到第三次retry。
+- 同一400-VBL trace在VBL385的第二次`$D0`後，明確依序送
+  `$0086/$0000/$0080/$0013`，seek complete／IRQ後以`$0080`讀回status `$E4`。
+  Talos固定ROM重用728-FDC-clock scheduler，第二組start／status-read clocks為
+  130,388,322／130,389,638，九次inactive GPIP poll與第一次dummy seek一致。
+  完成後仍有既有模型可處理的status transaction；真正下一個unsupported gate到
+  130,971,490 clocks才出現在YM2149 `$FF8800`，且媒體檢查count仍73，屬第三次
+  `select(0,0)`而不是週期性`flopvbl()`。

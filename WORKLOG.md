@@ -592,3 +592,9 @@
   以獨立retry timeout收據於3,457,037 instructions／2,511 interrupts／130,386,416
   clocks完成，第一次timeout收據未被覆寫；下一gate為3,457,115／130,387,154。
   synthetic、固定ROM、完整CPU corpus、全測試、vet與build均通過。
+- 完成規格129：固定Hatari VBL385 trace與EmuTOS `flopunlk/dummy_seek`證實第二次
+  `$0086/$0000/$0080/$0013`、IRQ及status `$E4` read-clear。Talos重用既有
+  728-FDC-clock scheduler，保存獨立第二組data／seek／九次poll／IRQ／read-clock
+  收據，於3,457,357 instructions／2,511 interrupts／130,389,652 clocks完成。
+  進一步固定ROM探測訂正下一gate：不是緊接的已支援status流程，而是3,516,206／
+  130,971,490的第三次retry PSG write。完整CPU corpus、全測試、vet與build均通過。
