@@ -75,6 +75,10 @@
 | ST floppy第三次retry讀取設定 | R14 `$25`同值重選、sector 1、DMA `$001004`、兩次direction toggle、count 1、Type-II `$80`、第三組獨立收據 | EmuTOS `flopio/select/fdc_start_dma_read`；Hatari VBL389 PSG＋FDC trace；固定EmuTOS ROM | 通過；3,516,426條／2,528 IRQ／130,973,792 clocks完成；下一gate為第三次timeout selector |
 | ST floppy第三次timeout／force-interrupt | 第三次guest 1.5秒期限、`$0080/$D0`、busy clear、Type-II status、第三組獨立收據、前兩組不變 | EmuTOS `flopcmd/timeout_gpip`；Hatari 75-VBL契約；固定EmuTOS ROM | 通過；4,600,435條／2,903 IRQ／142,979,752 clocks完成；下一gate `$0086` |
 | ST floppy第三次dummy seek | 第三組data 0／seek `$13`、728-FDC-clock scheduler、九次poll、IRQ／status `$E4` read-clear、早先收據不變 | EmuTOS `flopunlk/dummy_seek`；既有Hatari seek契約；固定EmuTOS ROM | 通過；4,600,755條／2,903 IRQ／142,982,988 clocks完成；下一gate為YM2149 byte write |
+| ST YM2149 聲音暫存器 | R0–R13 寫入與讀回、R7 讀改寫保留方向位元、清掉方向位元 fail-closed、R15 fail-closed、按鍵聲之後選 R14 讀回仍是 port A | EmuTOS 按鍵聲的整串寫入（探針一次看完）；YM2149 公開規格的 R7 位元定義 | 通過（規格 144）|
+| ST IKBD 鍵盤掃描碼 | make／break 位元組、`$00` 與 `$73`+ fail-closed、佇列滿 fail-closed、與滑鼠共用佇列先進先出 | Atari IKBD 協定文件「break = make OR $80」；EmuTOS 對話框正負對照（`$1C` 關掉／`$02` 不動）| 通過（規格 145）|
+| ST 雙擊 | 單擊與雙擊的結束狀態不同、雙擊沒有觸發媒體收據 | EmuTOS 1.3 固定 ROM 端到端 | 通過（規格 146）；開視窗需要 sector 讀取路徑，未做 |
+| `talos-jsonl/1` 輸入與執行 | 六個 op 的成功與失敗路徑、參數界限、未 boot 保護、未知欄位拒絕、`serve` 跨請求保持 session | 契約自身＋固定 ROM 端到端（畫面指紋比對規格 140）| 通過（規格 147）|
 | ST 滑鼠按鍵與 GEM 點選 | 按下／放開各一個零位移封包、相同狀態不重發；EmuTOS 桌面長按反白 (0,11)-(72,51)、放開還原 0 變動、短按維持反白 (0,17)-(71,50)、右鍵兩次都 0 變動 | IKBD 協定文件「按鍵按下或放開也會產生滑鼠位置回報」；EmuTOS 1.3 固定 ROM 端到端 | 通過（規格 143）；表頭 bit 1＝左鍵由行為釘死 |
 | ST IKBD 相對滑鼠上行封包 | 四種按鍵組合的表頭、二補數位移、累加與歸零、門檻≠1／Y 原點在下／非相對模式／位移超出一個位元組／佇列滿／RDRF 未清全部 fail-closed、cold reset | Atari IKBD 協定文件兩份獨立來源逐字相同的 `%111110xy` 佈局；EmuTOS 1.3 的 VDI 當 oracle——游標 10×16、位移讓變動框變成 (10+|dx|)×(16+|dy|)、移回原點畫面逐像素相同、推到畫面邊界定方向 | 通過（規格 142）|
 | ST `flopvbl()` 的 drive 選擇與 deselect | 同一個 checks 值下兩個 drive 都走得完、deselect 之後 stage 回 8 且 checks 不變、下一輪以 `$27` 進場並還原、data 那一步非 drive 選擇值 fail-closed、deselect 之後沒有 status 讀取 | Hatari `psg_write,fdc` 1450-VBL trace：VBL 242–610 之間 47 個連續被跳過的輪詢時槽而 drive 奇偶不變；VBL 1130 的 `$25 → $27` 前後沒有 FDC 存取 | 通過（規格 140）；**開機路徑再無 gate**，1.2 億條指令走到 GEM 桌面，畫面 SHA-256 `1de1eb45…` |

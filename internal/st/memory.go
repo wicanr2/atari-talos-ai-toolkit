@@ -351,6 +351,16 @@ func (m *Memory) floppyMediaSectorSelectorMode() uint16 {
 // isFlopVBLEntryPort is what port A may hold when flopvbl() takes its turn:
 // drive 1 ($23), drive 0 ($25) or neither ($27). The top five bits are the
 // other port A lines and stay put.
+// psgPortsAreOutputs 只看 R7 的兩個 port 方向位元。混音位元會被按鍵聲之類的
+// 東西改掉（`$C0` → `$FE`），拿整個位元組當不變量是錯的（規格 144）。
+// psgSoundRegisterMax 是 YM2149 的最後一個聲音暫存器（R13 envelope shape）。
+// R14 是 port A、R15 是 port B。
+const psgSoundRegisterMax = 13
+
+func (m *Memory) psgPortsAreOutputs() bool {
+	return m.psgRegisters[7]&0xc0 == 0xc0
+}
+
 func isFlopVBLEntryPort(value byte) bool {
 	return value == 0x23 || value == 0x25 || value == 0x27
 }
@@ -447,21 +457,21 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 	case address == STDMAAddressLow:
 		return byte(m.dmaAddress), nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 1 &&
-		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7:
+		m.psgRegisterSelect == 14 && m.psgPortsAreOutputs() && m.psgRegisters[14] == 7:
 		m.psgDriveStage = 2
 		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 4 && m.fdcInitStage == 14 &&
-		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5:
+		m.psgRegisterSelect == 14 && m.psgPortsAreOutputs() && m.psgRegisters[14] == 5:
 		m.psgDriveStage = 5
 		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 7 && m.acsiStage == 5 &&
-		m.fdcInitStage == 14 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+		m.fdcInitStage == 14 && m.psgRegisterSelect == 14 && m.psgPortsAreOutputs() &&
 		m.psgRegisters[14] == 3:
 		m.psgDriveStage = 8
 		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.floppyMediaPhase == floppyMediaDriveRead &&
 		m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
-		m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x23:
+		m.psgPortsAreOutputs() && m.psgRegisters[14] == 0x23:
 		// 第一輪：track lock 之後自己走完 select／read／data，因為它的進場值是
 		// `$23` 而不是 `$25`，與第二輪起的共用前置分得開（規格 139）。
 		m.floppyMediaPhase = floppyMediaDriveWrite
@@ -478,6 +488,10 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 		m.psgRegisterSelect == 14 && m.psgRegisters[14] == m.flopVBLTargetPort():
 		m.flopVBLMediaStage = 7
 		return m.psgRegisters[14], nil
+	case address == PSGRegisterSelect && m.psgPortsAreOutputs() &&
+		m.psgRegisterSelect <= psgSoundRegisterMax:
+		// 聲音暫存器讀回目前的值——EmuTOS 的按鍵聲就是這樣讀改寫 R7 的（規格 144）。
+		return m.psgRegisters[m.psgRegisterSelect], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 	case address == IKBDACIAControl:
@@ -843,44 +857,56 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		// 第一輪：track lock 之後自己選 R14。它的進場值是 `$23`，與第二輪起的
 		// 共用前置（`$25`）分得開（規格 139）。
 		if m.floppyMediaPhase == floppyMediaDriveSelector &&
-			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgDriveStage == 9 && m.psgPortsAreOutputs() &&
 			m.psgRegisters[14] == 0x23 && value == 14 {
+			m.psgRegisterSelect = value
 			m.floppyMediaPhase = floppyMediaDriveRead
 			return nil
 		}
 		if m.psgDriveStage == 9 && (m.flopVBLMediaStage == 0 || m.flopVBLMediaStage == 8) &&
 			m.ikbdClockReadbackComplete &&
-			m.fdcInitStage == 14 && m.acsiStage == 5 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[7] == 0xc0 && isFlopVBLEntryPort(m.psgRegisters[14]) && value == 14 {
+			m.fdcInitStage == 14 && m.acsiStage == 5 &&
+			m.psgPortsAreOutputs() && isFlopVBLEntryPort(m.psgRegisters[14]) && value == 14 {
+			m.psgRegisterSelect = value
 			// 這一輪要檢查哪個 drive，是 ROM 自己的計數決定的，機器端看不到；
 			// 要等 data 那一步寫出來才知道（規格 140）。
 			m.flopVBLMediaDrive = -1
 			m.flopVBLMediaStage = 1
 			return nil
 		}
-		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 5 && m.psgRegisterSelect == 14 &&
+		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 5 &&
 			m.psgRegisters[14] == m.flopVBLTargetPort() && value == 14 {
+			m.psgRegisterSelect = value
 			m.flopVBLMediaStage = 6
 			return nil
 		}
 		if m.psgDriveStage == 6 && m.acsiStage == 5 && m.fdcInitStage == 14 &&
-			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgPortsAreOutputs() &&
 			m.psgRegisters[14] == 3 && value == 14 {
+			m.psgRegisterSelect = value
 			m.psgDriveStage = 7
 			return nil
 		}
-		if m.psgDriveStage == 3 && m.fdcInitStage == 14 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5 && value == 14 {
+		if m.psgDriveStage == 3 && m.fdcInitStage == 14 &&
+			m.psgPortsAreOutputs() && m.psgRegisters[14] == 5 && value == 14 {
+			m.psgRegisterSelect = value
 			m.psgDriveStage = 4
 			return nil
 		}
-		if m.psgDriveStage == 0 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7 && value == 14 {
+		if m.psgDriveStage == 0 &&
+			m.psgPortsAreOutputs() && m.psgRegisters[14] == 7 && value == 14 {
+			m.psgRegisterSelect = value
 			m.psgDriveStage = 1
 			return nil
 		}
 		if m.psgRegisterSelect == 0 && m.psgRegisters[7] == 0 && m.psgRegisters[14] == 0 && value == 7 ||
-			m.psgRegisterSelect == 7 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0 && value == 14 {
+			m.psgRegisterSelect == 7 && m.psgPortsAreOutputs() && m.psgRegisters[14] == 0 && value == 14 {
+			m.psgRegisterSelect = value
+			return nil
+		}
+		// 聲音暫存器：port 方向設好之後可以任意挑（規格 144）。R15 是 port B，
+		// 還沒建模。
+		if m.psgPortsAreOutputs() && value <= psgSoundRegisterMax {
 			m.psgRegisterSelect = value
 			return nil
 		}
@@ -891,7 +917,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		// 其餘是 flopvbl() 要切到的目標 drive（規格 139）。前面的 select 與 read
 		// 兩步是共用的，分不出來也不該分。
 		if m.floppyMediaPhase == floppyMediaDriveWrite &&
-			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgPortsAreOutputs() &&
 			m.psgRegisters[14] == 0x23 && value == 0x25 {
 			m.psgRegisters[14] = value
 			m.floppyMediaCurrent.DrivePort = value
@@ -934,26 +960,35 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			return nil
 		}
 		if m.psgDriveStage == 8 && m.acsiStage == 5 && m.fdcInitStage == 14 &&
-			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgRegisterSelect == 14 && m.psgPortsAreOutputs() &&
 			m.psgRegisters[14] == 3 && value == 0x23 {
 			m.psgRegisters[14] = value
 			m.psgDriveStage = 9
 			return nil
 		}
 		if m.psgDriveStage == 5 && m.fdcInitStage == 14 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 5 && value == 3 {
+			m.psgPortsAreOutputs() && m.psgRegisters[14] == 5 && value == 3 {
 			m.psgRegisters[14] = value
 			m.psgDriveStage = 6
 			return nil
 		}
 		if m.psgDriveStage == 2 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 7 && value == 5 {
+			m.psgPortsAreOutputs() && m.psgRegisters[14] == 7 && value == 5 {
 			m.psgRegisters[14] = value
 			m.psgDriveStage = 3
 			return nil
 		}
 		if m.psgRegisterSelect == 7 && m.psgRegisters[7] == 0 && value == 0xc0 ||
-			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0 && value == 7 {
+			m.psgRegisterSelect == 14 && m.psgPortsAreOutputs() && m.psgRegisters[14] == 0 && value == 7 {
+			m.psgRegisters[m.psgRegisterSelect] = value
+			return nil
+		}
+		// 聲音暫存器只保存值，不產生聲音。R7 是讀改寫，寫回去不准把 port 的
+		// 兩個方向位元關掉——那會讓 port A 變成輸入，還沒建模（規格 144）。
+		if m.psgPortsAreOutputs() && m.psgRegisterSelect <= psgSoundRegisterMax {
+			if m.psgRegisterSelect == 7 && value&0xc0 != 0xc0 {
+				return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+			}
 			m.psgRegisters[m.psgRegisterSelect] = value
 			return nil
 		}

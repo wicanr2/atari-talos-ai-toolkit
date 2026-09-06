@@ -106,6 +106,10 @@
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe、IKBD `$1C` transmit、`Initmous` 四條命令與 port A 的 deselect 都已接。**EmuTOS 1.3 開機路徑上已經沒有 gate**：1.2 億條指令之內走到 GEM 桌面且沒有再撞到未建模的存取。下一步要靠新的工作負載（載入並跑一支程式）才會再暴露缺口 |
+| ST YM2149 的聲音暫存器（規格 144）| **CONFORMED** | 第一次按鍵就打破「R7 永遠是 `$C0`」——EmuTOS 會彈按鍵聲，把 R7 讀改寫成 `$FE`。接上 R0–R13（只存值不發聲），15 處門檻改看 port 方向位元，6 條「選 R14」的規則補上實際的 `psgRegisterSelect` 寫入 |
+| ST IKBD 的鍵盤掃描碼（規格 145）| **CONFORMED** | make 是掃描碼、break 是或上 `$80`，單一位元組走同一條上行線。收據：滑鼠開出 `Desk → Desktop Info...`，按 `1`（`$02`）**0 像素變動**、按 Return（`$1C`）**29,256 像素變動**關掉對話框 |
+| ST 雙擊（規格 146）| **CONFORMED** | IKBD 沒有雙擊的概念，四個封包而已，時間窗由 GEM 判。收據：單擊留下反白 1,140 像素、雙擊 0 像素且沒去碰磁碟機。開得起磁碟機視窗還要 WD1772 的 sector 讀取路徑，不在這裡 |
+| `talos-jsonl/1` 的輸入與執行迴圈（規格 147）| **CONFORMED** | `boot`／`reset`／`run_instructions`／`key`／`mouse`／`framebuffer` 接上機器，`emulation_ready` 改成 `true`。ROM 由 `TALOS_TOS_ROM` 決定，請求裡不收檔案路徑。端到端：JSON 進去、開機到桌面、指紋等於規格 140 那個值、滑鼠移動指紋改變、移回來復原 |
 | ST 滑鼠按鍵的封包與 GEM 點選語意（規格 143）| **CONFORMED** | 按下與放開各一個位移為零的封包。表頭的按鍵位元從「文件推論」升級成「行為驗證」：EmuTOS 桌面上短按左鍵讓 `DISK A` 反白並留著，長按放開會取消，**右鍵按下與放開都是 0 個像素變動**——bit 1 就是 GEM 認的那一顆 |
 | ST IKBD 的相對滑鼠上行封包（規格 142）| **CONFORMED** | IKBD→主機方向的三位元組相對滑鼠紀錄：表頭 `%111110xy`（左鍵 bit 1、右鍵 bit 0）加兩個二補數位移，每 10 個位元時間送一個位元組。**oracle 是 EmuTOS 自己的 VDI**——注入已知位移，量畫面上游標移動的像素數與方向，移回原點後畫面與基準逐像素相同。順帶修掉 `STOP` 的 idle 跳躍會把整包擠在一起送的缺陷 |
 | ST `flopvbl()` 的 drive 選擇與 deselect（規格 140）| **CONFORMED** | 拿掉「用已跑完幾輪推這一輪檢查哪個 drive」的假設——輪替是 ROM 內部的自由計數（Hatari trace 裡有 47 個連續被跳過的輪詢時槽而奇偶不變），機器端看不到，改成從 data 那一步觀察。另補上一次性的 deselect（寫 `$27`，不讀 status、不計 checks），之後每一輪都以 `$27` 進場。**EmuTOS 1.3 走到 GEM 桌面**，畫面 SHA-256 `1de1eb45…` |

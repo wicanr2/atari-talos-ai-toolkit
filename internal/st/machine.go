@@ -1,6 +1,10 @@
 package st
 
-import "github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
+import (
+	"fmt"
+
+	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
+)
 
 const firstColorSTVBLClock uint64 = 263*508 + 64
 const colorST60HzFrameClocks uint64 = 263 * 508
@@ -411,4 +415,22 @@ func prependIdle(result m68k.StepResult, clocks uint32) m68k.StepResult {
 	result.Clocks += clocks
 	result.Timeline = timeline
 	return result
+}
+
+// Framebuffer 回傳目前程式化基址起的 32,000 個位元組、那個基址與 Shifter 的
+// 解析度。低解析度是 320×200 四平面（規格 147 的 `framebuffer` 用它）。
+func (m *Machine) Framebuffer() ([]byte, uint32, byte, error) {
+	if m.Memory == nil {
+		return nil, 0, 0, fmt.Errorf("st: machine has no memory")
+	}
+	base := m.Memory.ProgrammedVideoBase()
+	frame := make([]byte, 32000)
+	for i := range frame {
+		value, err := m.Memory.ReadByteFC(base+uint32(i), 5)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		frame[i] = value
+	}
+	return frame, base, m.Memory.shifterResolution, nil
 }

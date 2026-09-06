@@ -548,6 +548,21 @@
 - 表頭的按鍵位元不只是文件推論（規格 143 CONFORMED，2026-09-06）：EmuTOS 桌面上
   短按左鍵讓 `DISK A` 反白並留著，長按又沒移動則在放開時取消，**右鍵按下與放開
   都是 0 個像素變動**。所以 bit 1 就是 GEM 會反應的那一顆。
+- **按鍵會彈聲音，所以 PSG 不只有 port A**（規格 144 CONFORMED，2026-09-06）：
+  EmuTOS 的按鍵聲把 R7 讀改寫成 `$FE`，模型原本 15 處把 R7 釘在 `$C0` 的門檻
+  全部改看 port 方向位元（高兩位）。同一片修掉一個舊瑕疵：6 條「選 R14」的規則
+  從來沒有真的把 `psgRegisterSelect` 設成 14，先前靠「前提已經是 14」剛好等價，
+  一旦按鍵聲選過 R12 就會讀到錯的暫存器。
+- 鍵盤 make／break 已接（規格 145 CONFORMED）：單一位元組，break 是 make 或上
+  `$80`，範圍 `$01`–`$72`。收據是 EmuTOS 的 `Desktop Info` 對話框——Return 關得掉、
+  `1` 鍵不動。
+- 雙擊（規格 146 CONFORMED）：IKBD 沒有雙擊的概念，四個封包而已，時間窗由 GEM 判。
+  單擊留下反白、雙擊不留，而且雙擊沒去碰磁碟機——**沒有磁片可開**。要看到磁碟機
+  視窗打開，得先把規格 141 的映像接進 WD1772 的 sector 讀取路徑。
+- **`talos-jsonl/1` 已經驅動得動機器**（規格 147 CONFORMED）：`boot`／`reset`／
+  `run_instructions`／`key`／`mouse`／`framebuffer` 六個 op，`emulation_ready`
+  改成 `true`。ROM 由 `TALOS_TOS_ROM` 決定，**請求裡不收檔案路徑**。
+  `framebuffer` 只回指紋與幾何，不回像素。
 - `STOP` 的 idle 跳躍現在會停在 IKBD 上行位元組的投遞時刻，不再一路衝到下一個 VBL。
   原本那樣會把一個封包的三個位元組擠在同一次裝置推進裡送出，主機一個都來不及讀；
   真硬體上 ACIA 中斷會把 `STOP` 叫醒。只有下行命令時看不出這個缺陷——ROM 那時是

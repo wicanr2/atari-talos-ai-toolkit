@@ -17,9 +17,11 @@ EmuTOS's complete 16-color `$FF8240–$FF825E` palette loop now also matches Hat
 gate is the `$FF8201` framebuffer-base high-byte write.
 EmuTOS 1.3 now boots all the way to the GEM desktop, with the screen contents pinned by a
 SHA-256 in the test suite, and injected relative-mouse packets move the on-screen pointer by
-the exact delta — verified against EmuTOS's own VDI. Keyboard input, mouse button semantics and
-mounting a disk to load a program are not implemented yet, so this is not yet a game-capable
-emulator. Unsupported operations fail closed.
+the exact delta — verified against EmuTOS's own VDI. Keyboard input works too — the mouse opens
+Desk → Desktop Info... and Return closes it, while an unrelated key does not. All of this is
+reachable over `talos-jsonl/1`: `boot`, `run_instructions`, `key`, `mouse` and `framebuffer` are
+wired to the machine. Mounting a disk to load a program is not implemented yet, so this is not
+yet a game-capable emulator. Unsupported operations fail closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.
 
 Atari Talos is independently rewritten in Go from public hardware specifications. Hatari is an

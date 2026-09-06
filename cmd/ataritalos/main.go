@@ -27,6 +27,7 @@ func main() {
 func serve(input io.Reader, output io.Writer) error {
 	scanner := bufio.NewScanner(input)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	session := protocol.NewSession()
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)
 	for scanner.Scan() {
@@ -38,7 +39,7 @@ func serve(input io.Reader, output io.Writer) error {
 			}
 			continue
 		}
-		response, quit := protocol.Handle(request)
+		response, quit := session.Handle(request)
 		if err := encoder.Encode(response); err != nil {
 			return err
 		}
