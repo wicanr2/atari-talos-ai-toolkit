@@ -153,6 +153,9 @@ type Memory struct {
 	fdcSeekInactivePolls            uint8
 	fdcSeekIRQObserved              bool
 	fdcSeekStatusReadClock          uint64
+	fdcHeadTrack                    byte
+	fdcSeekTargetTrack              byte
+	fdcSeekTrackChange              bool
 	fdcReadPending                  bool
 	fdcReadStartClock               uint64
 	fdcReadDMAStart                 uint32
@@ -551,6 +554,10 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 			m.floppyMediaCurrent.InactivePolls++
 		}
 		if m.floppyMediaPhase == floppyMediaSeekIRQ &&
+			m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
+			m.floppyMediaCurrent.IRQObserved = true
+		}
+		if m.floppyMediaPhase == floppyMediaTrackSeekIRQ &&
 			m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.floppyMediaCurrent.IRQObserved = true
 		}
@@ -1547,15 +1554,49 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				m.mfpGPIPIn |= 0x20
 				m.floppyMediaPhase = floppyMediaSeekDataSelector
 				return nil
+			case address == STDiskController && m.floppyMediaPhase == floppyMediaTrackSeekData &&
+				m.dmaMode == 0x0086 && value <= 0x00ff:
+				if m.floppyA == nil {
+					return m.fault(address, functionCode, true, 2, FaultUnsupportedDeviceState)
+				}
+				tracks, _, _ := m.floppyA.Geometry()
+				if value >= tracks {
+					return m.fault(address, functionCode, true, 2, FaultUnsupportedDeviceState)
+				}
+				m.floppyMediaCurrent.Track = byte(value)
+				m.floppyMediaCurrent.SeekData = byte(value)
+				m.fdcData = byte(value)
+				m.floppyMediaPhase = floppyMediaTrackSeekCommandSelector
+				return nil
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaTrackSeekCommandSelector &&
+				m.dmaMode == 0x0086 && value == 0x0080:
+				m.dmaMode = value
+				m.floppyMediaPhase = floppyMediaTrackSeekBusy
+				return nil
+			case address == STDiskController && m.floppyMediaPhase == floppyMediaTrackSeekBusy &&
+				m.dmaMode == 0x0080 && value == 0x0013:
+				m.floppyMediaCurrent.SeekCommand = 0x13
+				m.fdcSeekTargetTrack = m.floppyMediaCurrent.Track
+				m.fdcSeekTrackChange = true
+				m.fdcCommand, m.fdcStatus, m.fdcStatusTypeI, m.fdcIRQ = 0x13, 0xe5, true, false
+				m.mfpGPIPIn |= 0x20
+				m.fdcSeekPending = true
+				return nil
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaTrackSeekIRQ &&
+				m.dmaMode == 0x0080 && m.fdcStatusTypeI && m.fdcIRQ &&
+				m.mfpGPIPIn&0x20 == 0 && value == 0x0084:
+				m.dmaMode = value
+				m.floppyMediaPhase = floppyMediaSectorData
+				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSeekDataSelector &&
 				m.dmaMode == 0x0080 && value == 0x0086:
 				m.dmaMode = value
 				m.floppyMediaPhase = floppyMediaSeekData
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaSeekData &&
-				m.dmaMode == 0x0086 && value == 0:
-				m.floppyMediaCurrent.SeekData = 0
-				m.fdcData = 0
+				m.dmaMode == 0x0086 && value == uint16(m.fdcHeadTrack):
+				m.floppyMediaCurrent.SeekData = m.fdcHeadTrack
+				m.fdcData = m.fdcHeadTrack
 				m.floppyMediaPhase = floppyMediaSeekCommandSelector
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSeekCommandSelector &&
@@ -1587,10 +1628,24 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.dmaMode = value
 			port := m.psgRegisters[14]
 			m.floppyMediaCurrent = floppyMediaReceipt{
-				Drive: 0, Side: (^port) & 1, Track: 0, DrivePort: port,
+				Drive: 0, Side: (^port) & 1, Track: m.fdcHeadTrack, DrivePort: port,
 				DriveWriteClock: m.flopVBLMediaDriveWriteClock,
 			}
 			m.floppyMediaPhase = floppyMediaSectorData
+			m.flopVBLMediaDriveWriteClock = 0
+			m.flopVBLMediaStage = 8
+			return nil
+		}
+		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
+			m.floppyMediaPhase == floppyMediaIdle && m.floppyMediaLocked &&
+			(m.psgRegisters[14] == 0x25 || m.psgRegisters[14] == 0x24) && value == 0x0086 {
+			port := m.psgRegisters[14]
+			m.dmaMode = value
+			m.floppyMediaCurrent = floppyMediaReceipt{
+				Drive: 0, Side: (^port) & 1, DrivePort: port,
+				DriveWriteClock: m.flopVBLMediaDriveWriteClock,
+			}
+			m.floppyMediaPhase = floppyMediaTrackSeekData
 			m.flopVBLMediaDriveWriteClock = 0
 			m.flopVBLMediaStage = 8
 			return nil
@@ -1803,7 +1858,8 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 				m.floppyMediaCurrent.TimeoutSelectorClock = access.Clock
 			case floppyMediaPhase == floppyMediaForceInterrupt && m.floppyMediaPhase == floppyMediaSeekDataSelector:
 				m.floppyMediaCurrent.ForceInterruptClock = access.Clock
-			case floppyMediaPhase == floppyMediaSeekBusy && m.fdcSeekPending:
+			case (floppyMediaPhase == floppyMediaSeekBusy ||
+				floppyMediaPhase == floppyMediaTrackSeekBusy) && m.fdcSeekPending:
 				m.floppyMediaCurrent.SeekStartClock = access.Clock
 			}
 		}
@@ -1899,6 +1955,9 @@ func (m *Memory) ColdReset() {
 	m.fdcSeekInactivePolls = 0
 	m.fdcSeekIRQObserved = false
 	m.fdcSeekStatusReadClock = 0
+	m.fdcHeadTrack = 0
+	m.fdcSeekTargetTrack = 0
+	m.fdcSeekTrackChange = false
 	m.fdcReadPending = false
 	m.fdcReadStartClock = 0
 	m.fdcReadDMAStart = 0
@@ -2009,7 +2068,11 @@ func (m *Memory) completeFDCSeek() {
 	m.fdcIRQ = true
 	m.mfpGPIPIn &^= 0x20
 	m.fdcSeekPending = false
-	if m.floppyMediaPhase == floppyMediaSeekBusy {
+	if m.floppyMediaPhase == floppyMediaTrackSeekBusy && m.fdcSeekTrackChange {
+		m.fdcHeadTrack = m.fdcSeekTargetTrack
+		m.fdcSeekTrackChange = false
+		m.floppyMediaPhase = floppyMediaTrackSeekIRQ
+	} else if m.floppyMediaPhase == floppyMediaSeekBusy {
 		m.floppyMediaPhase = floppyMediaSeekIRQ
 	} else {
 		m.fdcInitStage = 12

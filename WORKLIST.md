@@ -111,6 +111,7 @@
 | ST WD1772 唯讀 sector DMA（規格 142） | **CONFORMED** | drive A／side 0／track 0／sector 1 經固定可重現期限搬入 512-byte RAM；DMA address/count、`DMA_OK`、Type-II `$80`、IRQ/GPIP5 與 dummy seek 正常路徑由固定 EmuTOS 從 reset 驗收 |
 | ST floppy 同軌連續 sector（規格 143） | **CONFORMED** | 同一次 `flopio()` 可逐筆重設 sector／DMA address／count 1；固定 EmuTOS 自然讀完 sector 1–6，3,072-byte RAM 與 raw image 完全相同，無 timeout |
 | ST floppy A 槽雙面選擇（規格 144） | **CONFORMED** | PSG port A `$25/$24` 對應 side 0/1，`$24→$24` 可重入；固定 Hatari 與 Talos 均完成 track 0／side 1／sector 6、8、9，receipt、CHS、DMA、IRQ 與失敗即關閉測試通過。下一步是 track 選擇 |
+| ST floppy 跨 track seek（規格 145） | **CONFORMED** | EmuTOS `set_track()` 的 data／`$13` seek、3 ms step-rate 近似、head commit、IRQ、track-aware dummy seek 與同軌 receipt 已接；私人 bootstrap 跑滿 800 萬 steps 到 head track 40 無 gate |
 | ST `flopvbl()` 的共用前置與進場值（規格 139）| **CONFORMED** | `set_psg_porta` 的三步是 `flopvbl()` 與媒體確認共用的，分派要等下一個 DMA control（`$0084` 媒體確認／`$0080` status）；還原的是進場值不是固定的 `$23`（Hatari 的 `io_porta_old/new` 顯示 `$23`／`$25`／`$27` 都出現過）。開機推進到 **10,544,770 條／209,189,796 clocks** |
 | ST IKBD `Initmous` 四條命令（規格 138）| **CONFORMED** | `$08`／`$0B x y`／`$10`／`$07 n` 的命令組裝器：長度表、參數不重新解讀成命令、未知命令碼 fail-closed、四條都不回應。Hatari 的 `ikbd_cmds` trace 在 VBL 615 獨立解出同一串。開機推進到 **8,058,248 條／180,984,736 clocks** |
 | ST floppy可重入媒體確認（規格 133）| **CONFORMED** | 前三輪的遷移層拆掉：`floppyReadStage`（0–68 固定 stage 機）與 `floppyMediaLegacy[3]`（約 50 個逐輪欄位）整組移除，每一輪都走同一條 phase 循環，`internal/st` 淨減 499 行。第一輪與後續輪的差異收進 receipt 的 `LockedTrack`（只有第一次呼叫會鎖 track）。DMA 位址的亂序寫入現在三輪一致 fail-closed。固定 ROM 的錨點一個都沒動 |

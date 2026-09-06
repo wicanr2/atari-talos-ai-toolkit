@@ -231,6 +231,143 @@ func TestMountedFloppySideOnePortReentersSharedPrefix(t *testing.T) {
 	}
 }
 
+func TestMountedFloppySeeksTrackThenReadsSector(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := testRawFloppy(80, 2, 9)
+	want := bytes.Repeat([]byte{0x6d}, rawFloppySectorSize)
+	trackOneOffset := 18 * rawFloppySectorSize
+	copy(image[trackOneOffset:trackOneOffset+rawFloppySectorSize], want)
+	if err := machine.AttachFloppyA(image); err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.psgDriveStage = 9
+	memory.flopVBLMediaStage = 3
+	memory.psgRegisters[14] = 0x25
+	memory.floppyMediaLocked = true
+	memory.floppyMediaPhase = floppyMediaIdle
+	if _, err := memory.WriteWordAt(STDMAControl, 0x0086,
+		m68k.BusAccess{Clock: 100, FunctionCode: 5}); err != nil ||
+		memory.floppyMediaPhase != floppyMediaTrackSeekData {
+		t.Fatalf("track seek selector phase=%d err=%v", memory.floppyMediaPhase, err)
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err != nil ||
+		memory.floppyMediaCurrent.Track != 1 || memory.fdcHeadTrack != 0 {
+		t.Fatalf("track data receipt/head=%d/%d err=%v",
+			memory.floppyMediaCurrent.Track, memory.fdcHeadTrack, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0080, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := memory.WriteWordAt(STDiskController, 0x0013,
+		m68k.BusAccess{Clock: 400, FunctionCode: 5}); err != nil ||
+		!memory.fdcSeekPending || memory.fdcHeadTrack != 0 {
+		t.Fatalf("track seek command pending/head=%v/%d err=%v",
+			memory.fdcSeekPending, memory.fdcHeadTrack, err)
+	}
+	deadline := fdcTrackSeekDeadline(400, 0, 1)
+	machine.Clocks = deadline - 1
+	machine.advanceClockedDevices()
+	if memory.fdcHeadTrack != 0 || !memory.fdcSeekPending {
+		t.Fatal("track seek committed before its deterministic deadline")
+	}
+	machine.Clocks = deadline
+	machine.advanceClockedDevices()
+	if memory.fdcHeadTrack != 1 || memory.fdcSeekPending || !memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 != 0 || memory.floppyMediaPhase != floppyMediaTrackSeekIRQ {
+		t.Fatalf("track seek completion head/pending/IRQ/GPIP/phase=%d/%v/%v/%02x/%d",
+			memory.fdcHeadTrack, memory.fdcSeekPending, memory.fdcIRQ,
+			memory.mfpGPIPIn, memory.floppyMediaPhase)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0084, 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err != nil {
+		t.Fatal(err)
+	}
+	for _, write := range []struct {
+		address uint32
+		value   byte
+	}{{STDMAAddressLow, 0x04}, {STDMAAddressMiddle, 0x10}, {STDMAAddressHigh, 0x00}} {
+		if err := memory.WriteByteFC(write.address, write.value, 5); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, write := range []struct {
+		address uint32
+		value   uint16
+	}{{STDMAControl, 0x0190}, {STDMAControl, 0x0090}, {STDiskController, 1},
+		{STDMAControl, 0x0080}} {
+		if err := memory.WriteWord(write.address, write.value, 5); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readStart := deadline + 100
+	if _, err := memory.WriteWordAt(STDiskController, 0x0080,
+		m68k.BusAccess{Clock: readStart, FunctionCode: 5}); err != nil {
+		t.Fatal(err)
+	}
+	machine.Clocks = readStart + fdcReadSectorLatencyClocks
+	machine.advanceClockedDevices()
+	if !bytes.Equal(memory.ram[0x1004:0x1204], want) ||
+		memory.floppyMediaCurrent.Track != 1 || memory.floppyMediaCurrent.SectorsRead != 1 {
+		t.Fatalf("track-one DMA mismatch: receipt=%+v", memory.floppyMediaCurrent)
+	}
+	memory.floppyMediaPhase = floppyMediaSeekData
+	memory.dmaMode = 0x0086
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil ||
+		memory.floppyMediaPhase != floppyMediaSeekData {
+		t.Fatal("track-one dummy seek accepted track zero")
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err != nil ||
+		memory.floppyMediaPhase != floppyMediaSeekCommandSelector || memory.fdcData != 1 {
+		t.Fatalf("track-one dummy seek data phase/data=%d/%d err=%v",
+			memory.floppyMediaPhase, memory.fdcData, err)
+	}
+}
+
+func TestMountedFloppyRejectsOutOfRangeTrackAtomically(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.AttachFloppyA(testRawFloppy(1, 2, 9)); err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.floppyMediaPhase = floppyMediaTrackSeekData
+	memory.dmaMode = 0x0086
+	if err := memory.WriteWord(STDiskController, 1, 5); err == nil ||
+		memory.floppyMediaPhase != floppyMediaTrackSeekData || memory.fdcData != 0 ||
+		memory.fdcHeadTrack != 0 || memory.fdcSeekPending || memory.fdcCommand != 0 {
+		t.Fatal("out-of-range track was accepted or mutated controller state")
+	}
+}
+
+func TestMountedFloppySectorReadUsesCurrentHeadTrack(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.psgDriveStage = 9
+	memory.flopVBLMediaStage = 3
+	memory.psgRegisters[14] = 0x24
+	memory.floppyMediaLocked = true
+	memory.floppyMediaPhase = floppyMediaIdle
+	memory.fdcHeadTrack = 7
+	if err := memory.WriteWord(STDMAControl, 0x0084, 5); err != nil ||
+		memory.floppyMediaPhase != floppyMediaSectorData ||
+		memory.floppyMediaCurrent.Track != 7 || memory.floppyMediaCurrent.Side != 1 {
+		t.Fatalf("current CHS phase/track/side=%d/%d/%d err=%v",
+			memory.floppyMediaPhase, memory.floppyMediaCurrent.Track,
+			memory.floppyMediaCurrent.Side, err)
+	}
+}
+
 func TestMountedFloppyReadRejectsDMAOverflowAtomically(t *testing.T) {
 	machine, err := NewMachine(RAM512K, testROM())
 	if err != nil {

@@ -27,6 +27,10 @@ const (
 	floppyMediaReadIRQSelector
 	floppyMediaReadStatusRead
 	floppyMediaPostRead
+	floppyMediaTrackSeekData
+	floppyMediaTrackSeekCommandSelector
+	floppyMediaTrackSeekBusy
+	floppyMediaTrackSeekIRQ
 	floppyMediaTimeoutSelector
 	floppyMediaForceInterrupt
 	floppyMediaSeekDataSelector

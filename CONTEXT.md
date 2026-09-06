@@ -564,13 +564,18 @@
   110,862,604 clocks 的 DMA control `$FF8606` word write，對應後續 track 選擇。
   該私人磁片混用 ST 啟動檔、ST 圖形與 DOS-shaped
   `DUNGEON.DAT`，只用來揭露硬體缺口，不是可玩或 parity 證據。
+- 跨 track seek 已接線（規格 145 CONFORMED）：`set_track()` 的 `$0086→data track→
+  $0080→$13` 在 deadline 後才提交 `fdcHeadTrack`，IRQ 後直接進 `$0084` sector selector；
+  dummy seek 與未再次 seek 的 receipt 都跟隨目前 head。固定 bootstrap 跑滿 800 萬 steps
+  無 gate，抵達 7,996,009 instructions／177,899,648 clocks、head track 40；ring 內
+  track 39／side 1 與 track 40／side 0 的 CHS 均正確。這仍不是原版遊戲 parity 證據。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
-3. 收斂 bootstrap 在 track 切換前的 DMA control `$FF8606` gate；先以 Hatari trace
-   與 EmuTOS 原始碼確認，再建立 READY 規格。
+3. 將 bootstrap 的無 gate 路徑推進到可觀察的 GEMDOS／程式載入結果，建立 framebuffer、
+   CPU 狀態或檔案載入收據；不得只以「800 萬 steps 沒 fault」宣稱成功。
 4. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
 5. 正式 Dungeon Master 原版同狀態對拍仍需合法、版本可辨識的 Atari ST 原版磁片；
    不可把私人混合素材磁片或無磁片路徑當成成功讀取。

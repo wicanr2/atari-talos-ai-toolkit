@@ -816,3 +816,10 @@
 - Hatari oracle image 沿用既有 `atari-talos-hatari:2.4.1`，加入 `mtools`／`dosfstools`；
   新腳本在私人目錄建立 720 KiB GEMDOS/FAT12 磁片並輸出輸入、映像雜湊與 FAT 目錄。
   文件明示混用資料只用於 emulator gate，不當成遊戲可玩或原版 parity 證據。
+- 規格 145 依固定 EmuTOS `flopio()`／`set_track()` 與 Hatari VBL306 trace，接上
+  `$0086→data track→$0080→$13` 的 pre-read seek；head 只在 deadline 到期後提交，
+  時序採 3 ms/track 的 hardware-spec approximation，不宣稱 step pulse 逐 clock parity。
+- 第一輪正常路徑成功讀出 track 1／side 0／sector 1，並揭露兩個殘留 track-0 假設：
+  dummy seek 應寫目前 track，同軌後續 receipt 也應由 head track 初始化。兩者修正後，
+  私人 bootstrap 跑滿 800 萬 steps 無 gate，head 到 track 40，ring receipt 的 track 39／40
+  與 side／sector 均一致；這只證明 I/O bootstrap，不升格成遊戲可玩或 parity 證據。

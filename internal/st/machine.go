@@ -221,7 +221,12 @@ func (m *Machine) advanceClockedDevices() {
 	if !m.fdcSeekClockStarted && m.Memory != nil && m.Memory.fdcSeekPending &&
 		m.Memory.fdcSeekStartClock != 0 {
 		m.fdcSeekClockStarted = true
-		m.nextFDCSeekClock = fdcSeekDeadline(m.Memory.fdcSeekStartClock)
+		if m.Memory.fdcSeekTrackChange {
+			m.nextFDCSeekClock = fdcTrackSeekDeadline(m.Memory.fdcSeekStartClock,
+				m.Memory.fdcHeadTrack, m.Memory.fdcSeekTargetTrack)
+		} else {
+			m.nextFDCSeekClock = fdcSeekDeadline(m.Memory.fdcSeekStartClock)
+		}
 	}
 	if m.fdcSeekClockStarted && m.Memory != nil && m.Memory.fdcSeekPending &&
 		m.Clocks >= m.nextFDCSeekClock {
@@ -307,6 +312,21 @@ func fdcSeekDeadline(start uint64) uint64 {
 	const numerator uint64 = 728 * 8021248
 	const denominator uint64 = 8000000
 	return start + numerator/denominator
+}
+
+func fdcTrackSeekDeadline(start uint64, from, target byte) uint64 {
+	distance := uint64(from)
+	if target >= from {
+		distance = uint64(target - from)
+	} else {
+		distance = uint64(from - target)
+	}
+	// WD1772 command overhead plus the selected 3 ms step rate, converted to
+	// the ST master-clock domain. This is deterministic hardware-spec
+	// approximation, not a model of individual step pulses.
+	const commandNumerator uint64 = 728 * 8021248
+	const stepNumerator uint64 = 3 * 8021248
+	return start + commandNumerator/8000000 + distance*stepNumerator/1000
 }
 
 func (m *Machine) mfpBInterruptChannel() (uint8, bool) {
