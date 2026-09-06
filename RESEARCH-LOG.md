@@ -449,3 +449,9 @@
   `$0080/$0080`；Hatari明記track 0／sector 1／side 0／drive 0／address `$001004`，
   隨後為`no disk/drive`。Talos固定ROM收據定位第二次command clock 118,371,398；
   後續130,385,952 clocks才抵達第二次timeout selector，期間無成功傳輸證據。
+- 固定Hatari 2.4.1／EmuTOS 1.3 UK的400-VBL PSG＋FDC trace SHA-256
+  `97a7a5f348aec08ff36b2c5d23973f043818a652ac7d6c2039c993ce372a1d08`證實：VBL310
+  第二次Type-II `$80`在無磁片下持續busy，到VBL385才送`$0080/$D0`，恰好再過
+  75個50 Hz VBL；Hatari保留Type-II status型別、清IRQ並complete command。
+  後續立即進`$0086/$0000/$0080/$0013`第二次dummy seek，因此Talos下一個typed
+  gate應是`$0086`，不能跳到第三次retry。

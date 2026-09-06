@@ -587,3 +587,8 @@
   的非預期DMA byte寫入改為失敗即關閉；於2,372,203 instructions／2,136 interrupts／
   118,371,412 clocks完成command，RAM buffer仍全零。下一gate為3,456,990／
   130,385,952的第二次timeout selector；完整CPU corpus、全測試、vet與build均通過。
+- 完成規格128：固定Hatari 400-VBL trace證實第二次Type-II `$80`仍等待75個50 Hz
+  VBL，到VBL385才由`$0080/$D0`中斷；下一筆是dummy-seek `$0086` selector。Talos
+  以獨立retry timeout收據於3,457,037 instructions／2,511 interrupts／130,386,416
+  clocks完成，第一次timeout收據未被覆寫；下一gate為3,457,115／130,387,154。
+  synthetic、固定ROM、完整CPU corpus、全測試、vet與build均通過。

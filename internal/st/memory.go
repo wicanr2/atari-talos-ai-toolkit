@@ -141,6 +141,9 @@ type Memory struct {
 	floppyReadRetryDMAResetCount    uint8
 	floppyReadRetryCommand          byte
 	floppyReadRetryCommandClock     uint64
+	floppyRetryTimeoutSelectorClock uint64
+	floppyRetryForceInterrupt       byte
+	floppyRetryForceInterruptClock  uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -1432,6 +1435,23 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 37
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 37 && m.dmaMode == 0x0080 &&
+			m.floppyReadRetryCommand == 0x80 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
+			!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x0080 {
+			m.floppyReadStage = 38
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 38 && m.dmaMode == 0x0080 &&
+			m.floppyReadRetryCommand == 0x80 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
+			!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x00d0 {
+			m.floppyRetryForceInterrupt = 0xd0
+			m.fdcCommand = 0xd0
+			m.fdcStatus = 0x80
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 39
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1644,6 +1664,12 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 36 && m.floppyReadStage == 37 {
 			m.floppyReadRetryCommandClock = access.Clock
 		}
+		if floppyReadStage == 37 && m.floppyReadStage == 38 {
+			m.floppyRetryTimeoutSelectorClock = access.Clock
+		}
+		if floppyReadStage == 38 && m.floppyReadStage == 39 {
+			m.floppyRetryForceInterruptClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1716,6 +1742,9 @@ func (m *Memory) ColdReset() {
 	m.floppyReadRetryDMAResetCount = 0
 	m.floppyReadRetryCommand = 0
 	m.floppyReadRetryCommandClock = 0
+	m.floppyRetryTimeoutSelectorClock = 0
+	m.floppyRetryForceInterrupt = 0
+	m.floppyRetryForceInterruptClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0
