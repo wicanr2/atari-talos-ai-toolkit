@@ -254,6 +254,12 @@ func (c *CPU) Step() (StepResult, error) {
 		return c.stepRTE(opcode)
 	case opcode == 0x4e7a || opcode == 0x4e7b:
 		return c.enterStandardException(4, c.State.PC-4, nil, 36)
+	case opcode&0xf000 == 0xf000:
+		// Spec 059: line 1111 is reserved for the coprocessor interface and an
+		// MC68000 has none, so every $Fxxx encoding is a line-F emulator
+		// exception. This is not the unimplemented-opcode path dressed up as an
+		// exception — there is no legal $Fxxx instruction on this CPU to hide.
+		return c.enterStandardException(11, c.State.PC-4, nil, 36)
 	case opcode == 0x4e70:
 		return c.stepRESET()
 	case opcode&0xfff8 == 0x4e60:

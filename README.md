@@ -73,7 +73,7 @@ TALOS_UCSD_INTERP=workplace/sundog tools/go.sh test ./internal/m68k -run UCSD
 |---|---|---|
 | M0 | JSON Lines 契約、CLI、Docker 測試、文件、授權與 public repo | **完成** |
 | M1 | 68000 核心通過公開指令語料與邊界測試 | **基礎／控制流／control EA、完整 MOVE／MOVEA／MOVEM／MOVE USP／MOVE to CCR／SR／MOVE from SR／LINK／UNLK／EXG／ADDA／SUBA／AND／ANDI／OR／ORI／EOR／EORI／CMP／CMPI／CMPM／CMPA／ADD／ADDI／ADDQ／SUB／SUBI／SUBQ／CLR／TST／TAS／ASL／ASR／LSL／LSR／ROR／MULS／MULU／DIVS／DIVU／NOT／NEG／Scc／DBcc／BTST／BCHG／BCLR／BSET／TRAP／RTE／RESET，共 230,000 筆外部語料已通過（TAS memory timing 依 Hatari 勘誤）；另以 UCSD p-System IV.2.1 直譯器的真實出貨程式碼補一組互補驗收** |
-| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU `$FF8001` 與 EmuTOS `MOVEC`→vector 4（8 條／128 clocks）、`$FC0080` 的 vector 2 bus-error frame（`$FFFF8006`）與 `$FC0088` 的 `RESET`（11 條／352 clocks）已 CONFORMED；cartridge port `$FA0000` 亦已 CONFORMED；開機推進到 18 條／494 clocks，下一個停止點是 `$FC00C2` 的 line-F 例外，其餘 I/O 與後續開機進行中** |
+| M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU `$FF8001` 與 EmuTOS `MOVEC`→vector 4（8 條／128 clocks）、`$FC0080` 的 vector 2 bus-error frame（`$FFFF8006`）與 `$FC0088` 的 `RESET`（11 條／352 clocks）已 CONFORMED；cartridge port `$FA0000` 亦已 CONFORMED；line-F 例外（vector 11）已 CONFORMED——開機因此從 19 條推進到 **6851 條**，新的停止點是 `$FC0636` 的 `TST.B $FF860F`（DMA／FDC I/O 未接）；那之間未對拍，其餘 I/O 與後續開機進行中** |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | 未開始 |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
 | M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |

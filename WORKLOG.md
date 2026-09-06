@@ -184,3 +184,17 @@
   `XSTARTUP:0x31` 的初始損壞判斷式跑整張真值表。這解掉了 remake 專案掛著的一個矛盾：
   `(欄 = 0) or random()` 當成邏輯或加「非零即真」讀時幾乎永遠成立，與原版實測的分布
   不合；照位元或加 bit 0 讀，3/8 的比例與實測的 8/23 相符。負對照兩條。
+
+- 完成 line-F emulator（規格 059）。MC68000 的 `$Fxxx` 整段保留給 coprocessor 介面而這顆
+  CPU 沒有 coprocessor，所以那一段一條合法指令都沒有，全部走 vector 11——把整段路由過去
+  不是拿例外掩蓋未實作，這一點與 051 只能路由 `$4E7A`／`$4E7B` 兩個 opcode 的情況不同。
+  EmuTOS 在 `$FC00BE` 用 `PMOVE (A0),TT0` 探測 68030 的 PMMU，Hatari trace 給了完整的
+  對照：這一步 36 clocks、SSP `$0FE6`→`$0FE0`、SR 維持 `$2700`、handler `$FC00D4`、
+  prefetch `$21FC,$00FC`；handler 位址另有一個獨立佐證，同一顆 ROM 稍早把它寫進 `$2C`，
+  而 `$2C` = 11 × 4。三個端點（`$F000`／`$F010`／`$FFFF`）與三種 extension word 的
+  synthetic 測試都走出同一條路。
+- 這一片把開機從**第 19 條推進到第 6851 條**，新的第一失敗點是 `$FC0636` 的
+  `TST.B $FF860F`（DMA／FDC 那一段 I/O 還沒接）。**中間那 6832 條沒有對拍**，而且不該被
+  當成對拍：Hatari 的 1-VBL trace 只有 5685 條，兩邊在 I/O 上早就分岔——Atari Talos 這一側
+  大部分 I/O 仍是 bus fault，EmuTOS 因此走的是「硬體不存在」那條分支。能宣稱的只有
+  「line-F 這一步全同」與「不再卡在第 19 條」。

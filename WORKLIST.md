@@ -54,7 +54,8 @@
 | MC68000 `RESET` | **CONFORMED** | `RESET.json.bin` 2,500 筆（supervisor 132 clocks／user vector 8 34 clocks）全同；EmuTOS `$FC0088` 端到端執行成功，CPU 狀態不變、PC 前進一個 word。外部 `RESET` 線對周邊的效果待 I/O 接入後各自定義 |
 | ST cartridge port `$FA0000`–`$FBFFFF` | **CONFORMED** | 沒插卡時讀回 `$FF`、不 fault（Hatari trace 的 `cmp.l #$fa52235f,$00fa0000 [ffffffff]` 直接證實）；EmuTOS 比對失敗後取分支，`$FC0094` 380、`$FC00A0` 390 clocks 與 Hatari 相同。寫入該區維持 fault——沒有證據 |
 | `MOVE.L #imm,(xxx).W` 的 cycle 數 | 待裁決 | Hatari 26、Atari Talos 24。**外部語料沒有這個定址組合的案例**（只有 `(xxx).L` 一筆 28），所以沒有第三方可裁決。Atari Talos 的 24 是由 `(xxx).L` 的 28 減一個 extension word 推導的，不是語料證實的。要嘛找到涵蓋它的語料、要嘛查 Motorola timing 表原文，不能靠放寬期望值吸收 |
-| 68000 line-F emulator（vector 11）| 待規格 | EmuTOS 第 19 條指令在 `$FC00C2` 執行 `$F010`；目前 opcode 未實作，開機停在該處 |
+| 68000 line-F emulator（vector 11）| **CONFORMED** | `$Fxxx` 整段路由到 vector 11（MC68000 沒有 coprocessor，這一段沒有合法指令）；三個端點 synthetic 全同，EmuTOS `$FC00BE` 的 `PMOVE` 探測這一步 36 clocks、SSP／SR／PC／prefetch／frame 與 Hatari 相同。開機路徑從第 19 條推進到**第 6851 條** |
+| ST DMA／FDC `$FF8600`–`$FF860F` | 待規格 | 開機新的第一失敗點：`$FC0636` 的 `TST.B $FF860F`。那之前的 6832 條沒有對拍——Hatari 的 1-VBL trace 只有 5685 條，而且兩邊在 I/O 上已經分岔 |
 | bus fault → vector 2 的指令涵蓋面 | 待規格 | 目前只有 `MOVE.W` 來源讀取會轉成 vector 2；其餘路徑的 bus fault 直接往外傳，開機路徑因此停在第一個非 `MOVE.W` 的失敗存取 |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` user word source read 首切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 待辦 | 各晶片 READY 後逐區接入；保留位址維持 bus fault |
