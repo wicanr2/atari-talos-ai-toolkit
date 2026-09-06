@@ -150,6 +150,13 @@ type Memory struct {
 	floppyRetry2InactivePolls       uint8
 	floppyRetry2IRQObserved         bool
 	floppyRetry2StatusReadClock     uint64
+	floppyRetry3DrivePort           byte
+	floppyRetry3DriveWriteClock     uint64
+	floppyRetry3Sector              byte
+	floppyRetry3DMAAddressStage     uint8
+	floppyRetry3DMAResetCount       uint8
+	floppyRetry3Command             byte
+	floppyRetry3CommandClock        uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -386,6 +393,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	case address == PSGRegisterSelect && m.floppyReadStage == 25 && m.psgDriveStage == 9 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25:
 		m.floppyReadStage = 26
+		return m.psgRegisters[14], nil
+	case address == PSGRegisterSelect && m.floppyReadStage == 47 && m.psgDriveStage == 9 &&
+		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25:
+		m.floppyReadStage = 48
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
@@ -714,7 +725,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		validRetryAddressWrite := m.floppyReadStage == 29 && address == STDMAAddressLow && value == 0x04 ||
 			m.floppyReadStage == 30 && address == STDMAAddressMiddle && value == 0x10 ||
 			m.floppyReadStage == 31 && address == STDMAAddressHigh && value == 0
-		if m.floppyReadStage >= 27 && m.floppyReadStage <= 46 && !validRetryAddressWrite {
+		validRetry3AddressWrite := m.floppyReadStage == 51 && address == STDMAAddressLow && value == 0x04 ||
+			m.floppyReadStage == 52 && address == STDMAAddressMiddle && value == 0x10 ||
+			m.floppyReadStage == 53 && address == STDMAAddressHigh && value == 0
+		if m.floppyReadStage >= 27 && m.floppyReadStage <= 59 &&
+			!validRetryAddressWrite && !validRetry3AddressWrite {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		candidate := m.dmaAddress
@@ -749,6 +764,10 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.floppyReadStage++
 			m.floppyReadRetryDMAAddressStage++
 		}
+		if validRetry3AddressWrite {
+			m.floppyReadStage++
+			m.floppyRetry3DMAAddressStage++
+		}
 		if m.fdcProbeDrive == 1 && m.fdcInitStage == 14 {
 			switch {
 			case m.dmaAddressWriteStage == 0 && address == STDMAAddressLow && value == 0x04:
@@ -770,6 +789,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		if m.floppyReadStage == 24 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25 && value == 14 {
 			m.floppyReadStage = 25
+			return nil
+		}
+		if m.floppyReadStage == 46 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25 && value == 14 {
+			m.floppyReadStage = 47
 			return nil
 		}
 		if m.psgDriveStage == 9 && (m.flopVBLMediaStage == 0 || m.flopVBLMediaStage == 8) &&
@@ -821,6 +845,13 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.psgRegisters[14] = value
 			m.floppyReadRetryDrivePort = value
 			m.floppyReadStage = 27
+			return nil
+		}
+		if m.floppyReadStage == 48 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25 && value == 0x25 {
+			m.psgRegisters[14] = value
+			m.floppyRetry3DrivePort = value
+			m.floppyReadStage = 49
 			return nil
 		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
@@ -1284,6 +1315,9 @@ func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) 
 		if err == nil && floppyReadStage == 26 && m.floppyReadStage == 27 {
 			m.floppyReadRetryDriveWriteClock = access.Clock
 		}
+		if err == nil && floppyReadStage == 48 && m.floppyReadStage == 49 {
+			m.floppyRetry3DriveWriteClock = access.Clock
+		}
 		return 4, err
 	}
 	wait, err := busSlotWait(access.Clock)
@@ -1511,6 +1545,52 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 45
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 49 && m.dmaMode == 0x0080 &&
+			m.floppyRetry3DrivePort == 0x25 && value == 0x0084 {
+			m.dmaMode = value
+			m.floppyReadStage = 50
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 50 && m.dmaMode == 0x0084 && value == 1 {
+			m.floppyRetry3Sector = 1
+			m.floppyReadStage = 51
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 54 &&
+			m.floppyRetry3DMAAddressStage == 3 && value == 0x0190 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.floppyRetry3DMAResetCount = 1
+			m.floppyReadStage = 55
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 55 && m.dmaMode == 0x0190 && value == 0x0090 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.floppyRetry3DMAResetCount = 2
+			m.floppyReadStage = 56
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 56 && m.dmaMode == 0x0090 && value == 1 {
+			m.dmaSectorCount = 1
+			m.floppyReadStage = 57
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 57 && m.dmaMode == 0x0090 && value == 0x0080 {
+			m.dmaMode = value
+			m.floppyReadStage = 58
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 58 && m.dmaMode == 0x0080 && value == 0x0080 {
+			m.floppyRetry3Command = 0x80
+			m.fdcCommand = 0x80
+			m.fdcStatus = 0x81
+			m.fdcStatusTypeI = false
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 59
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1732,6 +1812,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 42 && m.floppyReadStage == 43 {
 			m.floppyRetry2SeekStartClock = access.Clock
 		}
+		if floppyReadStage == 58 && m.floppyReadStage == 59 {
+			m.floppyRetry3CommandClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1813,6 +1896,13 @@ func (m *Memory) ColdReset() {
 	m.floppyRetry2InactivePolls = 0
 	m.floppyRetry2IRQObserved = false
 	m.floppyRetry2StatusReadClock = 0
+	m.floppyRetry3DrivePort = 0
+	m.floppyRetry3DriveWriteClock = 0
+	m.floppyRetry3Sector = 0
+	m.floppyRetry3DMAAddressStage = 0
+	m.floppyRetry3DMAResetCount = 0
+	m.floppyRetry3Command = 0
+	m.floppyRetry3CommandClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0

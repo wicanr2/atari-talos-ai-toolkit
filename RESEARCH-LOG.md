@@ -462,3 +462,8 @@
   完成後仍有既有模型可處理的status transaction；真正下一個unsupported gate到
   130,971,490 clocks才出現在YM2149 `$FF8800`，且媒體檢查count仍73，屬第三次
   `select(0,0)`而不是週期性`flopvbl()`。
+- 同一400-VBL PSG＋FDC trace在VBL389證實第三次`flopio()`先做R14
+  `$0E→read $25→write $25`，再完整送出`$0084/$0001`、DMA `$04/$10/$00`、
+  `$0190/$0090/$0001`與`$0080/$0080`。Talos固定ROM以獨立第三組收據在
+  130,973,778 clocks提交Type-II `$80`；之後直到142,979,288 clocks才抵達下一個
+  `$FF8606` word write，支持其為第三次75-VBL timeout selector，而非成功傳輸。

@@ -155,6 +155,12 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 		// instruction epoch until that CPU path exposes its exact bus phase.
 		m.Memory.floppyReadRetryDriveWriteClock = stepEpoch
 	}
+	if m.Memory != nil && floppyReadStage == 48 && m.Memory.floppyReadStage == 49 &&
+		m.Memory.floppyRetry3DriveWriteClock == 0 {
+		// MOVE.B Dn,d(An) still uses the untimed byte bus path.  Preserve the
+		// instruction epoch until that CPU path exposes its exact bus phase.
+		m.Memory.floppyRetry3DriveWriteClock = stepEpoch
+	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
 	m.advanceClockedDevices()

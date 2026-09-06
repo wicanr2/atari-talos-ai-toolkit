@@ -598,3 +598,8 @@
   收據，於3,457,357 instructions／2,511 interrupts／130,389,652 clocks完成。
   進一步固定ROM探測訂正下一gate：不是緊接的已支援status流程，而是3,516,206／
   130,971,490的第三次retry PSG write。完整CPU corpus、全測試、vet與build均通過。
+- 完成規格130：依固定Hatari VBL389 trace接入第三次R14 `$25`同值重選、sector 1、
+  DMA `$001004`、direction toggle、count 1與Type-II `$80`，以第三組獨立收據避免
+  覆寫前兩輪。固定ROM於3,516,426 instructions／2,528 interrupts／130,973,792
+  clocks完成command提交；下一gate為4,600,388／142,979,288的第三次timeout selector。
+  synthetic、固定ROM、完整CPU corpus、全測試、vet與build均通過。
