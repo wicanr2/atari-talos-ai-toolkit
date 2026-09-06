@@ -29,8 +29,9 @@ YM2149 port A。固定無磁片profile不處理disk insertion、write-protect改
 
 ## typed行為
 
-1. 保存單調media-check count；count為偶數時下一輪選drive 0（port A `$25`），奇數時
-   選drive 1（port A `$23`）。初始值0，故規格119首輪仍為drive 0。
+1. 保存單調media-check count。**這一輪選哪個drive由規格140接手**：輪替是ROM內部
+   隨VBL自由前進的計數決定的，模型不預測，改成從port A的data寫入把ROM選的值記下來
+   （`$25`為drive 0、`$23`為drive 1）。count本身仍然只數完成的輪數。
 2. stage 0或上輪完成stage 8時，依序接受select R14、讀原port `$23`、寫本輪target；
    再接受DMA control word `$0080`及WD1772 status word read `$E4`。錯序、錯值、錯寬度、
    user access或重疊週期均失敗即關閉。

@@ -38,15 +38,14 @@ func TestFlopVBLRestoresTheEntryPort(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		entry  byte
-		checks uint32
 		target byte
 	}{
-		{"進場 $23，這一輪選 drive 0", 0x23, 74, 0x25},
-		{"進場 $25，這一輪選 drive 1", 0x25, 73, 0x23},
-		{"進場 $27，這一輪選 drive 1", 0x27, 73, 0x23},
+		{"進場 $23，這一輪選 drive 0", 0x23, 0x25},
+		{"進場 $25，這一輪選 drive 1", 0x25, 0x23},
+		{"進場 $27，這一輪選 drive 1", 0x27, 0x23},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			memory := flopVBLReady(t, test.entry, test.checks)
+			memory := flopVBLReady(t, test.entry, 73)
 			if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil ||
 				memory.flopVBLMediaStage != 1 {
 				t.Fatalf("選 R14：stage=%d err=%v", memory.flopVBLMediaStage, err)
@@ -81,7 +80,7 @@ func TestFlopVBLRestoresTheEntryPort(t *testing.T) {
 			// 還原的是進場值，不是固定的 $23。
 			if err := memory.WriteByte(PSGRegisterData, test.entry, 5); err != nil ||
 				memory.flopVBLMediaStage != 8 || memory.psgRegisters[14] != test.entry ||
-				memory.flopVBLMediaChecks != test.checks+1 {
+				memory.flopVBLMediaChecks != 74 {
 				t.Fatalf("還原：stage=%d port=%02x checks=%d err=%v",
 					memory.flopVBLMediaStage, memory.psgRegisters[14],
 					memory.flopVBLMediaChecks, err)

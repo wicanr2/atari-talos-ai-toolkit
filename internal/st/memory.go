@@ -841,7 +841,9 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			m.ikbdClockReadbackComplete &&
 			m.fdcInitStage == 14 && m.acsiStage == 5 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && isFlopVBLEntryPort(m.psgRegisters[14]) && value == 14 {
-			m.flopVBLMediaDrive = int8(m.flopVBLMediaChecks & 1)
+			// 這一輪要檢查哪個 drive，是 ROM 自己的計數決定的，機器端看不到；
+			// 要等 data 那一步寫出來才知道（規格 140）。
+			m.flopVBLMediaDrive = -1
 			m.flopVBLMediaStage = 1
 			return nil
 		}
@@ -887,12 +889,27 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		}
 		// set_psg_porta 的三步是共用前置，寫哪個 drive 還分不出是誰要用——分派在
 		// 下一個 DMA control（規格 139）。
+		// 一次性的 deselect：`flopvbl()` 完整跑完一輪之後，會再走一次 set_psg_porta
+		// 把兩個 drive 都放掉（`$27`）。那一次不讀 status、不計 checks，之後每一輪的
+		// 進場值就都是 `$27`（規格 140）。
+		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[14] == m.flopVBLMediaEntryPort && value == 0x27 {
+			m.psgRegisters[14] = value
+			m.flopVBLMediaStage = 8
+			return nil
+		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[14] == m.flopVBLMediaEntryPort &&
-			(value == m.flopVBLTargetPort() || value == 0x25) {
-			// 兩條路都可能寫 `$25`：flopvbl() 的 drive 0 那一輪，以及媒體確認。
-			// 哪一條要留到 DMA control 才判得出來，所以這裡只驗值是合法的 drive
-			// 選擇，真正的目標檢查放在 stage 3 的兩個出口。
+			(value == 0x25 || value == 0x23) {
+			// 這一步才知道這一輪選的是哪個 drive。兩條路都可能寫 `$25`：
+			// flopvbl() 檢查 drive 0，以及媒體確認重選 drive 0；哪一條要留到
+			// DMA control 才判得出來，所以這裡只驗值是合法的 drive 選擇，
+			// 真正的分派放在 stage 3 的兩個出口。
+			if value == 0x25 {
+				m.flopVBLMediaDrive = 0
+			} else {
+				m.flopVBLMediaDrive = 1
+			}
 			m.psgRegisters[14] = value
 			m.flopVBLMediaStage = 3
 			return nil

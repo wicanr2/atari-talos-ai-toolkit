@@ -1230,6 +1230,8 @@ func TestFlopVBLChecksDriveZeroAndRestoresPortA(t *testing.T) {
 	}
 }
 
+// 輪替是 ROM 自己的計數決定的，模型從 data 那一步把它記下來（規格 140）；
+// 這裡驅動四輪 drive 0／1 交替，驗記下來的值跟著走。
 func TestFlopVBLAlternatesDriveChecks(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

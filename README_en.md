@@ -15,8 +15,10 @@ completes the `$FF8260` low-resolution initialization. EmuTOS then changes `$FF8
 50 Hz during line zero; Talos adjusts the fourth VBL deadline to Hatari's 535,528 clocks. The next
 EmuTOS's complete 16-color `$FF8240–$FF825E` palette loop now also matches Hatari. The next boot
 gate is the `$FF8201` framebuffer-base high-byte write.
-Video, input, disk, and a complete TOS boot are not
-implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail closed.
+EmuTOS 1.3 now boots all the way to the GEM desktop, with the screen contents pinned by a
+SHA-256 in the test suite. Keyboard and mouse input and mounting a disk to load a program are
+not implemented yet, so this is not yet a game-capable emulator. Unsupported operations fail
+closed.
 See [README.md](README.md) for the authoritative Traditional Chinese documentation.
 
 Atari Talos is independently rewritten in Go from public hardware specifications. Hatari is an

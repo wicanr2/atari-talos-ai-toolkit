@@ -529,9 +529,17 @@
   那一輪兩邊都寫 `$25`——所以分派移到下一個 DMA control（`$0084` 是媒體確認的 sector
   selector、`$0080` 是 `flopvbl()` 的 status 讀取）。`flopvbl()` 收尾還原的是**進場值**，
   不是固定的 `$23`；Hatari 的 trace 顯示 `$23`／`$25`／`$27` 都出現過。
-- 下一 gate：`$FC36DE` 的 PSG `$FF8802` 寫一個還沒建模的 port A 值，在 10,544,770
-  instructions／4,967 interrupts／209,189,796 clocks。從 Hatari 的 VBL 1418 看，
-  那是 `$27`（兩個 drive 都不選）。
+- `flopvbl()` 這一輪要檢查哪個 drive，模型**不預測**（規格 140 CONFORMED，2026-09-06）：
+  那是 ROM 內部一個隨 VBL 自由前進的計數器決定的，連被跳過的輪詢時槽也照樣前進
+  （Hatari trace 裡有 47 個連續被跳過的時槽而奇偶不變），機器端看不到。改成從 data
+  那一步把 ROM 寫的值記下來。同一片還補上一次性的 deselect：寫 `$27` 把兩個 drive
+  都放掉，該次 `set_psg_porta` 到此結束，不讀 status、不計 checks；之後每一輪的進場值
+  都是 `$27`。
+- **EmuTOS 1.3 的開機路徑上已經沒有 gate**：1.2 億條指令（240 億 clocks、343,855 次
+  中斷、18,741 輪 `flopvbl()`）之內沒有再撞到未建模的存取，畫面走到 GEM 桌面並保持
+  不變。桌面錨點是 `$F8000` 起 32,000 bytes 的 SHA-256
+  `1de1eb45e862218844abe07ae05fda4c4a9453817ed0ab348a374bca67768f78`。
+  再要暴露缺口，得換新的工作負載（載入並跑一支程式），不是繼續往前跑。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

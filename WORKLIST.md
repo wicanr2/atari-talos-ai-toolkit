@@ -105,7 +105,8 @@
 | ST low-res 320×200 4-plane 索引畫面 | **CONFORMED** | 32,000-byte DMA snapshot→64,000 indices；Hatari VBL7 raw／decoded SHA-256 與 histogram 通過 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe、IKBD `$1C` transmit 與 `Initmous` 四條命令已接；下一步是 `$FC36DE` 的 PSG `$FF8802` 寫一個還沒建模的 port A 值（Hatari 的 VBL 1418 顯示是 `$27`，兩個 drive 都不選）|
+| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe、IKBD `$1C` transmit、`Initmous` 四條命令與 port A 的 deselect 都已接。**EmuTOS 1.3 開機路徑上已經沒有 gate**：1.2 億條指令之內走到 GEM 桌面且沒有再撞到未建模的存取。下一步要靠新的工作負載（載入並跑一支程式）才會再暴露缺口 |
+| ST `flopvbl()` 的 drive 選擇與 deselect（規格 140）| **CONFORMED** | 拿掉「用已跑完幾輪推這一輪檢查哪個 drive」的假設——輪替是 ROM 內部的自由計數（Hatari trace 裡有 47 個連續被跳過的輪詢時槽而奇偶不變），機器端看不到，改成從 data 那一步觀察。另補上一次性的 deselect（寫 `$27`，不讀 status、不計 checks），之後每一輪都以 `$27` 進場。**EmuTOS 1.3 走到 GEM 桌面**，畫面 SHA-256 `1de1eb45…` |
 | ST `flopvbl()` 的共用前置與進場值（規格 139）| **CONFORMED** | `set_psg_porta` 的三步是 `flopvbl()` 與媒體確認共用的，分派要等下一個 DMA control（`$0084` 媒體確認／`$0080` status）；還原的是進場值不是固定的 `$23`（Hatari 的 `io_porta_old/new` 顯示 `$23`／`$25`／`$27` 都出現過）。開機推進到 **10,544,770 條／209,189,796 clocks** |
 | ST IKBD `Initmous` 四條命令（規格 138）| **CONFORMED** | `$08`／`$0B x y`／`$10`／`$07 n` 的命令組裝器：長度表、參數不重新解讀成命令、未知命令碼 fail-closed、四條都不回應。Hatari 的 `ikbd_cmds` trace 在 VBL 615 獨立解出同一串。開機推進到 **8,058,248 條／180,984,736 clocks** |
 | ST floppy可重入媒體確認（規格 133）| **CONFORMED** | 前三輪的遷移層拆掉：`floppyReadStage`（0–68 固定 stage 機）與 `floppyMediaLegacy[3]`（約 50 個逐輪欄位）整組移除，每一輪都走同一條 phase 循環，`internal/st` 淨減 499 行。第一輪與後續輪的差異收進 receipt 的 `LockedTrack`（只有第一次呼叫會鎖 track）。DMA 位址的亂序寫入現在三輪一致 fail-closed。固定 ROM 的錨點一個都沒動 |

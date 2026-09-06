@@ -129,30 +129,18 @@ func TestIKBDCommandStateClearsOnColdReset(t *testing.T) {
 
 // TestEmuTOSSendsInitmousCommands is the fixed-ROM receipt: the boot path used
 // to stop on the first of these four writes (6,779,282 instructions). It now
-// runs through all seven bytes and stops on the next thing that is not modelled
-// — a PSG write at $FF8802.
+// runs through all seven bytes and keeps going — since spec 140 there is no
+// gate left on the boot path at all, so this checks the four settings are in
+// place rather than where the machine stops.
 //
 // This is the regression anchor, not the verification: what the four commands
-// do is pinned by the synthetic tests above. Running eight million instructions
-// only shows that the boot path gets past them.
+// do is pinned by the synthetic tests above.
 func TestEmuTOSSendsInitmousCommands(t *testing.T) {
 	machine := emuTOSMachine(t)
-	var gate error
-	for steps := 0; steps < 20_000_000 && gate == nil; steps++ {
-		_, gate = machine.Step()
-	}
-	// 規格 139 讓 flopvbl() 又走了三輪、媒體確認又走了兩輪；現在停在同一支
-	// set_psg_porta，但寫的是還沒建模的 deselect 值。
-	if gate == nil ||
-		gate.Error() != "st: write 1-byte bus fault at 0xff8802 fc=5: unsupported_device_state" {
-		t.Fatalf("下一個 gate 是 %v，應該是 PSG $FF8802", gate)
-	}
-	if machine.Instructions != 10544770 || machine.Interrupts != 4967 || machine.Clocks != 209189796 {
-		t.Errorf("抵達新 gate 時 instructions/interrupts/clocks=%d/%d/%d，應該是 10544770/4967/209189796",
-			machine.Instructions, machine.Interrupts, machine.Clocks)
-	}
-	if machine.CPU.State.PC-4 != 0x00fc36de {
-		t.Errorf("gate 的指令在 %#08x，應該是 $FC36DE", machine.CPU.State.PC-4)
+	for steps := 0; steps < 9_000_000; steps++ {
+		if _, gate := machine.Step(); gate != nil {
+			t.Fatalf("開機路徑在第 %d 條停住：%v", steps, gate)
+		}
 	}
 	m := machine.Memory
 	if !m.ikbdRelativeMouse || m.ikbdMouseThreshold != [2]byte{1, 1} || !m.ikbdYAxisUp ||
