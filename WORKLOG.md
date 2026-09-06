@@ -603,3 +603,8 @@
   覆寫前兩輪。固定ROM於3,516,426 instructions／2,528 interrupts／130,973,792
   clocks完成command提交；下一gate為4,600,388／142,979,288的第三次timeout selector。
   synthetic、固定ROM、完整CPU corpus、全測試、vet與build均通過。
+- 完成規格131：第三次Type-II `$80`沿guest既有`hz_200`期限再等待75個50 Hz VBL，
+  以第三組獨立timeout收據接受`$0080/$D0`。固定ROM於4,600,435 instructions／
+  2,903 interrupts／142,979,752 clocks完成，下一gate為4,600,513／142,980,490的
+  第三次dummy-seek `$0086` selector。synthetic、固定ROM、完整CPU corpus、全測試、
+  vet與build均通過。

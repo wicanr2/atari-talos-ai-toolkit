@@ -1840,6 +1840,42 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.floppyRetry3CommandClock, memory.fdcCommand, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
+	if err := memory.WriteWord(STDiskController, 0x00d0, 5); err == nil ||
+		memory.floppyReadStage != 59 || memory.floppyRetry3ForceInterrupt != 0 ||
+		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
+		t.Fatalf("third retry force interrupt before selector mutated stage/receipt/FDC/status=%d/%02x/%02x/%02x err=%v",
+			memory.floppyReadStage, memory.floppyRetry3ForceInterrupt,
+			memory.fdcCommand, memory.fdcStatus, err)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 6002, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.floppyReadStage != 60 || memory.floppyRetry3TimeoutSelectorClock != 6002 {
+		t.Fatalf("third retry timeout selector wait/stage/clock=%d/%d/%d err=%v",
+			wait, memory.floppyReadStage, memory.floppyRetry3TimeoutSelectorClock, err)
+	}
+	if err := memory.WriteWord(STDiskController, 0x00d8, 5); err == nil ||
+		memory.floppyReadStage != 60 || memory.floppyRetry3ForceInterrupt != 0 ||
+		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
+		t.Fatalf("wrong third retry force interrupt mutated stage/receipt/FDC/status=%d/%02x/%02x/%02x err=%v",
+			memory.floppyReadStage, memory.floppyRetry3ForceInterrupt,
+			memory.fdcCommand, memory.fdcStatus, err)
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x00d0,
+		m68k.BusAccess{Clock: 6100, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 61 || memory.floppyRetry3ForceInterrupt != 0xd0 ||
+		memory.floppyRetry3ForceInterruptClock != 6100 || memory.fdcCommand != 0xd0 ||
+		memory.fdcStatus != 0x80 || memory.fdcStatusTypeI || memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("third retry force interrupt wait/stage/receipt/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x err=%v",
+			wait, memory.floppyReadStage, memory.floppyRetry3ForceInterrupt,
+			memory.floppyRetry3ForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
+			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
+		memory.floppyReadTimeoutSelectorClock != 300 || memory.floppyReadForceInterruptClock != 400 ||
+		memory.floppyRetryTimeoutSelectorClock != 3202 || memory.floppyRetryForceInterruptClock != 3300 {
+		t.Fatal("third retry timeout modified DMA buffer or earlier timeout receipts")
+	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
 		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
@@ -1861,7 +1897,8 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		memory.floppyRetry3DrivePort != 0 || memory.floppyRetry3DriveWriteClock != 0 ||
 		memory.floppyRetry3Sector != 0 || memory.floppyRetry3DMAAddressStage != 0 ||
 		memory.floppyRetry3DMAResetCount != 0 || memory.floppyRetry3Command != 0 ||
-		memory.floppyRetry3CommandClock != 0 {
+		memory.floppyRetry3CommandClock != 0 || memory.floppyRetry3TimeoutSelectorClock != 0 ||
+		memory.floppyRetry3ForceInterrupt != 0 || memory.floppyRetry3ForceInterruptClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

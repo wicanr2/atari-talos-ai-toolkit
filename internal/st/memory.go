@@ -98,180 +98,183 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 }
 
 type Memory struct {
-	ram                             []byte
-	rom                             []byte
-	mmuConfig                       byte
-	videoBaseHigh                   byte
-	videoBaseMiddle                 byte
-	activeVideoBase                 uint32
-	videoSyncMode                   byte
-	videoSync50Transition           bool
-	shifterPalette                  [16]uint16
-	shifterResolution               byte
-	psgRegisterSelect               byte
-	psgRegisters                    [16]byte
-	psgDriveStage                   uint8
-	flopVBLMediaStage               uint8
-	flopVBLStatusReadClock          uint64
-	flopVBLMediaComplete            bool
-	flopVBLMediaChecks              uint32
-	flopVBLMediaDrive               int8
-	floppyReadStage                 uint8
-	floppyReadTrack                 byte
-	floppyReadDrive                 int8
-	floppyReadTrackWriteClock       uint64
-	floppyReadSector                byte
-	floppyReadDMAAddressStage       uint8
-	floppyReadDMAResetCount         uint8
-	floppyReadCommand               byte
-	floppyReadCommandClock          uint64
-	floppyReadTimeoutSelectorClock  uint64
-	floppyReadForceInterrupt        byte
-	floppyReadForceInterruptClock   uint64
-	floppyReadRetryData             byte
-	floppyReadRetrySeekCommand      byte
-	floppyReadRetrySeekStartClock   uint64
-	floppyReadRetryInactivePolls    uint8
-	floppyReadRetryIRQObserved      bool
-	floppyReadRetryStatusReadClock  uint64
-	floppyReadRetryDrivePort        byte
-	floppyReadRetryDriveWriteClock  uint64
-	floppyReadRetrySector           byte
-	floppyReadRetryDMAAddressStage  uint8
-	floppyReadRetryDMAResetCount    uint8
-	floppyReadRetryCommand          byte
-	floppyReadRetryCommandClock     uint64
-	floppyRetryTimeoutSelectorClock uint64
-	floppyRetryForceInterrupt       byte
-	floppyRetryForceInterruptClock  uint64
-	floppyRetry2Data                byte
-	floppyRetry2SeekCommand         byte
-	floppyRetry2SeekStartClock      uint64
-	floppyRetry2InactivePolls       uint8
-	floppyRetry2IRQObserved         bool
-	floppyRetry2StatusReadClock     uint64
-	floppyRetry3DrivePort           byte
-	floppyRetry3DriveWriteClock     uint64
-	floppyRetry3Sector              byte
-	floppyRetry3DMAAddressStage     uint8
-	floppyRetry3DMAResetCount       uint8
-	floppyRetry3Command             byte
-	floppyRetry3CommandClock        uint64
-	dmaMode                         uint16
-	dmaAddress                      uint32
-	dmaAddressWriteStage            uint8
-	dmaSectorCount                  uint8
-	dmaResetCount                   uint8
-	dmaInitStage                    uint8
-	acsiStage                       uint8
-	acsiTarget                      int8
-	acsiCommand                     byte
-	acsiAttemptMask                 byte
-	acsiCommandReceipts             [8]byte
-	acsiTimeoutReturnClock          uint64
-	acsiTimeoutReturnClocks         [8]uint64
-	fdcCommand                      byte
-	fdcStatus                       byte
-	fdcStatusTypeI                  bool
-	fdcIRQ                          bool
-	fdcInitStage                    uint8
-	fdcProbeDrive                   int8
-	fdcRestorePending               bool
-	fdcRestoreStartClock            uint64
-	fdcRestoreInactivePolls         uint8
-	fdcRestoreIRQObserved           bool
-	fdcStatusReadClock              uint64
-	fdcData                         byte
-	fdcSeekPending                  bool
-	fdcSeekStartClock               uint64
-	fdcSeekInactivePolls            uint8
-	fdcSeekIRQObserved              bool
-	fdcSeekStatusReadClock          uint64
-	ikbdACIAControl                 byte
-	ikbdACIAStatus                  byte
-	ikbdACIAConfigured              bool
-	ikbdACIATDR                     byte
-	ikbdACIATXShift                 byte
-	ikbdACIATXPending               bool
-	ikbdACIATXShiftTicks            uint8
-	ikbdResetCommandDone            bool
-	ikbdResetCommandHandled         bool
-	ikbdClockRequestDone            bool
-	ikbdClockRequestHandled         bool
-	ikbdACIARDR                     byte
-	ikbdClockResponseActive         bool
-	ikbdClockResponseDelivered      uint8
-	ikbdClockResponseReadCount      uint8
-	ikbdClockResponseReads          [7]byte
-	ikbdClockResponseReadClocks     [7]uint64
-	ikbdClockResponseComplete       bool
-	ikbdSetClockWrites              [7]byte
-	ikbdSetClockWriteCount          uint8
-	ikbdSetClockCompletions         [7]byte
-	ikbdSetClockCompleteCount       uint8
-	ikbdSetClockCompletionClocks    [7]uint64
-	ikbdSetClockComplete            bool
-	ikbdClockReadbackRequestWritten bool
-	ikbdClockReadbackRequestDone    bool
-	ikbdClockReadbackRequestHandled bool
-	ikbdClockReadbackActive         bool
-	ikbdClockReadbackDelivered      uint8
-	ikbdClockReadbackReadCount      uint8
-	ikbdClockReadbackReads          [7]byte
-	ikbdClockReadbackDeliveryClocks [7]uint64
-	ikbdClockReadbackReadClocks     [7]uint64
-	ikbdClockReadbackComplete       bool
-	ikbdClockPollRequestWritten     bool
-	ikbdClockPollRequestCount       uint32
-	ikbdClockPollResponseActive     bool
-	ikbdClockPollResponseDelivered  uint8
-	ikbdClockPollResponseReadCount  uint8
-	ikbdClockPollResponseReads      [7]byte
-	ikbdClockPollDeliveryClocks     [7]uint64
-	ikbdClockPollReadClocks         [7]uint64
-	ikbdClockPollCompleteCount      uint32
-	ikbdResetResponseRead           bool
-	ikbdStaleRDRReads               uint8
-	midiACIAControl                 byte
-	midiACIAStatus                  byte
-	midiACIAConfigured              bool
-	mfpACIAEnableStage              uint8
-	mfpTimerDSystemStage            uint8
-	mfpTimerDStopStage              uint8
-	mfpUSARTReconfigStage           uint8
-	mfpGPIP                         byte
-	mfpGPIPIn                       byte
-	mfpAER                          byte
-	mfpDDR                          byte
-	mfpIERA                         byte
-	mfpIERB                         byte
-	mfpIPRA                         byte
-	mfpIPRB                         byte
-	mfpISRA                         byte
-	mfpISRB                         byte
-	mfpIMRA                         byte
-	mfpIMRB                         byte
-	mfpVR                           byte
-	mfpTACR                         byte
-	mfpTBCR                         byte
-	mfpTCDCR                        byte
-	mfpTimerCStart                  bool
-	mfpTimerCStartClock             uint64
-	mfpTimerDStart                  bool
-	mfpTimerDStartClock             uint64
-	mfpTADR                         byte
-	mfpTBDR                         byte
-	mfpTCDR                         byte
-	mfpTDDR                         byte
-	mfpTAMain                       byte
-	mfpTBMain                       byte
-	mfpTCMain                       byte
-	mfpTDMain                       byte
-	mfpSCR                          byte
-	mfpUCR                          byte
-	mfpRSR                          byte
-	mfpTSR                          byte
-	mfpTSRSet                       bool
+	ram                              []byte
+	rom                              []byte
+	mmuConfig                        byte
+	videoBaseHigh                    byte
+	videoBaseMiddle                  byte
+	activeVideoBase                  uint32
+	videoSyncMode                    byte
+	videoSync50Transition            bool
+	shifterPalette                   [16]uint16
+	shifterResolution                byte
+	psgRegisterSelect                byte
+	psgRegisters                     [16]byte
+	psgDriveStage                    uint8
+	flopVBLMediaStage                uint8
+	flopVBLStatusReadClock           uint64
+	flopVBLMediaComplete             bool
+	flopVBLMediaChecks               uint32
+	flopVBLMediaDrive                int8
+	floppyReadStage                  uint8
+	floppyReadTrack                  byte
+	floppyReadDrive                  int8
+	floppyReadTrackWriteClock        uint64
+	floppyReadSector                 byte
+	floppyReadDMAAddressStage        uint8
+	floppyReadDMAResetCount          uint8
+	floppyReadCommand                byte
+	floppyReadCommandClock           uint64
+	floppyReadTimeoutSelectorClock   uint64
+	floppyReadForceInterrupt         byte
+	floppyReadForceInterruptClock    uint64
+	floppyReadRetryData              byte
+	floppyReadRetrySeekCommand       byte
+	floppyReadRetrySeekStartClock    uint64
+	floppyReadRetryInactivePolls     uint8
+	floppyReadRetryIRQObserved       bool
+	floppyReadRetryStatusReadClock   uint64
+	floppyReadRetryDrivePort         byte
+	floppyReadRetryDriveWriteClock   uint64
+	floppyReadRetrySector            byte
+	floppyReadRetryDMAAddressStage   uint8
+	floppyReadRetryDMAResetCount     uint8
+	floppyReadRetryCommand           byte
+	floppyReadRetryCommandClock      uint64
+	floppyRetryTimeoutSelectorClock  uint64
+	floppyRetryForceInterrupt        byte
+	floppyRetryForceInterruptClock   uint64
+	floppyRetry2Data                 byte
+	floppyRetry2SeekCommand          byte
+	floppyRetry2SeekStartClock       uint64
+	floppyRetry2InactivePolls        uint8
+	floppyRetry2IRQObserved          bool
+	floppyRetry2StatusReadClock      uint64
+	floppyRetry3DrivePort            byte
+	floppyRetry3DriveWriteClock      uint64
+	floppyRetry3Sector               byte
+	floppyRetry3DMAAddressStage      uint8
+	floppyRetry3DMAResetCount        uint8
+	floppyRetry3Command              byte
+	floppyRetry3CommandClock         uint64
+	floppyRetry3TimeoutSelectorClock uint64
+	floppyRetry3ForceInterrupt       byte
+	floppyRetry3ForceInterruptClock  uint64
+	dmaMode                          uint16
+	dmaAddress                       uint32
+	dmaAddressWriteStage             uint8
+	dmaSectorCount                   uint8
+	dmaResetCount                    uint8
+	dmaInitStage                     uint8
+	acsiStage                        uint8
+	acsiTarget                       int8
+	acsiCommand                      byte
+	acsiAttemptMask                  byte
+	acsiCommandReceipts              [8]byte
+	acsiTimeoutReturnClock           uint64
+	acsiTimeoutReturnClocks          [8]uint64
+	fdcCommand                       byte
+	fdcStatus                        byte
+	fdcStatusTypeI                   bool
+	fdcIRQ                           bool
+	fdcInitStage                     uint8
+	fdcProbeDrive                    int8
+	fdcRestorePending                bool
+	fdcRestoreStartClock             uint64
+	fdcRestoreInactivePolls          uint8
+	fdcRestoreIRQObserved            bool
+	fdcStatusReadClock               uint64
+	fdcData                          byte
+	fdcSeekPending                   bool
+	fdcSeekStartClock                uint64
+	fdcSeekInactivePolls             uint8
+	fdcSeekIRQObserved               bool
+	fdcSeekStatusReadClock           uint64
+	ikbdACIAControl                  byte
+	ikbdACIAStatus                   byte
+	ikbdACIAConfigured               bool
+	ikbdACIATDR                      byte
+	ikbdACIATXShift                  byte
+	ikbdACIATXPending                bool
+	ikbdACIATXShiftTicks             uint8
+	ikbdResetCommandDone             bool
+	ikbdResetCommandHandled          bool
+	ikbdClockRequestDone             bool
+	ikbdClockRequestHandled          bool
+	ikbdACIARDR                      byte
+	ikbdClockResponseActive          bool
+	ikbdClockResponseDelivered       uint8
+	ikbdClockResponseReadCount       uint8
+	ikbdClockResponseReads           [7]byte
+	ikbdClockResponseReadClocks      [7]uint64
+	ikbdClockResponseComplete        bool
+	ikbdSetClockWrites               [7]byte
+	ikbdSetClockWriteCount           uint8
+	ikbdSetClockCompletions          [7]byte
+	ikbdSetClockCompleteCount        uint8
+	ikbdSetClockCompletionClocks     [7]uint64
+	ikbdSetClockComplete             bool
+	ikbdClockReadbackRequestWritten  bool
+	ikbdClockReadbackRequestDone     bool
+	ikbdClockReadbackRequestHandled  bool
+	ikbdClockReadbackActive          bool
+	ikbdClockReadbackDelivered       uint8
+	ikbdClockReadbackReadCount       uint8
+	ikbdClockReadbackReads           [7]byte
+	ikbdClockReadbackDeliveryClocks  [7]uint64
+	ikbdClockReadbackReadClocks      [7]uint64
+	ikbdClockReadbackComplete        bool
+	ikbdClockPollRequestWritten      bool
+	ikbdClockPollRequestCount        uint32
+	ikbdClockPollResponseActive      bool
+	ikbdClockPollResponseDelivered   uint8
+	ikbdClockPollResponseReadCount   uint8
+	ikbdClockPollResponseReads       [7]byte
+	ikbdClockPollDeliveryClocks      [7]uint64
+	ikbdClockPollReadClocks          [7]uint64
+	ikbdClockPollCompleteCount       uint32
+	ikbdResetResponseRead            bool
+	ikbdStaleRDRReads                uint8
+	midiACIAControl                  byte
+	midiACIAStatus                   byte
+	midiACIAConfigured               bool
+	mfpACIAEnableStage               uint8
+	mfpTimerDSystemStage             uint8
+	mfpTimerDStopStage               uint8
+	mfpUSARTReconfigStage            uint8
+	mfpGPIP                          byte
+	mfpGPIPIn                        byte
+	mfpAER                           byte
+	mfpDDR                           byte
+	mfpIERA                          byte
+	mfpIERB                          byte
+	mfpIPRA                          byte
+	mfpIPRB                          byte
+	mfpISRA                          byte
+	mfpISRB                          byte
+	mfpIMRA                          byte
+	mfpIMRB                          byte
+	mfpVR                            byte
+	mfpTACR                          byte
+	mfpTBCR                          byte
+	mfpTCDCR                         byte
+	mfpTimerCStart                   bool
+	mfpTimerCStartClock              uint64
+	mfpTimerDStart                   bool
+	mfpTimerDStartClock              uint64
+	mfpTADR                          byte
+	mfpTBDR                          byte
+	mfpTCDR                          byte
+	mfpTDDR                          byte
+	mfpTAMain                        byte
+	mfpTBMain                        byte
+	mfpTCMain                        byte
+	mfpTDMain                        byte
+	mfpSCR                           byte
+	mfpUCR                           byte
+	mfpRSR                           byte
+	mfpTSR                           byte
+	mfpTSRSet                        bool
 }
 
 func (m *Memory) flopVBLTargetPort() byte {
@@ -1591,6 +1594,23 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 59
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 59 && m.dmaMode == 0x0080 &&
+			m.floppyRetry3Command == 0x80 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
+			!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x0080 {
+			m.floppyReadStage = 60
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 60 && m.dmaMode == 0x0080 &&
+			m.floppyRetry3Command == 0x80 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
+			!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x00d0 {
+			m.floppyRetry3ForceInterrupt = 0xd0
+			m.fdcCommand = 0xd0
+			m.fdcStatus = 0x80
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 61
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1815,6 +1835,12 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 58 && m.floppyReadStage == 59 {
 			m.floppyRetry3CommandClock = access.Clock
 		}
+		if floppyReadStage == 59 && m.floppyReadStage == 60 {
+			m.floppyRetry3TimeoutSelectorClock = access.Clock
+		}
+		if floppyReadStage == 60 && m.floppyReadStage == 61 {
+			m.floppyRetry3ForceInterruptClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1903,6 +1929,9 @@ func (m *Memory) ColdReset() {
 	m.floppyRetry3DMAResetCount = 0
 	m.floppyRetry3Command = 0
 	m.floppyRetry3CommandClock = 0
+	m.floppyRetry3TimeoutSelectorClock = 0
+	m.floppyRetry3ForceInterrupt = 0
+	m.floppyRetry3ForceInterruptClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0

@@ -467,3 +467,7 @@
   `$0190/$0090/$0001`與`$0080/$0080`。Talos固定ROM以獨立第三組收據在
   130,973,778 clocks提交Type-II `$80`；之後直到142,979,288 clocks才抵達下一個
   `$FF8606` word write，支持其為第三次75-VBL timeout selector，而非成功傳輸。
+- Talos固定ROM從第三次Type-II `$80`提交到timeout selector相差約12,005,508 clocks，
+  並自然累積375次interrupt，與前兩輪75個50 Hz VBL期限一致。第三次`$0080/$D0`
+  clocks為142,979,300／142,979,738，完成後下一筆`$FF8606=$0086`位於
+  142,980,490 clocks，確認控制流再次進入`flopunlk()/dummy_seek()`。

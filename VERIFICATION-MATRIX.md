@@ -72,10 +72,11 @@
 | ST floppy retry timeout／force-interrupt | 第二次guest 1.5秒期限、`$0080/$D0`、busy clear、Type-II status、獨立收據、第一次收據不變 | EmuTOS `flopcmd/timeout_gpip`；Hatari VBL310→385 FDC trace；固定EmuTOS ROM | 通過；3,457,037條／2,511 IRQ／130,386,416 clocks完成；下一gate `$0086` |
 | ST floppy第二次dummy seek | 第二組data 0／seek `$13`、728-FDC-clock scheduler、九次poll、IRQ／status `$E4` read-clear、第一次收據不變 | EmuTOS `flopunlk/dummy_seek`；Hatari VBL385 PSG＋FDC trace；固定EmuTOS ROM | 通過；3,457,357條／2,511 IRQ／130,389,652 clocks完成；下一gate為第三次retry PSG write |
 | ST floppy第三次retry讀取設定 | R14 `$25`同值重選、sector 1、DMA `$001004`、兩次direction toggle、count 1、Type-II `$80`、第三組獨立收據 | EmuTOS `flopio/select/fdc_start_dma_read`；Hatari VBL389 PSG＋FDC trace；固定EmuTOS ROM | 通過；3,516,426條／2,528 IRQ／130,973,792 clocks完成；下一gate為第三次timeout selector |
+| ST floppy第三次timeout／force-interrupt | 第三次guest 1.5秒期限、`$0080/$D0`、busy clear、Type-II status、第三組獨立收據、前兩組不變 | EmuTOS `flopcmd/timeout_gpip`；Hatari 75-VBL契約；固定EmuTOS ROM | 通過；4,600,435條／2,903 IRQ／142,979,752 clocks完成；下一gate `$0086` |
 | ST IKBD可重入讀時鐘 | 重複`$1C`、10-tick request、16／10-tick response、MFP channel 6、每輪收據與backpressure | EmuTOS `igetregs/clockvec`；Hatari VBL77 ACIA／IKBD trace；固定EmuTOS ROM | 通過；第三輪於1,092,926條／558 IRQ／14,015,626 clocks收齊，下一gate為VBL90 `flopvbl()` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑已於3,516,426條／130,973,792 clocks完成第三次retry讀取設定；下一gate為第三次timeout selector |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑已於4,600,435條／142,979,752 clocks完成第三次timeout；下一gate為第三次dummy seek `$0086` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |
