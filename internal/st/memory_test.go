@@ -1282,6 +1282,66 @@ func TestFlopVBLAlternatesDriveChecks(t *testing.T) {
 	}
 }
 
+func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 9
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 0x23
+	memory.flopVBLMediaStage = 8
+	memory.flopVBLMediaComplete = true
+	memory.flopVBLMediaChecks = 73
+	memory.fdcInitStage = 14
+	memory.fdcProbeDrive = 1
+	memory.acsiStage = 5
+	memory.dmaMode = 0x0080
+
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil {
+		t.Fatal("track data before selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0082,
+		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 6 ||
+		memory.floppyReadStage != 1 || memory.dmaMode != 0x0082 {
+		t.Fatalf("track selector wait/stage/mode=%d/%d/%04x err=%v",
+			wait, memory.floppyReadStage, memory.dmaMode, err)
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0,
+		m68k.BusAccess{Clock: 100, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 2 || memory.floppyReadTrack != 0 ||
+		memory.floppyReadTrackWriteClock != 100 {
+		t.Fatalf("track write wait/stage/track/clock=%d/%d/%02x/%d err=%v",
+			wait, memory.floppyReadStage, memory.floppyReadTrack,
+			memory.floppyReadTrackWriteClock, err)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err == nil {
+		t.Fatal("drive data before select/read unexpectedly accepted")
+	}
+	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil || memory.floppyReadStage != 3 {
+		t.Fatalf("drive select stage=%d err=%v", memory.floppyReadStage, err)
+	}
+	if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x23 ||
+		memory.floppyReadStage != 4 {
+		t.Fatalf("drive old port/stage=%02x/%d err=%v", got, memory.floppyReadStage, err)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err != nil ||
+		memory.floppyReadStage != 5 || memory.floppyReadDrive != 0 ||
+		memory.psgRegisters[14] != 0x25 || memory.flopVBLMediaChecks != 73 {
+		t.Fatalf("drive completion stage/drive/port/checks=%d/%d/%02x/%d err=%v",
+			memory.floppyReadStage, memory.floppyReadDrive, memory.psgRegisters[14],
+			memory.flopVBLMediaChecks, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0084, 5); err == nil {
+		t.Fatal("sector selector unexpectedly accepted before follow-up spec")
+	}
+	memory.ColdReset()
+	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
+		memory.floppyReadTrackWriteClock != 0 {
+		t.Fatal("cold reset retained floppy read-lock state")
+	}
+}
+
 func TestSTFDCForceInterruptInit(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

@@ -116,6 +116,10 @@ type Memory struct {
 	flopVBLMediaComplete            bool
 	flopVBLMediaChecks              uint32
 	flopVBLMediaDrive               int8
+	floppyReadStage                 uint8
+	floppyReadTrack                 byte
+	floppyReadDrive                 int8
+	floppyReadTrackWriteClock       uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -344,6 +348,10 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 	case address == PSGRegisterSelect && m.psgDriveStage == 9 && m.flopVBLMediaStage == 6 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[14] == m.flopVBLTargetPort():
 		m.flopVBLMediaStage = 7
+		return m.psgRegisters[14], nil
+	case address == PSGRegisterSelect && m.floppyReadStage == 3 && m.psgDriveStage == 9 &&
+		m.psgRegisterSelect == 14 && m.psgRegisters[14] == 0x23:
+		m.floppyReadStage = 4
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
@@ -660,6 +668,11 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == PSGRegisterSelect {
+		if m.floppyReadStage == 2 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x23 && value == 14 {
+			m.floppyReadStage = 3
+			return nil
+		}
 		if m.psgDriveStage == 9 && (m.flopVBLMediaStage == 0 || m.flopVBLMediaStage == 8) &&
 			m.ikbdClockReadbackComplete &&
 			m.fdcInitStage == 14 && m.acsiStage == 5 && m.psgRegisterSelect == 14 &&
@@ -697,6 +710,13 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
 	if address == PSGRegisterData {
+		if m.floppyReadStage == 4 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
+			m.psgRegisters[14] == 0x23 && value == 0x25 {
+			m.psgRegisters[14] = value
+			m.floppyReadDrive = 0
+			m.floppyReadStage = 5
+			return nil
+		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[14] == 0x23 && value == m.flopVBLTargetPort() {
 			m.psgRegisters[14] = value
@@ -1172,6 +1192,18 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
 			return fault
 		}
+		if address == STDMAControl && m.floppyReadStage == 0 && m.flopVBLMediaStage == 8 &&
+			m.flopVBLMediaChecks != 0 && m.fdcInitStage == 14 && m.acsiStage == 5 &&
+			m.psgDriveStage == 9 && m.dmaMode == 0x0080 && value == 0x0082 {
+			m.dmaMode = value
+			m.floppyReadStage = 1
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 1 && m.dmaMode == 0x0082 && value == 0 {
+			m.floppyReadTrack = 0
+			m.floppyReadStage = 2
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1349,6 +1381,7 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 	wasRestorePending := m.fdcRestorePending
 	wasSeekPending := m.fdcSeekPending
 	acsiStage := m.acsiStage
+	floppyReadStage := m.floppyReadStage
 	err = m.WriteWord(address, value, access.FunctionCode)
 	if err == nil {
 		address &= AddressMask
@@ -1364,6 +1397,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if acsiStage == 3 && (m.acsiStage == 4 || m.acsiStage == 5) {
 			m.acsiTimeoutReturnClock = access.Clock
 			m.acsiTimeoutReturnClocks[m.acsiTarget] = access.Clock
+		}
+		if floppyReadStage == 1 && m.floppyReadStage == 2 {
+			m.floppyReadTrackWriteClock = access.Clock
 		}
 	}
 	return wait, err
@@ -1412,6 +1448,10 @@ func (m *Memory) ColdReset() {
 	m.flopVBLMediaComplete = false
 	m.flopVBLMediaChecks = 0
 	m.flopVBLMediaDrive = -1
+	m.floppyReadStage = 0
+	m.floppyReadTrack = 0
+	m.floppyReadDrive = -1
+	m.floppyReadTrackWriteClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0

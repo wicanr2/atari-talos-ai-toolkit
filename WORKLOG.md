@@ -556,3 +556,8 @@
   14,319,494 clocks完成；固定ROM自然連續完成73輪後，於1,285,863 instructions／
   1,761 interrupts／106,337,672 clocks抵達新的`$FF8606` word write。synthetic四輪、
   完整CPU語料、全測試、vet與build均通過。
+- 完成規格122：680-VBL Hatari trace與EmuTOS `flop_mediach/flopio/floplock`證實下一段
+  是`$0082`選WD1772 track register、寫track 0，再由YM2149 `$23→$25`選drive 0。
+  Talos於clock 106,338,122提交track data，1,286,016 instructions／1,761 interrupts／
+  106,339,274 clocks完成read stage 5；下一gate為`$0084` sector selector。既有73輪
+  media-check count未被這條非VBL序列污染。

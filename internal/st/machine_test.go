@@ -1914,18 +1914,22 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 	if nextGate == nil || nextGate.Error() != "st: write 2-byte bus fault at 0xff8606 fc=5: unsupported_device_state" ||
 		machine.Memory.flopVBLMediaChecks != 73 || machine.Memory.flopVBLMediaDrive != 0 ||
 		machine.Memory.flopVBLMediaStage != 8 || machine.Memory.flopVBLStatusReadClock != 105344570 ||
-		machine.Memory.psgRegisters[14] != 0x23 || machine.Memory.dmaMode != 0x0080 ||
-		machine.Memory.fdcStatus != 0xe4 || machine.Instructions != 1285863 ||
-		machine.Interrupts != 1761 || machine.Clocks != 106337672 ||
-		machine.CPU.State.D != [8]uint32{0, 0x14, 0, 0x1004, 0x00080140, 0x00100000, 0, 1} ||
-		machine.CPU.State.A != [7]uint32{0, 0x2f44, 0x3008, 1, 0, 0x00fc01f4, 0x00000ffc} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f2e ||
-		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc3728 ||
+		machine.Memory.psgRegisters[14] != 0x25 || machine.Memory.dmaMode != 0x0082 ||
+		machine.Memory.fdcStatus != 0xe4 || machine.Memory.floppyReadStage != 5 ||
+		machine.Memory.floppyReadTrack != 0 || machine.Memory.floppyReadDrive != 0 ||
+		machine.Memory.floppyReadTrackWriteClock != 106338122 || machine.Instructions != 1286016 ||
+		machine.Interrupts != 1761 || machine.Clocks != 106339274 ||
+		machine.CPU.State.D != [8]uint32{1, 0x2700, 0, 0x1004, 0x00fc3a88, 0x00100000, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0x300c, 0x2f44, 1, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f38 ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc3728 ||
 		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
-		t.Fatalf("post-second-flopvbl gate checks=%d drive=%d stage=%d status-clock=%d port=%02x DMA=%04x FDC=%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+		t.Fatalf("post-second-flopvbl gate checks=%d drive=%d stage=%d status-clock=%d port=%02x DMA=%04x FDC=%02x read-stage/track/drive/clock=%d/%02x/%d/%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Memory.flopVBLMediaChecks, machine.Memory.flopVBLMediaDrive,
 			machine.Memory.flopVBLMediaStage, machine.Memory.flopVBLStatusReadClock,
 			machine.Memory.psgRegisters[14], machine.Memory.dmaMode, machine.Memory.fdcStatus,
+			machine.Memory.floppyReadStage, machine.Memory.floppyReadTrack,
+			machine.Memory.floppyReadDrive, machine.Memory.floppyReadTrackWriteClock,
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }
