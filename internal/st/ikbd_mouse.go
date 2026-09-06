@@ -101,3 +101,13 @@ func (m *Machine) QueueMouseMotion(deltaX, deltaY int, left, right bool) error {
 	}
 	return nil
 }
+
+// QueueMouseButtons 只送按鍵狀態的變化。IKBD 在相對模式下，按鍵按下或放開一樣
+// 會發一個相對位置封包，位移就是零（規格 143）。
+func (m *Memory) QueueMouseButtons(left, right bool) error {
+	return m.QueueMouseMotion(0, 0, left, right)
+}
+
+func (m *Machine) QueueMouseButtons(left, right bool) error {
+	return m.QueueMouseMotion(0, 0, left, right)
+}

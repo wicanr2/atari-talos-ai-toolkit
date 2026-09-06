@@ -106,6 +106,7 @@
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
 | ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe、IKBD `$1C` transmit、`Initmous` 四條命令與 port A 的 deselect 都已接。**EmuTOS 1.3 開機路徑上已經沒有 gate**：1.2 億條指令之內走到 GEM 桌面且沒有再撞到未建模的存取。下一步要靠新的工作負載（載入並跑一支程式）才會再暴露缺口 |
+| ST 滑鼠按鍵的封包與 GEM 點選語意（規格 143）| **CONFORMED** | 按下與放開各一個位移為零的封包。表頭的按鍵位元從「文件推論」升級成「行為驗證」：EmuTOS 桌面上短按左鍵讓 `DISK A` 反白並留著，長按放開會取消，**右鍵按下與放開都是 0 個像素變動**——bit 1 就是 GEM 認的那一顆 |
 | ST IKBD 的相對滑鼠上行封包（規格 142）| **CONFORMED** | IKBD→主機方向的三位元組相對滑鼠紀錄：表頭 `%111110xy`（左鍵 bit 1、右鍵 bit 0）加兩個二補數位移，每 10 個位元時間送一個位元組。**oracle 是 EmuTOS 自己的 VDI**——注入已知位移，量畫面上游標移動的像素數與方向，移回原點後畫面與基準逐像素相同。順帶修掉 `STOP` 的 idle 跳躍會把整包擠在一起送的缺陷 |
 | ST `flopvbl()` 的 drive 選擇與 deselect（規格 140）| **CONFORMED** | 拿掉「用已跑完幾輪推這一輪檢查哪個 drive」的假設——輪替是 ROM 內部的自由計數（Hatari trace 裡有 47 個連續被跳過的輪詢時槽而奇偶不變），機器端看不到，改成從 data 那一步觀察。另補上一次性的 deselect（寫 `$27`，不讀 status、不計 checks），之後每一輪都以 `$27` 進場。**EmuTOS 1.3 走到 GEM 桌面**，畫面 SHA-256 `1de1eb45…` |
 | ST `flopvbl()` 的共用前置與進場值（規格 139）| **CONFORMED** | `set_psg_porta` 的三步是 `flopvbl()` 與媒體確認共用的，分派要等下一個 DMA control（`$0084` 媒體確認／`$0080` status）；還原的是進場值不是固定的 `$23`（Hatari 的 `io_porta_old/new` 顯示 `$23`／`$25`／`$27` 都出現過）。開機推進到 **10,544,770 條／209,189,796 clocks** |
