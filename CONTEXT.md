@@ -543,8 +543,14 @@
 - Dungeon Master 對拍分支已接上第一個新工作負載前置（規格 141 CONFORMED）：
   `Machine.AttachFloppyA` 接受由 boot-sector BPB 自證幾何的 raw `.st` 映像，掛載時
   複製成不可變媒體；長度、sector size、cylinder 與 CHS 全部失敗即關閉，錯誤替換
-  不動既有磁片，cold reset 也不彈片。下一步是規格 142 的 WD1772 sector-read 成功
-  路徑與 DMA 搬移；尚未宣稱 Talos 已能載入 Dungeon Master。
+  不動既有磁片，cold reset 也不彈片。
+- WD1772 唯讀 sector DMA 已接線（規格 142 CONFORMED）：固定 EmuTOS 從 reset 自然送出
+  drive A／side 0／track 0／sector 1、DMA `$001004`、count 1、command `$80`；Talos 在固定
+  160,256 clocks 的可重現近似期限後搬入 512 bytes，回報 `DMA_OK=$0001` 與 Type-II
+  status `$80`，再走既有 dummy seek 收尾。正常完成於 1,300,992 instructions／1,766
+  interrupts／106,504,776 clocks，且沒有進 timeout／force-interrupt。下一步擴充連續
+  sector、一般 CHS 與真實遊戲磁片的啟動／載入入口；尚未宣稱 Talos 已能載入
+  Dungeon Master。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

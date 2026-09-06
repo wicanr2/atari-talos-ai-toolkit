@@ -21,6 +21,11 @@ const (
 	floppyMediaCount
 	floppyMediaCommandSelector
 	floppyMediaReadBusy
+	floppyMediaReadTransfer
+	floppyMediaReadIRQReset
+	floppyMediaReadDMAStatus
+	floppyMediaReadIRQSelector
+	floppyMediaReadStatusRead
 	floppyMediaTimeoutSelector
 	floppyMediaForceInterrupt
 	floppyMediaSeekDataSelector
@@ -48,6 +53,7 @@ type floppyMediaReceipt struct {
 	DMAResetCount        uint8
 	ReadCommand          byte
 	ReadCommandClock     uint64
+	ReadCompleteClock    uint64
 	TimeoutSelectorClock uint64
 	ForceInterrupt       byte
 	ForceInterruptClock  uint64

@@ -789,3 +789,13 @@
   malformed／越界輸入全數 fail-closed。第一次測試誤用填充模式的 `testROM()` 做完整 CPU
   reset，因 odd reset PC 失敗；改成直接驗證本切片要求的 `Memory.ColdReset` 後，同一
   Docker 命令重跑 `go test ./...`、`go vet ./...` 與 CLI build 全綠。
+- 完成規格 142 的第一條有媒體成功讀取垂直鏈。固定 Hatari 2.4.1 trace 證明 sector 1
+  從 DMA `$001004` 逐 16 bytes 前進至 `$001204`，完成後 IRQ active、FDC status `$80`；
+  對照固定 EmuTOS 原始碼後補回一度漏掉的 `get_dma_status()`：`$0090` 選 DMA status、
+  讀 `DMA_OK=$0001`，才以 `$0080` 選 FDC status。少這筆時 synthetic 單元測試雖綠，
+  reset 正常路徑會停在 DMA status 階段；補齊後固定 EmuTOS 自然完成第一輪讀取與 dummy
+  seek，沒有走 1.5 秒 timeout／force-interrupt。
+- 成功 DMA 使用固定 160,256 ST master clocks 的功能近似，明示不宣稱旋轉位置／DRQ
+  逐週期 parity；到期前 RAM 不變，到期時原子搬入 512 bytes、address 加 512、count
+  歸零並拉低 GPIP5。固定 ROM 完成點為 1,300,992 instructions／1,766 interrupts／
+  106,504,776 clocks。完整測試、vet 與 build 全綠。

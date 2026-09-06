@@ -153,6 +153,10 @@ type Memory struct {
 	fdcSeekInactivePolls            uint8
 	fdcSeekIRQObserved              bool
 	fdcSeekStatusReadClock          uint64
+	fdcReadPending                  bool
+	fdcReadStartClock               uint64
+	fdcReadDMAStart                 uint32
+	fdcReadBuffer                   [rawFloppySectorSize]byte
 	ikbdACIAControl                 byte
 	ikbdACIAStatus                  byte
 	ikbdACIAConfigured              bool
@@ -662,6 +666,15 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 	if address&1 != 0 {
 		return 0, m.fault(address, functionCode, false, 2, FaultOddWordAddress)
 	}
+	if address == STDMAControl && m.floppyMediaPhase == floppyMediaReadDMAStatus &&
+		m.dmaMode == 0x0090 && m.dmaSectorCount == 0 && !m.fdcStatusTypeI &&
+		m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 {
+		if fault := m.validateAccess(address, functionCode, false, 2); fault != nil {
+			return 0, fault
+		}
+		m.floppyMediaPhase = floppyMediaReadIRQSelector
+		return 0x0001, nil
+	}
 	if address == STDiskController {
 		if fault := m.validateAccess(address, functionCode, false, 2); fault != nil {
 			return 0, fault
@@ -683,6 +696,14 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			m.floppyMediaReceipts.append(m.floppyMediaCurrent)
 			m.floppyMediaCurrent = floppyMediaReceipt{}
 			m.floppyMediaPhase = floppyMediaIdle
+			return value, nil
+		}
+		if m.floppyMediaPhase == floppyMediaReadStatusRead && m.dmaMode == 0x0080 &&
+			!m.fdcStatusTypeI && m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 {
+			value := uint16(m.fdcStatus)
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyMediaPhase = floppyMediaSeekDataSelector
 			return value, nil
 		}
 		if (m.fdcInitStage != 6 && m.fdcInitStage != 13) || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
@@ -1464,10 +1485,38 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaReadBusy &&
 				m.dmaMode == 0x0080 && value == 0x0080:
+				if m.floppyA != nil {
+					sector, err := m.floppyA.Sector(uint16(m.floppyMediaCurrent.Track), 0,
+						uint16(m.floppyMediaCurrent.Sector))
+					end := uint64(m.dmaAddress) + rawFloppySectorSize
+					if err != nil || m.floppyMediaCurrent.Drive != 0 || m.dmaSectorCount != 1 ||
+						end > uint64(len(m.ram)) {
+						return m.fault(address, functionCode, true, 2, FaultUnsupportedDeviceState)
+					}
+					copy(m.fdcReadBuffer[:], sector)
+					m.fdcReadDMAStart = m.dmaAddress
+					m.fdcReadPending = true
+				}
 				m.floppyMediaCurrent.ReadCommand = 0x80
 				m.fdcCommand, m.fdcStatus, m.fdcStatusTypeI, m.fdcIRQ = 0x80, 0x81, false, false
 				m.mfpGPIPIn |= 0x20
-				m.floppyMediaPhase = floppyMediaTimeoutSelector
+				if m.fdcReadPending {
+					m.floppyMediaPhase = floppyMediaReadTransfer
+				} else {
+					m.floppyMediaPhase = floppyMediaTimeoutSelector
+				}
+				return nil
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaReadIRQReset &&
+				m.dmaMode == 0x0080 && !m.fdcStatusTypeI && m.fdcIRQ &&
+				m.mfpGPIPIn&0x20 == 0 && value == 0x0090:
+				m.dmaMode = value
+				m.floppyMediaPhase = floppyMediaReadDMAStatus
+				return nil
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaReadIRQSelector &&
+				m.dmaMode == 0x0090 && !m.fdcStatusTypeI && m.fdcIRQ &&
+				m.mfpGPIPIn&0x20 == 0 && value == 0x0080:
+				m.dmaMode = value
+				m.floppyMediaPhase = floppyMediaReadStatusRead
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaTimeoutSelector &&
 				m.dmaMode == 0x0080 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
@@ -1727,8 +1776,12 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 			switch {
 			case floppyMediaPhase == floppyMediaTrackSelector && m.floppyMediaPhase == floppyMediaDriveSelector:
 				m.floppyMediaCurrent.TrackWriteClock = access.Clock
-			case floppyMediaPhase == floppyMediaReadBusy && m.floppyMediaPhase == floppyMediaTimeoutSelector:
+			case floppyMediaPhase == floppyMediaReadBusy &&
+				(m.floppyMediaPhase == floppyMediaTimeoutSelector || m.floppyMediaPhase == floppyMediaReadTransfer):
 				m.floppyMediaCurrent.ReadCommandClock = access.Clock
+				if m.floppyMediaPhase == floppyMediaReadTransfer {
+					m.fdcReadStartClock = access.Clock
+				}
 			case floppyMediaPhase == floppyMediaTimeoutSelector && m.floppyMediaPhase == floppyMediaForceInterrupt:
 				m.floppyMediaCurrent.TimeoutSelectorClock = access.Clock
 			case floppyMediaPhase == floppyMediaForceInterrupt && m.floppyMediaPhase == floppyMediaSeekDataSelector:
@@ -1829,6 +1882,10 @@ func (m *Memory) ColdReset() {
 	m.fdcSeekInactivePolls = 0
 	m.fdcSeekIRQObserved = false
 	m.fdcSeekStatusReadClock = 0
+	m.fdcReadPending = false
+	m.fdcReadStartClock = 0
+	m.fdcReadDMAStart = 0
+	m.fdcReadBuffer = [rawFloppySectorSize]byte{}
 	m.mfpGPIPIn |= 0x20
 	m.ikbdACIAControl = 0
 	m.ikbdACIAStatus = 0
@@ -1940,6 +1997,22 @@ func (m *Memory) completeFDCSeek() {
 	} else {
 		m.fdcInitStage = 12
 	}
+}
+
+func (m *Memory) completeFDCRead(clock uint64) {
+	if !m.fdcReadPending || m.floppyMediaPhase != floppyMediaReadTransfer {
+		return
+	}
+	start := int(m.fdcReadDMAStart)
+	copy(m.ram[start:start+rawFloppySectorSize], m.fdcReadBuffer[:])
+	m.dmaAddress = (m.fdcReadDMAStart + rawFloppySectorSize) & 0x003ffffe
+	m.dmaSectorCount--
+	m.fdcStatus = 0x80
+	m.fdcIRQ = true
+	m.mfpGPIPIn &^= 0x20
+	m.fdcReadPending = false
+	m.floppyMediaCurrent.ReadCompleteClock = clock
+	m.floppyMediaPhase = floppyMediaReadIRQReset
 }
 
 func (m *Memory) mfpVector(channel uint8) uint8 {

@@ -1,8 +1,12 @@
 package st
 
 import (
+	"bytes"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
 )
 
 func TestRawFloppyGeometryAndCHS(t *testing.T) {
@@ -32,6 +36,146 @@ func TestRawFloppyGeometryAndCHS(t *testing.T) {
 			t.Errorf("CHS %d/%d/%d: len=%d first=%02x, want 512/%02x",
 				check.track, check.side, check.sector, len(got), got[0], check.want)
 		}
+	}
+}
+
+func TestMountedFloppyReadSectorCompletesDMAAndRaisesIRQ(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := testRawFloppy(80, 2, 9)
+	for index := range rawFloppySectorSize {
+		image[index] = byte(index*37 + 11)
+	}
+	// Restore the BPB fields that make the patterned first sector a valid image.
+	image[0x0b], image[0x0c] = 0, 2
+	image[0x13], image[0x14] = 0xa0, 5
+	image[0x18], image[0x19] = 9, 0
+	image[0x1a], image[0x1b] = 2, 0
+	if err := machine.AttachFloppyA(image); err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Track: 0, Sector: 1}
+	memory.floppyMediaPhase = floppyMediaReadBusy
+	memory.dmaMode = 0x0080
+	memory.dmaAddress = 0x001004
+	memory.dmaSectorCount = 1
+	before := append([]byte(nil), memory.ram[0x1004:0x1204]...)
+	if wait, err := memory.WriteWordAt(STDiskController, 0x0080,
+		m68k.BusAccess{Clock: 200, FunctionCode: 5}); err != nil || wait != 4 ||
+		!memory.fdcReadPending || memory.fdcReadStartClock != 200 ||
+		memory.floppyMediaPhase != floppyMediaReadTransfer {
+		t.Fatalf("read submission wait/pending/start/phase=%d/%v/%d/%d err=%v", wait,
+			memory.fdcReadPending, memory.fdcReadStartClock, memory.floppyMediaPhase, err)
+	}
+	machine.Clocks = 200 + fdcReadSectorLatencyClocks - 1
+	machine.advanceClockedDevices()
+	if !bytes.Equal(memory.ram[0x1004:0x1204], before) || memory.dmaAddress != 0x001004 ||
+		memory.dmaSectorCount != 1 || memory.fdcIRQ {
+		t.Fatal("read became visible before its deterministic deadline")
+	}
+	machine.Clocks++
+	machine.advanceClockedDevices()
+	if !bytes.Equal(memory.ram[0x1004:0x1204], image[:rawFloppySectorSize]) ||
+		memory.dmaAddress != 0x001204 || memory.dmaSectorCount != 0 || memory.fdcStatus != 0x80 ||
+		memory.fdcStatusTypeI || !memory.fdcIRQ || memory.mfpGPIPIn&0x20 != 0 ||
+		memory.floppyMediaPhase != floppyMediaReadIRQReset {
+		t.Fatalf("completed DMA addr/count/status/type/IRQ/GPIP/phase=%06x/%d/%02x/%v/%v/%02x/%d",
+			memory.dmaAddress, memory.dmaSectorCount, memory.fdcStatus, memory.fdcStatusTypeI,
+			memory.fdcIRQ, memory.mfpGPIPIn, memory.floppyMediaPhase)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0090, 5); err != nil ||
+		memory.floppyMediaPhase != floppyMediaReadDMAStatus {
+		t.Fatalf("DMA status reset phase=%d err=%v", memory.floppyMediaPhase, err)
+	}
+	if status, err := memory.ReadWord(STDMAControl, 5); err != nil || status != 1 ||
+		memory.floppyMediaPhase != floppyMediaReadIRQSelector {
+		t.Fatalf("DMA status=%04x phase=%d err=%v", status, memory.floppyMediaPhase, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0080, 5); err != nil ||
+		memory.floppyMediaPhase != floppyMediaReadStatusRead {
+		t.Fatalf("status selector phase=%d err=%v", memory.floppyMediaPhase, err)
+	}
+	if status, err := memory.ReadWord(STDiskController, 5); err != nil || status != 0x0080 ||
+		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 ||
+		memory.floppyMediaPhase != floppyMediaSeekDataSelector {
+		t.Fatalf("status=%04x IRQ/GPIP/phase=%v/%02x/%d err=%v", status, memory.fdcIRQ,
+			memory.mfpGPIPIn, memory.floppyMediaPhase, err)
+	}
+}
+
+func TestMountedFloppyReadRejectsDMAOverflowAtomically(t *testing.T) {
+	machine, err := NewMachine(RAM512K, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.AttachFloppyA(testRawFloppy(80, 2, 9)); err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Track: 0, Sector: 1}
+	memory.floppyMediaPhase = floppyMediaReadBusy
+	memory.dmaMode = 0x0080
+	memory.dmaAddress = RAM512K - 2
+	memory.dmaSectorCount = 1
+	before := append([]byte(nil), memory.ram...)
+	if err := memory.WriteWord(STDiskController, 0x0080, 5); err == nil {
+		t.Fatal("DMA overflow unexpectedly accepted")
+	}
+	if !bytes.Equal(memory.ram, before) || memory.fdcReadPending ||
+		memory.floppyMediaPhase != floppyMediaReadBusy || memory.fdcCommand != 0 {
+		t.Fatal("rejected DMA overflow mutated controller or RAM")
+	}
+}
+
+func TestEmuTOSMountedFloppyCompletesFirstMediaRead(t *testing.T) {
+	path := os.Getenv("TALOS_TOS_ROM")
+	if path == "" {
+		t.Skip("TALOS_TOS_ROM is not set")
+	}
+	rom, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	machine, err := NewMachine(RAM1M, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := testRawFloppy(80, 2, 9)
+	for index := range rawFloppySectorSize {
+		image[index] = byte(index*37 + 11)
+	}
+	image[0x0b], image[0x0c] = 0, 2
+	image[0x13], image[0x14] = 0xa0, 5
+	image[0x18], image[0x19] = 9, 0
+	image[0x1a], image[0x1b] = 2, 0
+	if err := machine.AttachFloppyA(image); err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	var gate error
+	for steps := 0; steps < 3_000_000 && machine.Memory.floppyMediaReceipts.Total == 0 && gate == nil; steps++ {
+		_, gate = machine.Step()
+	}
+	if gate != nil {
+		t.Fatalf("mounted-media normal path reached unsupported gate: %v", gate)
+	}
+	if machine.Memory.floppyMediaReceipts.Total != 1 {
+		t.Fatalf("first mounted-media read did not finish: phase=%d mode=%04x status=%02x IRQ=%v GPIP=%02x instructions=%d clocks=%d state=%+v",
+			machine.Memory.floppyMediaPhase, machine.Memory.dmaMode, machine.Memory.fdcStatus,
+			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn, machine.Instructions, machine.Clocks,
+			machine.CPU.State)
+	}
+	receipt, ok := machine.Memory.floppyMediaReceipts.attempt(1)
+	t.Logf("mounted media receipt: %+v; instructions=%d interrupts=%d clocks=%d", receipt,
+		machine.Instructions, machine.Interrupts, machine.Clocks)
+	if !ok || receipt.ReadCompleteClock == 0 || receipt.TimeoutSelectorClock != 0 ||
+		receipt.ForceInterrupt != 0 || !bytes.Equal(machine.Memory.ram[0x1004:0x1204], image[:rawFloppySectorSize]) {
+		t.Fatalf("first mounted receipt=%+v ok=%v", receipt, ok)
 	}
 }
 

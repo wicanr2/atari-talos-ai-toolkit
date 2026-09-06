@@ -6,6 +6,7 @@ const firstColorSTVBLClock uint64 = 263*508 + 64
 const colorST60HzFrameClocks uint64 = 263 * 508
 const colorST50HzFrameClocks uint64 = 313 * 512
 const colorSTLineZero50HzExtension uint64 = 262 * (512 - 508)
+const fdcReadSectorLatencyClocks uint64 = colorST50HzFrameClocks
 
 var ikbdClockResponse = [7]byte{0xfc, 0, 0, 0, 0, 0, 1}
 var ikbdSetClockPacket = [7]byte{0x1b, 0x24, 0x03, 0x17, 0, 0, 0}
@@ -42,6 +43,8 @@ type Machine struct {
 	nextFDCRestoreClock             uint64
 	fdcSeekClockStarted             bool
 	nextFDCSeekClock                uint64
+	fdcReadClockStarted             bool
+	nextFDCReadClock                uint64
 }
 
 func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
@@ -98,6 +101,8 @@ func (m *Machine) Reset() error {
 	m.nextFDCRestoreClock = 0
 	m.fdcSeekClockStarted = false
 	m.nextFDCSeekClock = 0
+	m.fdcReadClockStarted = false
+	m.nextFDCReadClock = 0
 	return nil
 }
 
@@ -191,6 +196,17 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 }
 
 func (m *Machine) advanceClockedDevices() {
+	if !m.fdcReadClockStarted && m.Memory != nil && m.Memory.fdcReadPending &&
+		m.Memory.fdcReadStartClock != 0 {
+		m.fdcReadClockStarted = true
+		m.nextFDCReadClock = m.Memory.fdcReadStartClock + fdcReadSectorLatencyClocks
+	}
+	if m.fdcReadClockStarted && m.Memory != nil && m.Memory.fdcReadPending &&
+		m.Clocks >= m.nextFDCReadClock {
+		m.Memory.completeFDCRead(m.nextFDCReadClock)
+		m.fdcReadClockStarted = false
+		m.nextFDCReadClock = 0
+	}
 	if !m.fdcRestoreClockStarted && m.Memory != nil && m.Memory.fdcRestorePending &&
 		m.Memory.fdcRestoreStartClock != 0 {
 		m.fdcRestoreClockStarted = true
