@@ -688,3 +688,7 @@
   ColdReset同時改為整體清空typed receipt，不再逐欄維護約50行清單。固定ROM證實第一輪
   current與ring attempt 1逐欄一致、attempt 1–5連續且第五輪gate時序不變；完整68000
   外部語料、全測試、vet與CLI建置通過。固定stage仍在，規格維持READY。
+- 規格133第二筆legacy儲存移除：第二輪開始時明確重置`floppyMediaCurrent`，第一輪後續
+  不變性檢查改讀ring attempt 1；`floppyMediaLegacy`容量由2降為1，只剩第三輪。
+  固定ROM驗證第二輪current、前三輪ring與第三輪唯一legacy一致，第五輪仍在原精確gate；
+  完整68000外部語料、全測試、vet與CLI建置通過。固定stage尚未移除，規格維持READY。
