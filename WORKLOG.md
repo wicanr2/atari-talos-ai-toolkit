@@ -782,3 +782,10 @@
   `floppyMediaTrackSelector` 再寫 `$0082`，而收斂後的模型是從 idle 由那一次寫入
   自己進 phase；同一件事 `memory_test.go` 已經連 clock 與負對照一起驗了），
   以及沒有人再呼叫的 `beginFloppyMediaAtTrack`／`beginFloppyMediaAtDrive`。
+
+- Dungeon Master Atari ST 對拍分支完成規格 141：新增 raw `.st` 映像的 BPB 幾何、
+  精確長度與 CHS 解析器，並由 `Machine.AttachFloppyA` 原子掛入 drive A。映像與 sector
+  回傳皆不與呼叫端記憶體別名，invalid replacement 不覆蓋既有媒體，cold reset 不彈片；
+  malformed／越界輸入全數 fail-closed。第一次測試誤用填充模式的 `testROM()` 做完整 CPU
+  reset，因 odd reset PC 失敗；改成直接驗證本切片要求的 `Memory.ColdReset` 後，同一
+  Docker 命令重跑 `go test ./...`、`go vet ./...` 與 CLI build 全綠。

@@ -540,6 +540,11 @@
   不變。桌面錨點是 `$F8000` 起 32,000 bytes 的 SHA-256
   `1de1eb45e862218844abe07ae05fda4c4a9453817ed0ab348a374bca67768f78`。
   再要暴露缺口，得換新的工作負載（載入並跑一支程式），不是繼續往前跑。
+- Dungeon Master 對拍分支已接上第一個新工作負載前置（規格 141 CONFORMED）：
+  `Machine.AttachFloppyA` 接受由 boot-sector BPB 自證幾何的 raw `.st` 映像，掛載時
+  複製成不可變媒體；長度、sector size、cylinder 與 CHS 全部失敗即關閉，錯誤替換
+  不動既有磁片，cold reset 也不彈片。下一步是規格 142 的 WD1772 sector-read 成功
+  路徑與 DMA 搬移；尚未宣稱 Talos 已能載入 Dungeon Master。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

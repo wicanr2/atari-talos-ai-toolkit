@@ -1,6 +1,6 @@
 # 141 — Atari ST raw 軟碟映像輸入契約
 
-狀態：**READY**
+狀態：**CONFORMED**
 
 ## 範圍
 
@@ -30,7 +30,9 @@ DRQ／IRQ 時序、寫盤、MSA、STX、IPF 與 copy protection 不在本切片�
 5. sector number 採 WD1772／磁片慣例的 1-based；track、side 採 0-based。
    raw offset 為 `((track × sides + side) × sectors/track + sector - 1) × 512`。
 6. 掛載時複製完整輸入；呼叫端之後修改原 slice 不得改變已掛載內容。
-7. 本切片不宣稱任意 `.st` 都是 GEMDOS 磁片，也不支援靠低階異常軌保存的保護資訊。
+7. `Machine.AttachFloppyA` 是本切片的機器入口。驗證失敗時既有 drive A 媒體不變；
+   cold reset 重設機器與控制器，但不彈出已掛載媒體。
+8. 本切片不宣稱任意 `.st` 都是 GEMDOS 磁片，也不支援靠低階異常軌保存的保護資訊。
 
 ## 驗收
 
@@ -39,4 +41,12 @@ DRQ／IRQ 時序、寫盤、MSA、STX、IPF 與 copy protection 不在本切片�
 - 短 boot sector、非 512-byte sector、零幾何、非法 sides、長度不符及不可整除
   全部拒絕。
 - 掛載後修改來源 slice，讀回資料仍不變。
+- invalid replacement 不覆蓋既有 drive A；cold reset 後仍為同一份不可變內容。
 
+## 實作收據
+
+- `internal/st/floppy_image.go`：BPB／長度／cylinder 完整驗證、CHS 轉換及不可變複本。
+- `Machine.AttachFloppyA`：drive A 的原子掛載入口；`Memory.ColdReset` 不清除媒體。
+- `internal/st/floppy_image_test.go`：正常幾何、四個 CHS 錨點、所有越界與 malformed
+  分支、輸入／輸出不別名、錯誤替換與 cold reset 保留均通過。
+- 2026-09-06：`go test ./...`、`go vet ./...` 與 CLI build 全部通過。

@@ -54,6 +54,17 @@ func NewMachine(ramSize int, tosROM []byte) (*Machine, error) {
 	return machine, nil
 }
 
+// AttachFloppyA validates and mounts an immutable raw .st image in drive A.
+// A failed replacement leaves the currently mounted image untouched.
+func (m *Machine) AttachFloppyA(image []byte) error {
+	floppy, err := NewRawFloppy(image)
+	if err != nil {
+		return err
+	}
+	m.Memory.attachFloppyA(floppy)
+	return nil
+}
+
 func (m *Machine) Reset() error {
 	m.Memory.ColdReset()
 	if err := m.CPU.Reset(); err != nil {

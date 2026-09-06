@@ -100,6 +100,33 @@ func TestRawFloppyRejectsOutOfRangeCHS(t *testing.T) {
 	}
 }
 
+func TestMachineAttachFloppyAIsAtomicAndSurvivesReset(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := testRawFloppy(80, 2, 9)
+	if err := machine.AttachFloppyA(image); err != nil {
+		t.Fatal(err)
+	}
+	image[rawFloppySectorSize] ^= 0xff
+	want, err := machine.Memory.floppyA.Sector(0, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.AttachFloppyA(make([]byte, 511)); err == nil {
+		t.Fatal("invalid replacement unexpectedly accepted")
+	}
+	machine.Memory.ColdReset()
+	got, err := machine.Memory.floppyA.Sector(0, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatal("failed replacement or cold reset changed mounted media")
+	}
+}
+
 func testRawFloppy(tracks, sides, sectorsPerTrack uint16) []byte {
 	total := tracks * sides * sectorsPerTrack
 	image := make([]byte, int(total)*rawFloppySectorSize)

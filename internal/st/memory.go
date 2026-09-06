@@ -100,6 +100,7 @@ func (f *BusFault) M68KBusFault() (uint32, uint8, bool, uint8) {
 type Memory struct {
 	ram                             []byte
 	rom                             []byte
+	floppyA                         *RawFloppy
 	mmuConfig                       byte
 	videoBaseHigh                   byte
 	videoBaseMiddle                 byte
@@ -246,6 +247,10 @@ type Memory struct {
 	mfpRSR                          byte
 	mfpTSR                          byte
 	mfpTSRSet                       bool
+}
+
+func (m *Memory) attachFloppyA(floppy *RawFloppy) {
+	m.floppyA = floppy
 }
 
 // floppyMediaDrivePort is what R14 reads back when the media check reselects the
