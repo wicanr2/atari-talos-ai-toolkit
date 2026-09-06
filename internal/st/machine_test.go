@@ -2083,11 +2083,11 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		_, nextGate = machine.Step()
 	}
 	if nextGate != nil || machine.Memory.floppyReadStage != 59 ||
-		machine.Memory.floppyMediaLegacy[0].DrivePort != 0x25 ||
-		machine.Memory.floppyMediaLegacy[0].DriveWriteClock != 130971538 ||
-		machine.Memory.floppyMediaLegacy[0].Sector != 1 || machine.Memory.floppyMediaLegacy[0].DMAAddressStage != 3 ||
-		machine.Memory.floppyMediaLegacy[0].DMAResetCount != 2 || machine.Memory.dmaSectorCount != 1 ||
-		machine.Memory.floppyMediaLegacy[0].ReadCommand != 0x80 || machine.Memory.floppyMediaLegacy[0].ReadCommandClock != 130973778 ||
+		machine.Memory.floppyMediaCurrent.DrivePort != 0x25 ||
+		machine.Memory.floppyMediaCurrent.DriveWriteClock != 130971538 ||
+		machine.Memory.floppyMediaCurrent.Sector != 1 || machine.Memory.floppyMediaCurrent.DMAAddressStage != 3 ||
+		machine.Memory.floppyMediaCurrent.DMAResetCount != 2 || machine.Memory.dmaSectorCount != 1 ||
+		machine.Memory.floppyMediaCurrent.ReadCommand != 0x80 || machine.Memory.floppyMediaCurrent.ReadCommandClock != 130973778 ||
 		machine.Memory.fdcCommand != 0x80 || machine.Memory.fdcStatus != 0x81 ||
 		machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
 		machine.Memory.psgRegisters[14] != 0x25 || machine.Memory.flopVBLMediaChecks != 73 ||
@@ -2098,11 +2098,11 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc373a ||
 		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
 		t.Fatalf("third retry stage=%d drive/clock=%02x/%d sector=%d address-stage=%d resets=%d count=%d command/clock=%02x/%d FDC/status/type/IRQ/GPIP=%02x/%02x/%v/%v/%02x R14/checks=%02x/%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
-			machine.Memory.floppyReadStage, machine.Memory.floppyMediaLegacy[0].DrivePort,
-			machine.Memory.floppyMediaLegacy[0].DriveWriteClock, machine.Memory.floppyMediaLegacy[0].Sector,
-			machine.Memory.floppyMediaLegacy[0].DMAAddressStage, machine.Memory.floppyMediaLegacy[0].DMAResetCount,
-			machine.Memory.dmaSectorCount, machine.Memory.floppyMediaLegacy[0].ReadCommand,
-			machine.Memory.floppyMediaLegacy[0].ReadCommandClock, machine.Memory.fdcCommand, machine.Memory.fdcStatus,
+			machine.Memory.floppyReadStage, machine.Memory.floppyMediaCurrent.DrivePort,
+			machine.Memory.floppyMediaCurrent.DriveWriteClock, machine.Memory.floppyMediaCurrent.Sector,
+			machine.Memory.floppyMediaCurrent.DMAAddressStage, machine.Memory.floppyMediaCurrent.DMAResetCount,
+			machine.Memory.dmaSectorCount, machine.Memory.floppyMediaCurrent.ReadCommand,
+			machine.Memory.floppyMediaCurrent.ReadCommandClock, machine.Memory.fdcCommand, machine.Memory.fdcStatus,
 			machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn,
 			machine.Memory.psgRegisters[14], machine.Memory.flopVBLMediaChecks, machine.Instructions,
 			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
@@ -2111,9 +2111,9 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		_, nextGate = machine.Step()
 	}
 	if nextGate != nil || machine.Memory.floppyReadStage != 61 ||
-		machine.Memory.floppyMediaLegacy[0].TimeoutSelectorClock != 142979300 ||
-		machine.Memory.floppyMediaLegacy[0].ForceInterrupt != 0xd0 ||
-		machine.Memory.floppyMediaLegacy[0].ForceInterruptClock != 142979738 ||
+		machine.Memory.floppyMediaCurrent.TimeoutSelectorClock != 142979300 ||
+		machine.Memory.floppyMediaCurrent.ForceInterrupt != 0xd0 ||
+		machine.Memory.floppyMediaCurrent.ForceInterruptClock != 142979738 ||
 		machine.Memory.fdcCommand != 0xd0 || machine.Memory.fdcStatus != 0x80 ||
 		machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
 		machine.Instructions != 4600435 || machine.Interrupts != 2903 || machine.Clocks != 142979752 ||
@@ -2123,8 +2123,8 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc373a ||
 		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
 		t.Fatalf("third timeout stage=%d selector-clock=%d force/clock=%02x/%d FDC/status/type/IRQ/GPIP=%02x/%02x/%v/%v/%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
-			machine.Memory.floppyReadStage, machine.Memory.floppyMediaLegacy[0].TimeoutSelectorClock,
-			machine.Memory.floppyMediaLegacy[0].ForceInterrupt, machine.Memory.floppyMediaLegacy[0].ForceInterruptClock,
+			machine.Memory.floppyReadStage, machine.Memory.floppyMediaCurrent.TimeoutSelectorClock,
+			machine.Memory.floppyMediaCurrent.ForceInterrupt, machine.Memory.floppyMediaCurrent.ForceInterruptClock,
 			machine.Memory.fdcCommand, machine.Memory.fdcStatus, machine.Memory.fdcStatusTypeI,
 			machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts,
 			machine.Clocks, machine.CPU.State, nextGate)
@@ -2132,11 +2132,11 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 	for steps := 0; steps < 10_000 && machine.Memory.floppyReadStage < 68 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate != nil || machine.Memory.floppyReadStage != 68 || machine.Memory.floppyMediaLegacy[0].SeekData != 0 ||
-		machine.Memory.floppyMediaLegacy[0].SeekCommand != 0x13 ||
-		machine.Memory.floppyMediaLegacy[0].SeekStartClock != 142981658 ||
-		machine.Memory.floppyMediaLegacy[0].InactivePolls != 9 || !machine.Memory.floppyMediaLegacy[0].IRQObserved ||
-		machine.Memory.floppyMediaLegacy[0].StatusReadClock != 142982974 ||
+	if nextGate != nil || machine.Memory.floppyReadStage != 68 || machine.Memory.floppyMediaCurrent.SeekData != 0 ||
+		machine.Memory.floppyMediaCurrent.SeekCommand != 0x13 ||
+		machine.Memory.floppyMediaCurrent.SeekStartClock != 142981658 ||
+		machine.Memory.floppyMediaCurrent.InactivePolls != 9 || !machine.Memory.floppyMediaCurrent.IRQObserved ||
+		machine.Memory.floppyMediaCurrent.StatusReadClock != 142982974 ||
 		machine.Memory.fdcCommand != 0x13 || machine.Memory.fdcStatus != 0xe4 ||
 		!machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
 		machine.Instructions != 4600755 || machine.Interrupts != 2903 || machine.Clocks != 142982988 ||
@@ -2146,19 +2146,19 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc38a0 ||
 		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
 		t.Fatalf("third dummy stage=%d data=%02x command/start=%02x/%d polls=%d observed=%v status-read=%d FDC/status/type/IRQ/GPIP=%02x/%02x/%v/%v/%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
-			machine.Memory.floppyReadStage, machine.Memory.floppyMediaLegacy[0].SeekData,
-			machine.Memory.floppyMediaLegacy[0].SeekCommand, machine.Memory.floppyMediaLegacy[0].SeekStartClock,
-			machine.Memory.floppyMediaLegacy[0].InactivePolls, machine.Memory.floppyMediaLegacy[0].IRQObserved,
-			machine.Memory.floppyMediaLegacy[0].StatusReadClock, machine.Memory.fdcCommand,
+			machine.Memory.floppyReadStage, machine.Memory.floppyMediaCurrent.SeekData,
+			machine.Memory.floppyMediaCurrent.SeekCommand, machine.Memory.floppyMediaCurrent.SeekStartClock,
+			machine.Memory.floppyMediaCurrent.InactivePolls, machine.Memory.floppyMediaCurrent.IRQObserved,
+			machine.Memory.floppyMediaCurrent.StatusReadClock, machine.Memory.fdcCommand,
 			machine.Memory.fdcStatus, machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ,
 			machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts, machine.Clocks,
 			machine.CPU.State, nextGate)
 	}
 	thirdReceipt, thirdPresent := machine.Memory.floppyMediaReceipts.attempt(3)
 	thirdReceipt.Attempt = 0
-	if !thirdPresent || thirdReceipt != machine.Memory.floppyMediaLegacy[0] {
+	if !thirdPresent || thirdReceipt != machine.Memory.floppyMediaCurrent {
 		t.Fatalf("legacy migration attempt=3 receipt=%+v legacy=%+v present=%v",
-			thirdReceipt, machine.Memory.floppyMediaLegacy[0], thirdPresent)
+			thirdReceipt, machine.Memory.floppyMediaCurrent, thirdPresent)
 	}
 	for steps := 0; steps < 5_000_000 && machine.Memory.floppyMediaReceipts.Total < 6 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()

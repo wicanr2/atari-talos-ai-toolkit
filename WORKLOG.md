@@ -692,3 +692,8 @@
   不變性檢查改讀ring attempt 1；`floppyMediaLegacy`容量由2降為1，只剩第三輪。
   固定ROM驗證第二輪current、前三輪ring與第三輪唯一legacy一致，第五輪仍在原精確gate；
   完整68000外部語料、全測試、vet與CLI建置通過。固定stage尚未移除，規格維持READY。
+- 規格133完成逐輪收據欄位清除：第三輪開始時同樣重置`floppyMediaCurrent`，第二輪歷史
+  改讀ring attempt 2，並將最後一筆`floppyMediaLegacy`從`Memory`與全部測試刪除。
+  固定ROM證實attempt 1–5、第三輪完整欄位與第五輪6,779,282 instructions／
+  167,143,396 clocks gate皆不變；完整68000外部語料、全測試、vet與CLI建置通過。
+  尚餘固定`floppyReadStage`控制流程待改用phase，規格維持READY。
