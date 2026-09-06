@@ -477,6 +477,11 @@
 
 ## 下一步
 
+- 架構決策（2026-09-08）：無磁片`flop_mediach()`已由固定EmuTOS與700-VBL Hatari
+  trace證實會持續重入。採單一交易phase、單調attempt count與容量8 receipt ring；
+  排除繼續增加固定stage。使用者並要求移除現有約50個逐輪欄位，前三輪精確錨點
+  遷入同型receipt，不保留永久相容層。先驗證資料模型，再分批遷移狀態分支。
+
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的

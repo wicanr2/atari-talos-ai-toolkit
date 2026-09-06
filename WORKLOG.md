@@ -612,3 +612,7 @@
   `$0086/$0000/$0080/$0013`、九次poll、IRQ與status `$E4` read-clear。固定ROM於
   4,600,755 instructions／2,903 interrupts／142,982,988 clocks完成；下一gate為
   4,601,570／142,994,602的YM2149 byte write。完整CPU corpus、全測試、vet與build通過。
+- 啟動規格133第一階段：使用者確認以可重入循環取代全部固定軟碟stage／約50個逐輪
+  欄位，不保留永久相容層。先建立單一phase列舉、完整同型receipt與容量8 ring；12輪
+  synthetic wrap／lookup／reset、完整CPU corpus、全測試、vet與build均通過。正式FDC／
+  PSG分支尚未遷移，規格維持READY，不宣稱循環已接線。
