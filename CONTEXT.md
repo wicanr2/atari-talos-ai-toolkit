@@ -504,10 +504,14 @@
 
 ## 下一步
 
-- 架構決策（2026-09-08）：無磁片`flop_mediach()`已由固定EmuTOS與700-VBL Hatari
-  trace證實會持續重入。採單一交易phase、單調attempt count與容量8 receipt ring；
-  排除繼續增加固定stage。使用者並要求移除現有約50個逐輪欄位，前三輪精確錨點
-  遷入同型receipt，不保留永久相容層。先驗證資料模型，再分批遷移狀態分支。
+- 架構決策（2026-09-08，已執行完畢）：無磁片`flop_mediach()`已由固定EmuTOS與700-VBL
+  Hatari trace證實會持續重入。採單一交易phase、單調attempt count與容量8 receipt ring；
+  排除繼續增加固定stage。使用者並要求移除現有約50個逐輪欄位，前三輪精確錨點遷入
+  同型receipt，不保留永久相容層——三項都在 2026-09-06 完成。
+- **對拍方法（使用者指示，2026-09-06）**：驗一條機制時，直接把記憶體與裝置狀態設到
+  事件觸發的那一刻，不要從 reset 跑幾百萬條指令去等它自然發生，也不要等機率事件擲中。
+  機率本身不是要驗的東西——要驗的是「條件成立時做什麼」。固定 ROM 的長跑只保留在
+  已經 CONFORMED 的錨點上當回歸，新切片先用 synthetic 狀態把行為釘住。
 - 可重入媒體確認已全部收斂（規格 133 CONFORMED，2026-09-06）：`floppyReadStage`
   與 `floppyMediaLegacy[3]` 已刪除，前三輪與之後每一輪都走同一條 phase 循環，
   收據一律進 8 筆 ring。第一輪與後續輪的兩個差異（drive 讀回 `$23` 還是 `$25`、
@@ -515,6 +519,10 @@
   因為只有第一次呼叫 `flop_mediach()` 會鎖 track。DMA 位址的亂序寫入現在三輪一致
   fail-closed。第五輪完成後下一 gate 仍是 6,779,282 instructions／167,143,396 clocks
   的 IKBD `$FFFC02` write。
+
+- 下一 gate：IKBD `$FFFC02` 的 `$FC` ＋ 6 byte clock response（`igetregs()` 讀時鐘）。
+  依上一條，先用 synthetic 狀態把 ACIA 的 request／response 時序釘住，固定 ROM 只用來
+  確認 6,779,282 那個錨點之後接得上。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
