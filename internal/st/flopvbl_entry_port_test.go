@@ -46,17 +46,17 @@ func TestFlopVBLRestoresTheEntryPort(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			memory := flopVBLReady(t, test.entry, 73)
-			if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil ||
+			if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil ||
 				memory.flopVBLMediaStage != 1 {
 				t.Fatalf("選 R14：stage=%d err=%v", memory.flopVBLMediaStage, err)
 			}
-			value, err := memory.ReadByte(PSGRegisterSelect, 5)
+			value, err := memory.ReadByteFC(PSGRegisterSelect, 5)
 			if err != nil || value != test.entry || memory.flopVBLMediaStage != 2 ||
 				memory.flopVBLMediaEntryPort != test.entry {
 				t.Fatalf("讀回 %02x stage=%d entry=%02x err=%v",
 					value, memory.flopVBLMediaStage, memory.flopVBLMediaEntryPort, err)
 			}
-			if err := memory.WriteByte(PSGRegisterData, test.target, 5); err != nil ||
+			if err := memory.WriteByteFC(PSGRegisterData, test.target, 5); err != nil ||
 				memory.flopVBLMediaStage != 3 || memory.psgRegisters[14] != test.target {
 				t.Fatalf("選 drive：stage=%d port=%02x err=%v",
 					memory.flopVBLMediaStage, memory.psgRegisters[14], err)
@@ -69,16 +69,16 @@ func TestFlopVBLRestoresTheEntryPort(t *testing.T) {
 				status != 0xe4 || memory.flopVBLMediaStage != 5 {
 				t.Fatalf("讀 status=%04x stage=%d err=%v", status, memory.flopVBLMediaStage, err)
 			}
-			if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil ||
+			if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil ||
 				memory.flopVBLMediaStage != 6 {
 				t.Fatalf("收尾選 R14：stage=%d err=%v", memory.flopVBLMediaStage, err)
 			}
-			if _, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil ||
+			if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil ||
 				memory.flopVBLMediaStage != 7 {
 				t.Fatalf("收尾讀回：stage=%d err=%v", memory.flopVBLMediaStage, err)
 			}
 			// 還原的是進場值，不是固定的 $23。
-			if err := memory.WriteByte(PSGRegisterData, test.entry, 5); err != nil ||
+			if err := memory.WriteByteFC(PSGRegisterData, test.entry, 5); err != nil ||
 				memory.flopVBLMediaStage != 8 || memory.psgRegisters[14] != test.entry ||
 				memory.flopVBLMediaChecks != 74 {
 				t.Fatalf("還原：stage=%d port=%02x checks=%d err=%v",
@@ -94,19 +94,19 @@ func TestFlopVBLRestoresTheEntryPort(t *testing.T) {
 func TestFlopVBLRejectsAWrongRestore(t *testing.T) {
 	memory := flopVBLReady(t, 0x25, 73)
 	for _, step := range []func() error{
-		func() error { return memory.WriteByte(PSGRegisterSelect, 14, 5) },
-		func() error { _, err := memory.ReadByte(PSGRegisterSelect, 5); return err },
-		func() error { return memory.WriteByte(PSGRegisterData, 0x23, 5) },
+		func() error { return memory.WriteByteFC(PSGRegisterSelect, 14, 5) },
+		func() error { _, err := memory.ReadByteFC(PSGRegisterSelect, 5); return err },
+		func() error { return memory.WriteByteFC(PSGRegisterData, 0x23, 5) },
 		func() error { return memory.WriteWord(STDMAControl, 0x0080, 5) },
 		func() error { _, err := memory.ReadWord(STDiskController, 5); return err },
-		func() error { return memory.WriteByte(PSGRegisterSelect, 14, 5) },
-		func() error { _, err := memory.ReadByte(PSGRegisterSelect, 5); return err },
+		func() error { return memory.WriteByteFC(PSGRegisterSelect, 14, 5) },
+		func() error { _, err := memory.ReadByteFC(PSGRegisterSelect, 5); return err },
 	} {
 		if err := step(); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil {
+	if err := memory.WriteByteFC(PSGRegisterData, 0x23, 5); err == nil {
 		t.Error("把進場值 $25 還原成 $23 竟然被接受")
 	}
 	if memory.flopVBLMediaStage != 7 || memory.psgRegisters[14] != 0x23 {
@@ -120,9 +120,9 @@ func TestFlopVBLRejectsAWrongRestore(t *testing.T) {
 func TestFlopVBLRejectsAnUnknownEntryPort(t *testing.T) {
 	for _, entry := range []byte{0x20, 0x21, 0x22, 0x24, 0x26, 0x00} {
 		memory := flopVBLReady(t, entry, 73)
-		if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err == nil &&
+		if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err == nil &&
 			memory.flopVBLMediaStage == 1 {
-			if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil {
+			if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err == nil {
 				t.Errorf("進場值 %02x 被接受了", entry)
 			}
 		}
@@ -140,8 +140,8 @@ func TestTheMediaCheckBorrowsTheSharedPreamble(t *testing.T) {
 	memory.floppyMediaLocked = true
 	memory.dmaAddress = 0x001004
 	for _, step := range []func() error{
-		func() error { return memory.WriteByte(PSGRegisterSelect, 14, 5) },
-		func() error { _, err := memory.ReadByte(PSGRegisterSelect, 5); return err },
+		func() error { return memory.WriteByteFC(PSGRegisterSelect, 14, 5) },
+		func() error { _, err := memory.ReadByteFC(PSGRegisterSelect, 5); return err },
 	} {
 		if err := step(); err != nil {
 			t.Fatal(err)

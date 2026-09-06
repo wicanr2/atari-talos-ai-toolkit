@@ -663,6 +663,44 @@
   floppy 都疊在上面），所以合併時取 main 的實作，只留下這條線獨有的 UCSD p-System
   四片，規格重編號成 134–137。`tools/hatari-oracle/` 一併留下，`bus_error_address_test.go`
   的兩條 synthetic 負對照（sign-extend 與位址暫存器高位元）也留著——main 那邊沒有。
+- 同步合併後的`main`至`e957113`並確認全測試通過；規格133繼續採可回復遷移。
+  共用軟碟phase補齊第一輪才有的`$0082` track selector與track 0 data前綴，新增錯誤
+  即關閉的狀態／mode測試，完整`go test ./...`與CLI建置通過。Go 1.24的`go vet ./...`
+  會在既有`ReadByte`／`WriteByte`方法觸發標準介面簽章警告，屬同步後基線問題；正式
+  入口與前三輪舊stage尚未切換，因此規格維持READY，不提前宣稱已完成統一。
+- 修正同步後的Go 1.24 `go vet`基線：內部bus API的`ReadByte`／`WriteByte`因方法名
+  與標準`io.ByteReader`／`io.ByteWriter`相同但簽章不同而觸發`stdmethods`；純重命名為
+  `ReadByteFC`／`WriteByteFC`，名稱也明示額外的function code參數。全程未改bus值、
+  clock、fault或交易次序；完整`go test ./...`、`go vet ./...`與CLI建置均通過。
+  推送後再以完整68000外部語料回歸，並用SHA-256 `ad64942f…135`的EmuTOS 1.3 UK
+  固定ROM重跑`internal/st`正常路徑，兩者均通過；規格133既有錨點未受API重命名影響。
+- 規格133再收斂一層：共用媒體交易一旦由phase啟動，後續PSG read／write、DMA address、
+  FDC command、GPIP poll、seek scheduler、status read-clear與clock receipt全部只依賴
+  `floppyMediaPhase`，不再檢查`floppyReadStage == 68`。正常入口尚未切換，故舊前三輪
+  行為不變；完整測試、vet與CLI建置通過，規格仍維持READY。
+- 規格133收據資料遷移：前三次固定stage在status read取得精確bus clock後，將同型
+  `floppyMediaReceipt`追加到容量8 ring；第四、第五輪因此自然成為attempt 4、5，而非
+  另起1、2。固定EmuTOS ROM驗證前三筆除ring自行賦值的`Attempt`外逐欄等於既有精確
+  錨點，且第五輪仍在6,779,282 instructions／167,143,396 clocks抵達同一IKBD gate。
+  完整測試與vet通過；舊欄位尚未刪除，規格維持READY。
+- 規格133開始實際刪除legacy儲存：第一輪固定流程的所有即時欄位改用共用
+  `floppyMediaCurrent`，`floppyMediaLegacy`容量由3降為2，只保留尚未遷移的第二、第三輪。
+  ColdReset同時改為整體清空typed receipt，不再逐欄維護約50行清單。固定ROM證實第一輪
+  current與ring attempt 1逐欄一致、attempt 1–5連續且第五輪gate時序不變；完整68000
+  外部語料、全測試、vet與CLI建置通過。固定stage仍在，規格維持READY。
+- 規格133第二筆legacy儲存移除：第二輪開始時明確重置`floppyMediaCurrent`，第一輪後續
+  不變性檢查改讀ring attempt 1；`floppyMediaLegacy`容量由2降為1，只剩第三輪。
+  固定ROM驗證第二輪current、前三輪ring與第三輪唯一legacy一致，第五輪仍在原精確gate；
+  完整68000外部語料、全測試、vet與CLI建置通過。固定stage尚未移除，規格維持READY。
+- 規格133完成逐輪收據欄位清除：第三輪開始時同樣重置`floppyMediaCurrent`，第二輪歷史
+  改讀ring attempt 2，並將最後一筆`floppyMediaLegacy`從`Memory`與全部測試刪除。
+  固定ROM證實attempt 1–5、第三輪完整欄位與第五輪6,779,282 instructions／
+  167,143,396 clocks gate皆不變；完整68000外部語料、全測試、vet與CLI建置通過。
+  尚餘固定`floppyReadStage`控制流程待改用phase，規格維持READY。
+- 規格133補齊正式入口前的最後一個phase差異：第一輪track 0後可由共用phase接受
+  YM2149 R14 select、讀舊port `$23`、寫drive 0 port `$25`；後續輪既有`$25→$25`
+  同值重選仍走同一分支。測試由track selector一路延伸至sector selector，完整測試、
+  vet與CLI建置通過；正常入口尚未切換，規格維持READY。
 
 - 拆掉媒體確認的遷移層（規格 133 升 CONFORMED）。`floppyReadStage` 那台 0–68 的固定
   stage 機與 `floppyMediaLegacy[3]` 的約 50 個逐輪欄位整組移除，三輪與之後每一輪都走
@@ -726,3 +764,14 @@
   位置放一個探針把「ROM 到底寫了什麼」印出來（`$23`，不是預期的 `$27`），才發現問題在
   模型多猜的那一步。照著 Hatari 顯示的 `$27` 直接補一條分支，等於補在沒壞的地方——
   補完跑一次，指令數一條都沒動。
+
+- 兩條線在這裡併起來（2026-09-06）：`main` 上的九個 commit 與分支上的規格 133 做的是
+  同一件事的兩個版本——拆掉軟碟的遷移層。終點不一樣：`main` 那條移除了
+  `floppyMediaLegacy` 但留著 `floppyReadStage`（164 處引用），分支那條兩個都拆掉，
+  而且上面還疊了規格 138／139／140 與開機到桌面的收據。合併時軟碟狀態機以分支為準，
+  `main` 的 `ReadByteFC`／`WriteByteFC` 改名則手動套進 `internal/st`——那支順便修掉了
+  Go 1.24 `go vet` 的 `stdmethods` 警告。合併後刪掉兩樣只屬於中間態的東西：
+  `TestFloppyMediaFirstTransactionTrackPrefix`（它先呼叫 helper 把 phase 設成
+  `floppyMediaTrackSelector` 再寫 `$0082`，而收斂後的模型是從 idle 由那一次寫入
+  自己進 phase；同一件事 `memory_test.go` 已經連 clock 與負對照一起驗了），
+  以及沒有人再呼叫的 `beginFloppyMediaAtTrack`／`beginFloppyMediaAtDrive`。

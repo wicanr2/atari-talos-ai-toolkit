@@ -33,7 +33,7 @@ func TestEmuTOSReachesTheDesktop(t *testing.T) {
 	}
 	frame := make([]byte, 32000)
 	for i := range frame {
-		value, err := m.ReadByte(m.ProgrammedVideoBase()+uint32(i), 5)
+		value, err := m.ReadByteFC(m.ProgrammedVideoBase()+uint32(i), 5)
 		if err != nil {
 			t.Fatalf("讀畫面第 %d 個 byte：%v", i, err)
 		}

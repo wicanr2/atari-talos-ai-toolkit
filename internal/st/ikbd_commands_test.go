@@ -21,7 +21,7 @@ func ikbdReadyForCommands(t *testing.T) *Memory {
 // the serial shift the host waits out between bytes.
 func sendIKBDByte(t *testing.T, m *Memory, value byte) error {
 	t.Helper()
-	if err := m.WriteByte(IKBDACIAData, value, 5); err != nil {
+	if err := m.WriteByteFC(IKBDACIAData, value, 5); err != nil {
 		return err
 	}
 	m.ikbdACIATXPending = false
@@ -85,7 +85,7 @@ func TestIKBDParametersAreNotReadAsCommands(t *testing.T) {
 func TestIKBDUnknownCommandFailsClosed(t *testing.T) {
 	for _, opcode := range []byte{0x09, 0x0c, 0x0d, 0x0e, 0x14, 0x20, 0xff} {
 		memory := ikbdReadyForCommands(t)
-		if err := memory.WriteByte(IKBDACIAData, opcode, 5); err == nil {
+		if err := memory.WriteByteFC(IKBDACIAData, opcode, 5); err == nil {
 			t.Errorf("命令 %02x 被接受了", opcode)
 		}
 		if memory.ikbdCommandRemaining != 0 || memory.ikbdACIATXPending {
@@ -98,14 +98,14 @@ func TestIKBDUnknownCommandFailsClosed(t *testing.T) {
 // in flight, or with TDRE clear, is refused.
 func TestIKBDCommandStillWaitsForTDRE(t *testing.T) {
 	memory := ikbdReadyForCommands(t)
-	if err := memory.WriteByte(IKBDACIAData, 0x08, 5); err != nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x08, 5); err != nil {
 		t.Fatal(err)
 	}
 	if memory.ikbdACIAStatus&2 != 0 || !memory.ikbdACIATXPending {
 		t.Fatalf("第一個位元組沒有佔住 latch：status=%02x pending=%v",
 			memory.ikbdACIAStatus, memory.ikbdACIATXPending)
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0x10, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x10, 5); err == nil {
 		t.Error("latch 還沒空就收下第二個位元組")
 	}
 }

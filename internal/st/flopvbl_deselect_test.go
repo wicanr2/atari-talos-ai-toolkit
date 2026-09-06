@@ -6,14 +6,14 @@ import "testing"
 // 回傳 nil 表示每一步都被接受。
 func flopVBLRound(memory *Memory, entry, target byte) error {
 	steps := []func() error{
-		func() error { return memory.WriteByte(PSGRegisterSelect, 14, 5) },
-		func() error { _, err := memory.ReadByte(PSGRegisterSelect, 5); return err },
-		func() error { return memory.WriteByte(PSGRegisterData, target, 5) },
+		func() error { return memory.WriteByteFC(PSGRegisterSelect, 14, 5) },
+		func() error { _, err := memory.ReadByteFC(PSGRegisterSelect, 5); return err },
+		func() error { return memory.WriteByteFC(PSGRegisterData, target, 5) },
 		func() error { return memory.WriteWord(STDMAControl, 0x0080, 5) },
 		func() error { _, err := memory.ReadWord(STDiskController, 5); return err },
-		func() error { return memory.WriteByte(PSGRegisterSelect, 14, 5) },
-		func() error { _, err := memory.ReadByte(PSGRegisterSelect, 5); return err },
-		func() error { return memory.WriteByte(PSGRegisterData, entry, 5) },
+		func() error { return memory.WriteByteFC(PSGRegisterSelect, 14, 5) },
+		func() error { _, err := memory.ReadByteFC(PSGRegisterSelect, 5); return err },
+		func() error { return memory.WriteByteFC(PSGRegisterData, entry, 5) },
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -59,13 +59,13 @@ func TestFlopVBLTakesTheDriveTheROMPicks(t *testing.T) {
 func TestFlopVBLRejectsANonDriveSelectWrite(t *testing.T) {
 	for _, value := range []byte{0x21, 0x24, 0x26, 0x00, 0x35} {
 		memory := flopVBLReady(t, 0x25, 74)
-		if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil {
+		if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil {
+		if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil {
 			t.Fatal(err)
 		}
-		if err := memory.WriteByte(PSGRegisterData, value, 5); err == nil {
+		if err := memory.WriteByteFC(PSGRegisterData, value, 5); err == nil {
 			t.Errorf("data 那一步寫 %02x 竟然被接受", value)
 		}
 		if memory.flopVBLMediaStage != 2 || memory.psgRegisters[14] != 0x25 {
@@ -80,13 +80,13 @@ func TestFlopVBLRejectsANonDriveSelectWrite(t *testing.T) {
 // a turn. Every turn after it comes in on $27 and goes back out on $27.
 func TestFlopVBLDeselectsBothDrives(t *testing.T) {
 	memory := flopVBLReady(t, 0x25, 76)
-	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil {
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil {
+	if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x27, 5); err != nil {
+	if err := memory.WriteByteFC(PSGRegisterData, 0x27, 5); err != nil {
 		t.Fatalf("deselect 被拒絕：%v", err)
 	}
 	if memory.psgRegisters[14] != 0x27 || memory.flopVBLMediaStage != 8 {
@@ -111,9 +111,9 @@ func TestFlopVBLDeselectsBothDrives(t *testing.T) {
 func TestFlopVBLDeselectHasNoStatusRead(t *testing.T) {
 	memory := flopVBLReady(t, 0x25, 76)
 	for _, step := range []func() error{
-		func() error { return memory.WriteByte(PSGRegisterSelect, 14, 5) },
-		func() error { _, err := memory.ReadByte(PSGRegisterSelect, 5); return err },
-		func() error { return memory.WriteByte(PSGRegisterData, 0x27, 5) },
+		func() error { return memory.WriteByteFC(PSGRegisterSelect, 14, 5) },
+		func() error { _, err := memory.ReadByteFC(PSGRegisterSelect, 5); return err },
+		func() error { return memory.WriteByteFC(PSGRegisterData, 0x27, 5) },
 	} {
 		if err := step(); err != nil {
 			t.Fatal(err)

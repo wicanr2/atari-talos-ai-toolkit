@@ -4,7 +4,7 @@ import "fmt"
 
 type SparseMemory map[uint32]byte
 
-func (m SparseMemory) ReadByte(address uint32, _ uint8) (byte, error) {
+func (m SparseMemory) ReadByteFC(address uint32, _ uint8) (byte, error) {
 	address &= addressMask
 	value, ok := m[address]
 	if !ok {
@@ -30,7 +30,7 @@ func (m SparseMemory) ReadWord(address uint32, _ uint8) (uint16, error) {
 	return uint16(hi)<<8 | uint16(lo), nil
 }
 
-func (m SparseMemory) WriteByte(address uint32, value byte, _ uint8) error {
+func (m SparseMemory) WriteByteFC(address uint32, value byte, _ uint8) error {
 	m[address&addressMask] = value
 	return nil
 }

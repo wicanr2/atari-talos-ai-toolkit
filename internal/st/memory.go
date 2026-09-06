@@ -416,7 +416,7 @@ func NewMemory(ramSize int, tosROM []byte) (*Memory, error) {
 	}, nil
 }
 
-func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
+func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 	address &= AddressMask
 	if fault := m.validateAccess(address, functionCode, false, 1); fault != nil {
 		return 0, fault
@@ -629,7 +629,7 @@ func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32
 		clockReadCount := m.ikbdClockResponseReadCount
 		readbackCount := m.ikbdClockReadbackReadCount
 		pollCount := m.ikbdClockPollResponseReadCount
-		value, err := m.ReadByte(address, access.FunctionCode)
+		value, err := m.ReadByteFC(address, access.FunctionCode)
 		if err == nil && address&AddressMask == IKBDACIAData &&
 			m.ikbdClockResponseReadCount == clockReadCount+1 {
 			m.ikbdClockResponseReadClocks[clockReadCount] = access.Clock
@@ -648,7 +648,7 @@ func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32
 	if err != nil {
 		return 0, 0, err
 	}
-	value, err := m.ReadByte(address, access.FunctionCode)
+	value, err := m.ReadByteFC(address, access.FunctionCode)
 	return value, wait, err
 }
 
@@ -704,11 +704,11 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 	if address <= STVoidRTCEnd && address+1 >= STVoidRTCBase {
 		return 0, m.fault(address, functionCode, false, 2, m.unmappedReason(address))
 	}
-	hi, err := m.ReadByte(address, functionCode)
+	hi, err := m.ReadByteFC(address, functionCode)
 	if err != nil {
 		return 0, resizeFault(err, address, 2)
 	}
-	lo, err := m.ReadByte(address+1, functionCode)
+	lo, err := m.ReadByteFC(address+1, functionCode)
 	if err != nil {
 		return 0, resizeFault(err, address, 2)
 	}
@@ -748,7 +748,7 @@ func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint
 	return value, wait, err
 }
 
-func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error {
+func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) error {
 	address &= AddressMask
 	if fault := m.validateAccess(address, functionCode, true, 1); fault != nil {
 		return fault
@@ -1370,7 +1370,7 @@ func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) 
 		wasSystemTimerD := m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart
 		floppyMediaPhase := m.floppyMediaPhase
 		vblStage := m.flopVBLMediaStage
-		err := m.WriteByte(address, value, access.FunctionCode)
+		err := m.WriteByteFC(address, value, access.FunctionCode)
 		if err == nil && !wasTimerC && m.mfpTimerCStart {
 			m.mfpTimerCStartClock = access.Clock
 		}
@@ -1393,7 +1393,7 @@ func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) 
 	if err != nil {
 		return 0, err
 	}
-	return wait, m.WriteByte(address, value, access.FunctionCode)
+	return wait, m.WriteByteFC(address, value, access.FunctionCode)
 }
 
 func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) error {

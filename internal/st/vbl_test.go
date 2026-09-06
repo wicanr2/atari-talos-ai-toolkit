@@ -129,10 +129,10 @@ func TestMachineStoppedVBLReloadsProgrammedVideoBase(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := memory.WriteByte(VideoBaseHigh, 0x0f, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseHigh, 0x0f, 5); err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(VideoBaseMiddle, 0x80, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseMiddle, 0x80, 5); err != nil {
 		t.Fatal(err)
 	}
 	cpu := m68k.CPU{Bus: memory, State: m68k.State{
@@ -205,7 +205,7 @@ func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
 		after.PC != 0x00fc69ee || after.Prefetch != [2]uint16{0x3239, 0x00fc} {
 		t.Fatalf("Shifter post-state result=%+v machine=%+v", result, machine)
 	}
-	if got, err := machine.Memory.ReadByte(ShifterResolution, 5); err != nil || got != 0xfc {
+	if got, err := machine.Memory.ReadByteFC(ShifterResolution, 5); err != nil || got != 0xfc {
 		t.Fatalf("Shifter resolution=%02x/%v want fc", got, err)
 	}
 	for machine.CPU.State.Prefetch != [2]uint16{0x11c1, 0x820a} {
@@ -235,7 +235,7 @@ func TestMachineEmuTOSInitializesShifterLowResolution(t *testing.T) {
 		machine.nextVBLClock != 535528 || machine.vblFrameClocks != colorST50HzFrameClocks {
 		t.Fatalf("sync post-state result=%+v machine=%+v", result, machine)
 	}
-	if got, err := machine.Memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfe {
+	if got, err := machine.Memory.ReadByteFC(VideoSyncMode, 5); err != nil || got != 0xfe {
 		t.Fatalf("video sync=%02x/%v want fe", got, err)
 	}
 	for !(machine.CPU.State.Prefetch[0] == 0x30c1 && machine.CPU.State.A[0] == 0xffff8240) {
