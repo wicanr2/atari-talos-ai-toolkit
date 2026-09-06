@@ -349,11 +349,12 @@ func (m *Memory) floppyMediaSectorSelectorMode() uint16 {
 	return 0x0080
 }
 
-// isFlopVBLEntryPort is what port A may hold when flopvbl() takes its turn:
-// drive 1 ($23), drive 0 ($25) or neither ($27). The top five bits are the
+// isFlopVBLEntryPort is what port A may hold when flopvbl() or flop_mediach()
+// takes its shared set_psg_porta prefix: drive 1/side 0 ($23), drive 0/side 0
+// ($25), drive 0/side 1 ($24), or neither ($27). The top five bits are the
 // other port A lines and stay put.
 func isFlopVBLEntryPort(value byte) bool {
-	return value == 0x23 || value == 0x25 || value == 0x27
+	return value == 0x23 || value == 0x24 || value == 0x25 || value == 0x27
 }
 
 func (m *Memory) flopVBLTargetPort() byte {
@@ -926,12 +927,12 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[14] == m.flopVBLMediaEntryPort &&
-			(value == 0x25 || value == 0x23) {
-			// 這一步才知道這一輪選的是哪個 drive。兩條路都可能寫 `$25`：
+			(value == 0x25 || value == 0x24 || value == 0x23) {
+			// 這一步才知道這一輪選的是哪個 drive／side。兩條路都可能寫 `$25`：
 			// flopvbl() 檢查 drive 0，以及媒體確認重選 drive 0；哪一條要留到
 			// DMA control 才判得出來，所以這裡只驗值是合法的 drive 選擇，
-			// 真正的分派放在 stage 3 的兩個出口。
-			if value == 0x25 {
+			// `$24` 是媒體讀取的 drive 0／side 1；真正的分派放在 stage 3 的兩個出口。
+			if value == 0x25 || value == 0x24 {
 				m.flopVBLMediaDrive = 0
 			} else {
 				m.flopVBLMediaDrive = 1
@@ -1500,7 +1501,8 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaReadBusy &&
 				m.dmaMode == 0x0080 && value == 0x0080:
 				if m.floppyA != nil {
-					sector, err := m.floppyA.Sector(uint16(m.floppyMediaCurrent.Track), 0,
+					sector, err := m.floppyA.Sector(uint16(m.floppyMediaCurrent.Track),
+						uint16(m.floppyMediaCurrent.Side),
 						m.floppyMediaCurrent.Sector)
 					end := uint64(m.dmaAddress) + rawFloppySectorSize
 					if err != nil || m.floppyMediaCurrent.Drive != 0 || m.dmaSectorCount != 1 ||
@@ -1580,11 +1582,12 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		// 是媒體確認的 sector selector，`$0080` 是 flopvbl() 的 status 讀取（規格 139）。
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.floppyMediaPhase == floppyMediaIdle && m.floppyMediaLocked &&
-			m.psgRegisters[14] == 0x25 && value == 0x0084 {
+			(m.psgRegisters[14] == 0x25 || m.psgRegisters[14] == 0x24) && value == 0x0084 {
 			// 媒體確認借走了這一輪的前置，那一輪 flopvbl() 沒有真的跑。
 			m.dmaMode = value
+			port := m.psgRegisters[14]
 			m.floppyMediaCurrent = floppyMediaReceipt{
-				Drive: 0, Track: 0, DrivePort: 0x25,
+				Drive: 0, Side: (^port) & 1, Track: 0, DrivePort: port,
 				DriveWriteClock: m.flopVBLMediaDriveWriteClock,
 			}
 			m.floppyMediaPhase = floppyMediaSectorData

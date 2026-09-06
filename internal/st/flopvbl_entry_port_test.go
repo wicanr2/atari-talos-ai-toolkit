@@ -115,10 +115,10 @@ func TestFlopVBLRejectsAWrongRestore(t *testing.T) {
 	}
 }
 
-// An entry value that is not one of the three drive-select combinations fails
+// An entry value that is not one of the four modeled drive/side combinations fails
 // closed at the read, before anything is remembered.
 func TestFlopVBLRejectsAnUnknownEntryPort(t *testing.T) {
-	for _, entry := range []byte{0x20, 0x21, 0x22, 0x24, 0x26, 0x00} {
+	for _, entry := range []byte{0x20, 0x21, 0x22, 0x26, 0x00} {
 		memory := flopVBLReady(t, entry, 73)
 		if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err == nil &&
 			memory.flopVBLMediaStage == 1 {

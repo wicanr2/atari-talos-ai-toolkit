@@ -555,16 +555,25 @@
   sector 或進 dummy seek，每個 sector 都重做 DMA count 1 與 `$80` command。固定
   EmuTOS 第二筆 `flopio()` 自然讀完 sector 1–6，DMA `$001004..$001C03` 的 3,072 bytes
   與 raw image 完全相同，完成點 1,391,231 instructions／1,797 interrupts／
-  107,502,748 clocks。下一步是 track／side 選擇與完整 boot-sector／檔案載入工作負載。
+  107,502,748 clocks。
+- A 槽雙面讀取已接線（規格 144 CONFORMED）：EmuTOS 的 port A `$25`／`$24` 分別
+  選 side 0／1；receipt 保存 side 並交給 raw-image CHS。固定 Hatari trace 明記
+  `$05→$04` 後讀 track 0／side 1／sector 6；Talos 相同 bootstrap 路徑完成 512-byte DMA、
+  IRQ 與 dummy seek；side 1 保持選取時的 `$24→$24` 共用前置可重入，後續再完成
+  side 1 sector 8／9 與 side 0 sector 8。下一 gate 前移至 1,530,617 instructions／
+  110,862,604 clocks 的 DMA control `$FF8606` word write，對應後續 track 選擇。
+  該私人磁片混用 ST 啟動檔、ST 圖形與 DOS-shaped
+  `DUNGEON.DAT`，只用來揭露硬體缺口，不是可玩或 parity 證據。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
-3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步判定第三次dummy seek後的PSG transaction，
-   再銜接最終錯誤收尾；
-   不可把無磁片當成成功讀取。
+3. 收斂 bootstrap 在 track 切換前的 DMA control `$FF8606` gate；先以 Hatari trace
+   與 EmuTOS 原始碼確認，再建立 READY 規格。
+4. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
+5. 正式 Dungeon Master 原版同狀態對拍仍需合法、版本可辨識的 Atari ST 原版磁片；
+   不可把私人混合素材磁片或無磁片路徑當成成功讀取。
    RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

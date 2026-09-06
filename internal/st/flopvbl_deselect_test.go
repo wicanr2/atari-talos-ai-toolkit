@@ -54,10 +54,12 @@ func TestFlopVBLTakesTheDriveTheROMPicks(t *testing.T) {
 	}
 }
 
-// The data step only takes the two drive-select values (plus the deselect
-// covered below); anything else fails closed and leaves the state alone.
+// The shared data step takes both side-0 drive selects, the drive-A side-1
+// select used by media reads, and the deselect covered below. Other values
+// fail closed and leave the state alone; the following DMA access decides
+// whether an accepted shared prefix belongs to flopvbl or flop_mediach.
 func TestFlopVBLRejectsANonDriveSelectWrite(t *testing.T) {
-	for _, value := range []byte{0x21, 0x24, 0x26, 0x00, 0x35} {
+	for _, value := range []byte{0x21, 0x22, 0x26, 0x00, 0x35} {
 		memory := flopVBLReady(t, 0x25, 74)
 		if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil {
 			t.Fatal(err)

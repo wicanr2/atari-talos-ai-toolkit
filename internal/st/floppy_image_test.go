@@ -110,6 +110,127 @@ func TestMountedFloppyReadSectorCompletesDMAAndRaisesIRQ(t *testing.T) {
 	}
 }
 
+func TestMountedFloppyReadSideOneUsesReceiptCHS(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := testRawFloppy(80, 2, 9)
+	want := bytes.Repeat([]byte{0xa5}, rawFloppySectorSize)
+	copy(image[9*rawFloppySectorSize:10*rawFloppySectorSize], want)
+	if err := machine.AttachFloppyA(image); err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Side: 1, Track: 0, Sector: 1}
+	memory.floppyMediaPhase = floppyMediaReadBusy
+	memory.dmaMode = 0x0080
+	memory.dmaAddress = 0x001004
+	memory.dmaSectorCount = 1
+	if _, err := memory.WriteWordAt(STDiskController, 0x0080,
+		m68k.BusAccess{Clock: 200, FunctionCode: 5}); err != nil {
+		t.Fatal(err)
+	}
+	machine.Clocks = 200 + fdcReadSectorLatencyClocks
+	machine.advanceClockedDevices()
+	if !bytes.Equal(memory.ram[0x1004:0x1204], want) || memory.floppyMediaCurrent.Side != 1 {
+		t.Fatalf("side-one DMA mismatch: receipt=%+v", memory.floppyMediaCurrent)
+	}
+}
+
+func TestMountedSingleSidedFloppyRejectsSideOneAtomically(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := machine.AttachFloppyA(testRawFloppy(80, 1, 9)); err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Side: 1, Track: 0, Sector: 1}
+	memory.floppyMediaPhase = floppyMediaReadBusy
+	memory.dmaMode = 0x0080
+	memory.dmaAddress = 0x001004
+	memory.dmaSectorCount = 1
+	before := append([]byte(nil), memory.ram[0x1004:0x1204]...)
+	if err := memory.WriteWord(STDiskController, 0x0080, 5); err == nil {
+		t.Fatal("single-sided image unexpectedly accepted side one")
+	}
+	if !bytes.Equal(memory.ram[0x1004:0x1204], before) || memory.fdcReadPending ||
+		memory.fdcCommand != 0 || memory.floppyMediaPhase != floppyMediaReadBusy {
+		t.Fatal("rejected side-one read mutated controller or RAM")
+	}
+}
+
+func TestMountedFloppySideOnePortStartsSectorRead(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.psgDriveStage = 9
+	memory.flopVBLMediaStage = 2
+	memory.flopVBLMediaEntryPort = 0x25
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7] = 0xc0
+	memory.psgRegisters[14] = 0x25
+	memory.floppyMediaLocked = true
+	memory.floppyMediaPhase = floppyMediaIdle
+	if _, err := memory.WriteByteAt(PSGRegisterData, 0x24,
+		m68k.BusAccess{Clock: 300, FunctionCode: 5}); err != nil ||
+		memory.flopVBLMediaStage != 3 || memory.flopVBLMediaDrive != 0 {
+		t.Fatalf("side-one port dispatch stage/drive=%d/%d err=%v",
+			memory.flopVBLMediaStage, memory.flopVBLMediaDrive, err)
+	}
+	if _, err := memory.WriteWordAt(STDMAControl, 0x0084,
+		m68k.BusAccess{Clock: 400, FunctionCode: 5}); err != nil ||
+		memory.floppyMediaPhase != floppyMediaSectorData ||
+		memory.floppyMediaCurrent.Drive != 0 || memory.floppyMediaCurrent.Side != 1 ||
+		memory.floppyMediaCurrent.DrivePort != 0x24 {
+		t.Fatalf("side-one receipt phase/drive/side/port=%d/%d/%d/%02x err=%v",
+			memory.floppyMediaPhase, memory.floppyMediaCurrent.Drive,
+			memory.floppyMediaCurrent.Side, memory.floppyMediaCurrent.DrivePort, err)
+	}
+}
+
+func TestMountedFloppySideOnePortReentersSharedPrefix(t *testing.T) {
+	machine, err := NewMachine(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory := machine.Memory
+	memory.psgDriveStage = 9
+	memory.flopVBLMediaStage = 8
+	memory.ikbdClockReadbackComplete = true
+	memory.fdcInitStage = 14
+	memory.acsiStage = 5
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7] = 0xc0
+	memory.psgRegisters[14] = 0x24
+	memory.floppyMediaLocked = true
+	memory.floppyMediaPhase = floppyMediaIdle
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil ||
+		memory.flopVBLMediaStage != 1 {
+		t.Fatalf("side-one selector reentry stage=%d err=%v", memory.flopVBLMediaStage, err)
+	}
+	if got, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || got != 0x24 ||
+		memory.flopVBLMediaStage != 2 {
+		t.Fatalf("side-one readback value/stage=%02x/%d err=%v", got,
+			memory.flopVBLMediaStage, err)
+	}
+	if err := memory.WriteByteFC(PSGRegisterData, 0x24, 5); err != nil ||
+		memory.flopVBLMediaStage != 3 {
+		t.Fatalf("side-one same-port write stage=%d err=%v", memory.flopVBLMediaStage, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0084, 5); err != nil ||
+		memory.floppyMediaPhase != floppyMediaSectorData || memory.floppyMediaCurrent.Side != 1 ||
+		memory.floppyMediaCurrent.DrivePort != 0x24 {
+		t.Fatalf("side-one reentry receipt phase/side/port=%d/%d/%02x err=%v",
+			memory.floppyMediaPhase, memory.floppyMediaCurrent.Side,
+			memory.floppyMediaCurrent.DrivePort, err)
+	}
+}
+
 func TestMountedFloppyReadRejectsDMAOverflowAtomically(t *testing.T) {
 	machine, err := NewMachine(RAM512K, testROM())
 	if err != nil {

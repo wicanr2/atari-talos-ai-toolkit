@@ -46,6 +46,7 @@ type floppyMediaReceipt struct {
 	LockedTrack          bool
 	Track                byte
 	Drive                int8
+	Side                 uint8
 	TrackWriteClock      uint64
 	DrivePort            byte
 	DriveWriteClock      uint64

@@ -806,3 +806,13 @@
 - 固定 EmuTOS 第二筆 `flopio()` 自然完成 sector 1–6；DMA `$001004..$001C03` 共 3,072
   bytes 與 raw image 逐 byte 相同，沒有 timeout／force-interrupt。完成點為 1,391,231
   instructions／1,797 interrupts／107,502,748 clocks；完整測試、vet 與 build 全綠。
+- 規格 144 接上 A 槽雙面選擇。固定 EmuTOS 原始碼與 Hatari trace 都證實 port A
+  `$25/$24` 是 drive A 的 side 0/1；Talos receipt 新增 `Side`，Type-II command 改以
+  完整 CHS 讀 raw image，單面映像選 side 1 仍原子拒絕。
+- 私人混合素材 bootstrap 路徑完成 track 0／side 1／sector 6 的 512-byte DMA、IRQ 與
+  dummy seek；第一輪揭露 side 1 保持選取時的 `$24→$24` 共用前置也必須可重入。
+  補齊後再完成 side 1 sector 8／9 與 side 0 sector 8，下一 gate 前移到
+  1,530,617 instructions／110,862,604 clocks 的 DMA control `$FF8606` word write。
+- Hatari oracle image 沿用既有 `atari-talos-hatari:2.4.1`，加入 `mtools`／`dosfstools`；
+  新腳本在私人目錄建立 720 KiB GEMDOS/FAT12 磁片並輸出輸入、映像雜湊與 FAT 目錄。
+  文件明示混用資料只用於 emulator gate，不當成遊戲可玩或原版 parity 證據。

@@ -109,7 +109,8 @@
 | ST `flopvbl()` 的 drive 選擇與 deselect（規格 140）| **CONFORMED** | 拿掉「用已跑完幾輪推這一輪檢查哪個 drive」的假設——輪替是 ROM 內部的自由計數（Hatari trace 裡有 47 個連續被跳過的輪詢時槽而奇偶不變），機器端看不到，改成從 data 那一步觀察。另補上一次性的 deselect（寫 `$27`，不讀 status、不計 checks），之後每一輪都以 `$27` 進場。**EmuTOS 1.3 走到 GEM 桌面**，畫面 SHA-256 `1de1eb45…` |
 | ST raw `.st` 軟碟映像輸入（規格 141） | **CONFORMED** | boot-sector BPB 自證 geometry、精確長度、1-based sector CHS、不可變掛載、invalid replacement 原子失敗與 cold reset 保留均有測試 |
 | ST WD1772 唯讀 sector DMA（規格 142） | **CONFORMED** | drive A／side 0／track 0／sector 1 經固定可重現期限搬入 512-byte RAM；DMA address/count、`DMA_OK`、Type-II `$80`、IRQ/GPIP5 與 dummy seek 正常路徑由固定 EmuTOS 從 reset 驗收 |
-| ST floppy 同軌連續 sector（規格 143） | **CONFORMED** | 同一次 `flopio()` 可逐筆重設 sector／DMA address／count 1；固定 EmuTOS 自然讀完 sector 1–6，3,072-byte RAM 與 raw image 完全相同，無 timeout。下一步擴充 track／side |
+| ST floppy 同軌連續 sector（規格 143） | **CONFORMED** | 同一次 `flopio()` 可逐筆重設 sector／DMA address／count 1；固定 EmuTOS 自然讀完 sector 1–6，3,072-byte RAM 與 raw image 完全相同，無 timeout |
+| ST floppy A 槽雙面選擇（規格 144） | **CONFORMED** | PSG port A `$25/$24` 對應 side 0/1，`$24→$24` 可重入；固定 Hatari 與 Talos 均完成 track 0／side 1／sector 6、8、9，receipt、CHS、DMA、IRQ 與失敗即關閉測試通過。下一步是 track 選擇 |
 | ST `flopvbl()` 的共用前置與進場值（規格 139）| **CONFORMED** | `set_psg_porta` 的三步是 `flopvbl()` 與媒體確認共用的，分派要等下一個 DMA control（`$0084` 媒體確認／`$0080` status）；還原的是進場值不是固定的 `$23`（Hatari 的 `io_porta_old/new` 顯示 `$23`／`$25`／`$27` 都出現過）。開機推進到 **10,544,770 條／209,189,796 clocks** |
 | ST IKBD `Initmous` 四條命令（規格 138）| **CONFORMED** | `$08`／`$0B x y`／`$10`／`$07 n` 的命令組裝器：長度表、參數不重新解讀成命令、未知命令碼 fail-closed、四條都不回應。Hatari 的 `ikbd_cmds` trace 在 VBL 615 獨立解出同一串。開機推進到 **8,058,248 條／180,984,736 clocks** |
 | ST floppy可重入媒體確認（規格 133）| **CONFORMED** | 前三輪的遷移層拆掉：`floppyReadStage`（0–68 固定 stage 機）與 `floppyMediaLegacy[3]`（約 50 個逐輪欄位）整組移除，每一輪都走同一條 phase 循環，`internal/st` 淨減 499 行。第一輪與後續輪的差異收進 receipt 的 `LockedTrack`（只有第一次呼叫會鎖 track）。DMA 位址的亂序寫入現在三輪一致 fail-closed。固定 ROM 的錨點一個都沒動 |
@@ -117,4 +118,4 @@
 | UCSD p-System 分派迴圈與序列執行（規格 135）| **CONFORMED** | `$00DE` 的 fetch-execute 循環與分派表全形狀（107 支常式、45 個無效 opcode）；短常數、混合族、存取往返、區域變數位址與 NOP 序列全部通過，六組負對照確認會失敗；六組 p-code 與 laanwj/sundog 的獨立 C 直譯器逐字相同 |
 | UCSD p-System 算術、分支與真實邏輯（規格 136）| **CONFORMED** | `ldcb`／`ldci`／`adi`／`sbi`／`dvi`／`modi`／`equi`／`leqi`／`dup1`／`swap`；並以原版 `check_exit` 的格座標換算驗收——數值取自原版執行時的除錯器讀值，算出的欄 11／列 7 與當時讀到的格座標一致 |
 | UCSD p-System 布林運算（規格 137）| **CONFORMED** | `land`／`lor`／`bnot` 都是位元運算，配上 `fjp`／`tjp` 的 `btst #0`，真假整套住在 bit 0——8 是假、9 是真。用 SunDog `XSTARTUP:0x31` 的初始損壞判斷式跑整張真值表，負對照兩條 |
-| Hatari 外部 oracle | **可重跑** | `tools/hatari-oracle/`：Dockerfile 釘住上游 tarball 的 SHA-256（`2a5da193…`），`trace.sh` 用 `--run-vbls` 加 `--trace-file` 無人值守取 CPU trace，`cycles.sh` 挑出指定位址第一次執行的 cycle 數。以已 CONFORMED 的 `$FC0070`／`$FC0074`（92／128 cycles）做過正對照。`--parse` 那條互動路不可用——中斷點觸發後 Hatari 停在提示等 stdin，容器裡既不結束也拿不到輸出。截圖收據與公開契約載體仍待定案 |
+| Hatari 外部 oracle | **可重跑** | `tools/hatari-oracle/`：Dockerfile 釘住上游 tarball SHA-256，含 `mtools`；`trace.sh`／`cycles.sh` 提供無頭 trace，`build-gemdos-disk.sh` 可在私人目錄建立帶雜湊 manifest 的 720 KiB bootstrap 磁片。混合素材磁片不算可玩或 parity 證據；截圖收據與公開契約載體仍待定案 |

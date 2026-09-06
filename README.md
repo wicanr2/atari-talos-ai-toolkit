@@ -97,7 +97,7 @@ TALOS_UCSD_INTERP=workplace/sundog tools/go.sh test ./internal/m68k -run UCSD
 | M2 | ST／STF 記憶體、TOS 開機與決定性時鐘 | **基礎 memory map、power-on reset、MMU、exception、`RESET`／`STOP`、空 cartridge、line-F、ST void I/O、`TST.B` bus error、MFP reset bank、固定 GPIP input、首個 external bus slot、level-4 autovector、reset 60 Hz recurring GLUE VBL、stopped-clock 快轉、video mode、16 色 palette、programmed／active framebuffer 基址已 CONFORMED；第四 VBL deadline 為 535,528** |
 | M3 | Shifter 畫面、鍵鼠、FDC 與磁碟映像 | **低解析度索引畫面、drive-0 FDC探測鏈及YM2149切至drive 1已 CONFORMED；RGB／PNG、鍵鼠、drive-1探測、跨track seek與磁碟映像尚未完成** |
 | M4 | breakpoint、watchpoint、trace、快照與畫面輸出 | 未開始 |
-| M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | 未開始 |
+| M5 | 《Dungeon Master》與 Hatari 同狀態原版對拍 | **進行中：raw `.st`、sector DMA、連續 sector 與 A 槽雙面讀取已 CONFORMED；私人混合素材 bootstrap 只用來揭露 emulator gate，尚缺合法原版 ST 磁片，未宣稱可玩或 parity 通過** |
 
 目前真相、限制與下一步以 [`CONTEXT.md`](CONTEXT.md) 為準。
 
