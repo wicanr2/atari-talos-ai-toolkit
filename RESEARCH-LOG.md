@@ -440,3 +440,12 @@
   status `$E4` read後的R14 select／read `$25`／同值write `$25`，其後才是FDC
   `$0084`。因此該PSG transaction是新一輪`select(0,0)`的可觀察bus行為，但不代表
   drive或side狀態改變。
+- EmuTOS官方SourceForge 1.3發行包確認既有固定ROM是`emutos-192k-1.3.zip`內的
+  `etos192uk.img`，SHA-256 `ad64942f5b0f468a08b909827f6cfa2c38e786f853fab407011dc7d6f9c52135`；
+  512K UK image雜湊不同，不可混用。以固定Hatari 2.4.1重生的330-VBL PSG＋FDC
+  trace SHA-256為`af37cf3ecec5c31ea86650a6ef7f40ac8dcdd3b99bd60132f2fe7603c13849be`。
+- 該trace在VBL310的R14 `$25`同值寫回後，完整重送`$0084/$0001`、DMA address
+  `$04/$10/$00`、direction toggle `$0190/$0090`、count `$0001`與Type-II
+  `$0080/$0080`；Hatari明記track 0／sector 1／side 0／drive 0／address `$001004`，
+  隨後為`no disk/drive`。Talos固定ROM收據定位第二次command clock 118,371,398；
+  後續130,385,952 clocks才抵達第二次timeout selector，期間無成功傳輸證據。

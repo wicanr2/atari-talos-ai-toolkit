@@ -1,6 +1,7 @@
 package st
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -1995,19 +1996,49 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.flopVBLMediaChecks, machine.Instructions, machine.Interrupts,
 			machine.Clocks, machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 1_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 1_000 && machine.Memory.floppyReadStage < 37 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate != nil || machine.Memory.floppyReadStage != 37 ||
+		machine.Memory.floppyReadRetrySector != 1 || machine.Memory.dmaAddress != 0x001004 ||
+		machine.Memory.floppyReadRetryDMAAddressStage != 3 ||
+		machine.Memory.floppyReadRetryDMAResetCount != 2 || machine.Memory.dmaSectorCount != 1 ||
+		machine.Memory.floppyReadRetryCommand != 0x80 ||
+		machine.Memory.floppyReadRetryCommandClock != 118371398 ||
+		machine.Memory.fdcCommand != 0x80 || machine.Memory.fdcStatus != 0x81 ||
+		machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ || machine.Memory.mfpGPIPIn != 0xb1 ||
+		machine.Memory.flopVBLMediaChecks != 73 ||
+		!bytes.Equal(machine.Memory.ram[0x1004:0x1204], make([]byte, 0x200)) ||
+		machine.Instructions != 2372203 || machine.Interrupts != 2136 || machine.Clocks != 118371412 ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0x80, 0x12c, 0x1004, 0x00fc3a88, 0, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc37ea, 0x2f44, 0x00fc3720, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x687c ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc373a ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
+		t.Fatalf("retry setup stage=%d sector=%02x address=%06x address-stage=%d resets=%d count=%d command/clock=%02x/%d FDC/status/type/IRQ/GPIP=%02x/%02x/%v/%v/%02x checks=%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyReadStage, machine.Memory.floppyReadRetrySector, machine.Memory.dmaAddress,
+			machine.Memory.floppyReadRetryDMAAddressStage, machine.Memory.floppyReadRetryDMAResetCount,
+			machine.Memory.dmaSectorCount, machine.Memory.floppyReadRetryCommand,
+			machine.Memory.floppyReadRetryCommandClock, machine.Memory.fdcCommand, machine.Memory.fdcStatus,
+			machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ, machine.Memory.mfpGPIPIn,
+			machine.Memory.flopVBLMediaChecks, machine.Instructions, machine.Interrupts, machine.Clocks,
+			machine.CPU.State, nextGate)
+	}
+	for steps := 0; steps < 1_500_000 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
 	if nextGate == nil || nextGate.Error() != "st: write 2-byte bus fault at 0xff8606 fc=5: unsupported_device_state" ||
-		machine.Memory.floppyReadStage != 27 || machine.Memory.psgRegisters[14] != 0x25 ||
-		machine.Instructions != 2372055 || machine.Interrupts != 2136 || machine.Clocks != 118369862 ||
-		machine.CPU.State.D != [8]uint32{6, 0x2700, 0, 0x1004, 0x00fc3a88, 0, 0x00fc37ea, 1} ||
-		machine.CPU.State.A != [7]uint32{0x300c, 0x2f44, 6, 1, 0x1004, 0, 0x00fcccf0} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x688a ||
-		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc3728 ||
+		machine.Memory.floppyReadStage != 37 || machine.Memory.fdcCommand != 0x80 ||
+		machine.Memory.fdcStatus != 0x81 || machine.Memory.fdcStatusTypeI || machine.Memory.fdcIRQ ||
+		machine.Instructions != 3456990 || machine.Interrupts != 2511 || machine.Clocks != 130385952 ||
+		machine.CPU.State.D != [8]uint32{1, 0x5e7, 0x12c, 0x1004, 0x00fc3a88, 0, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc37ea, 0x2f44, 0x00fc3720, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x687c ||
+		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc3728 ||
 		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
-		t.Fatalf("post-reselect gate stage=%d R14=%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
-			machine.Memory.floppyReadStage, machine.Memory.psgRegisters[14], machine.Instructions,
+		t.Fatalf("post-retry setup gate stage=%d FDC/status/type/IRQ=%02x/%02x/%v/%v instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyReadStage, machine.Memory.fdcCommand, machine.Memory.fdcStatus,
+			machine.Memory.fdcStatusTypeI, machine.Memory.fdcIRQ, machine.Instructions,
 			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }

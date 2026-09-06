@@ -443,6 +443,12 @@
   2,371,990 instructions／2,136 interrupts／118,369,170 clocks完成，R14仍為`$25`、
   media-check count仍73；write收據為instruction epoch 118,369,158，不冒稱精確bus
   phase。下一gate為2,372,055／118,369,862的`$FF8606=$0084`。
+- floppy retry的sector 1 DMA讀取設定已CONFORMED：固定Hatari VBL310 trace證實
+  retry完整重送`$0084/$0001`、DMA `$04/$10/$00`、`$0190/$0090/$0001`與
+  `$0080/$0080`。Talos以獨立retry收據於2,372,203 instructions／2,136 interrupts／
+  118,371,412 clocks提交Type-II `$80`，command bus clock為118,371,398；RAM
+  `$001004..$001203`仍全零。下一gate為3,456,990／130,385,952的第二次timeout
+  selector `$FF8606=$0080`。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -452,8 +458,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步銜接第二次sector 1讀取與其後
-   timeout／錯誤收尾；不可把無磁片當成成功讀取。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步銜接第二次sector 1讀取的
+   timeout／force-interrupt與最終錯誤收尾；不可把無磁片當成成功讀取。
    RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

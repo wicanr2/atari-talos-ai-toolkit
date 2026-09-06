@@ -581,3 +581,9 @@
   interrupts／118,369,170 clocks完成，R14與media-check count均不變；下一gate為
   `$FF8606=$0084`。由於`MOVE.B Dn,d(An)`仍走未定時byte bus路徑，本輪明確保存
   instruction epoch 118,369,158而非虛構精確bus phase。
+- 完成規格127：官方EmuTOS 1.3 192K UK ROM雜湊確認為既有固定
+  `ad64942f…135`，固定Hatari VBL310 trace證實retry完整重送sector 1／DMA設定與
+  Type-II `$80`。Talos新增不覆寫第一次transaction的retry收據，並把stage 27–37
+  的非預期DMA byte寫入改為失敗即關閉；於2,372,203 instructions／2,136 interrupts／
+  118,371,412 clocks完成command，RAM buffer仍全零。下一gate為3,456,990／
+  130,385,952的第二次timeout selector；完整CPU corpus、全測試、vet與build均通過。

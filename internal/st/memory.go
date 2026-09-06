@@ -136,6 +136,11 @@ type Memory struct {
 	floppyReadRetryStatusReadClock  uint64
 	floppyReadRetryDrivePort        byte
 	floppyReadRetryDriveWriteClock  uint64
+	floppyReadRetrySector           byte
+	floppyReadRetryDMAAddressStage  uint8
+	floppyReadRetryDMAResetCount    uint8
+	floppyReadRetryCommand          byte
+	floppyReadRetryCommandClock     uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -679,6 +684,12 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if isDMAAddressByte(address) {
+		validRetryAddressWrite := m.floppyReadStage == 29 && address == STDMAAddressLow && value == 0x04 ||
+			m.floppyReadStage == 30 && address == STDMAAddressMiddle && value == 0x10 ||
+			m.floppyReadStage == 31 && address == STDMAAddressHigh && value == 0
+		if m.floppyReadStage >= 27 && m.floppyReadStage <= 37 && !validRetryAddressWrite {
+			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
 		candidate := m.dmaAddress
 		switch address {
 		case STDMAAddressHigh:
@@ -706,6 +717,10 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 				m.floppyReadStage = 10
 				m.floppyReadDMAAddressStage = 3
 			}
+		}
+		if validRetryAddressWrite {
+			m.floppyReadStage++
+			m.floppyReadRetryDMAAddressStage++
 		}
 		if m.fdcProbeDrive == 1 && m.fdcInitStage == 14 {
 			switch {
@@ -1371,6 +1386,52 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 23
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 27 && m.dmaMode == 0x0080 &&
+			m.floppyReadRetryDrivePort == 0x25 && value == 0x0084 {
+			m.dmaMode = value
+			m.floppyReadStage = 28
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 28 && m.dmaMode == 0x0084 && value == 1 {
+			m.floppyReadRetrySector = 1
+			m.floppyReadStage = 29
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 32 &&
+			m.floppyReadRetryDMAAddressStage == 3 && value == 0x0190 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.floppyReadRetryDMAResetCount = 1
+			m.floppyReadStage = 33
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 33 && m.dmaMode == 0x0190 && value == 0x0090 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.floppyReadRetryDMAResetCount = 2
+			m.floppyReadStage = 34
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 34 && m.dmaMode == 0x0090 && value == 1 {
+			m.dmaSectorCount = 1
+			m.floppyReadStage = 35
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 35 && m.dmaMode == 0x0090 && value == 0x0080 {
+			m.dmaMode = value
+			m.floppyReadStage = 36
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 36 && m.dmaMode == 0x0080 && value == 0x0080 {
+			m.floppyReadRetryCommand = 0x80
+			m.fdcCommand = 0x80
+			m.fdcStatus = 0x81
+			m.fdcStatusTypeI = false
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 37
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1580,6 +1641,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 20 && m.floppyReadStage == 21 {
 			m.floppyReadRetrySeekStartClock = access.Clock
 		}
+		if floppyReadStage == 36 && m.floppyReadStage == 37 {
+			m.floppyReadRetryCommandClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1647,6 +1711,11 @@ func (m *Memory) ColdReset() {
 	m.floppyReadRetryStatusReadClock = 0
 	m.floppyReadRetryDrivePort = 0
 	m.floppyReadRetryDriveWriteClock = 0
+	m.floppyReadRetrySector = 0
+	m.floppyReadRetryDMAAddressStage = 0
+	m.floppyReadRetryDMAResetCount = 0
+	m.floppyReadRetryCommand = 0
+	m.floppyReadRetryCommandClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0
