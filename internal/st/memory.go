@@ -684,12 +684,15 @@ func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint
 		}
 		if floppyReadStage == 23 && m.floppyReadStage == 24 {
 			m.floppyMediaLegacy[0].StatusReadClock = access.Clock
+			m.floppyMediaReceipts.append(m.floppyMediaLegacy[0])
 		}
 		if floppyReadStage == 45 && m.floppyReadStage == 46 {
 			m.floppyMediaLegacy[1].StatusReadClock = access.Clock
+			m.floppyMediaReceipts.append(m.floppyMediaLegacy[1])
 		}
 		if floppyReadStage == 67 && m.floppyReadStage == 68 {
 			m.floppyMediaLegacy[2].StatusReadClock = access.Clock
+			m.floppyMediaReceipts.append(m.floppyMediaLegacy[2])
 		}
 		if floppyMediaPhase == floppyMediaStatusRead &&
 			m.floppyMediaPhase == floppyMediaIdle && m.floppyMediaReceipts.Total != 0 {

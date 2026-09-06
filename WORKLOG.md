@@ -678,3 +678,8 @@
   FDC command、GPIP poll、seek scheduler、status read-clear與clock receipt全部只依賴
   `floppyMediaPhase`，不再檢查`floppyReadStage == 68`。正常入口尚未切換，故舊前三輪
   行為不變；完整測試、vet與CLI建置通過，規格仍維持READY。
+- 規格133收據資料遷移：前三次固定stage在status read取得精確bus clock後，將同型
+  `floppyMediaReceipt`追加到容量8 ring；第四、第五輪因此自然成為attempt 4、5，而非
+  另起1、2。固定EmuTOS ROM驗證前三筆除ring自行賦值的`Attempt`外逐欄等於既有精確
+  錨點，且第五輪仍在6,779,282 instructions／167,143,396 clocks抵達同一IKBD gate。
+  完整測試與vet通過；舊欄位尚未刪除，規格維持READY。

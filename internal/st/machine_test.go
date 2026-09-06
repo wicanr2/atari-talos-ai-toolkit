@@ -2150,14 +2150,22 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts, machine.Clocks,
 			machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 5_000_000 && machine.Memory.floppyMediaReceipts.Total < 3 && nextGate == nil; steps++ {
+	for attempt := uint64(1); attempt <= 3; attempt++ {
+		receipt, ok := machine.Memory.floppyMediaReceipts.attempt(attempt)
+		receipt.Attempt = 0
+		if !ok || receipt != machine.Memory.floppyMediaLegacy[attempt-1] {
+			t.Fatalf("legacy migration attempt=%d receipt=%+v legacy=%+v present=%v",
+				attempt, receipt, machine.Memory.floppyMediaLegacy[attempt-1], ok)
+		}
+	}
+	for steps := 0; steps < 5_000_000 && machine.Memory.floppyMediaReceipts.Total < 6 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	last, ok := machine.Memory.floppyMediaReceipts.attempt(2)
+	last, ok := machine.Memory.floppyMediaReceipts.attempt(5)
 	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
 		machine.Memory.floppyMediaPhase != floppyMediaIdle ||
-		machine.Memory.floppyMediaReceipts.Total != 2 || machine.Memory.floppyMediaReceipts.Count != 2 ||
-		machine.Memory.floppyMediaReceipts.Next != 2 || !ok || last.DrivePort != 0x25 ||
+		machine.Memory.floppyMediaReceipts.Total != 5 || machine.Memory.floppyMediaReceipts.Count != 5 ||
+		machine.Memory.floppyMediaReceipts.Next != 5 || !ok || last.DrivePort != 0x25 ||
 		last.DriveWriteClock != 155070654 || last.Sector != 1 || last.DMAAddressStage != 3 ||
 		last.DMAResetCount != 2 || last.ReadCommand != 0x80 || last.ReadCommandClock != 155072894 ||
 		last.TimeoutSelectorClock != 167083840 || last.ForceInterrupt != 0xd0 ||
