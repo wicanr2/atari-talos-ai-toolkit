@@ -31,6 +31,29 @@ func TestFloppyMediaReceiptsWrapAndReset(t *testing.T) {
 	}
 }
 
+func TestFloppyMediaFirstTransactionTrackPrefix(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.floppyReadStage = 68
+	memory.dmaMode = 0x0080
+	memory.beginFloppyMediaAtTrack()
+
+	if err := memory.WriteWord(STDMAControl, 0x0082, 5); err != nil {
+		t.Fatalf("track selector: %v", err)
+	}
+	if memory.floppyMediaPhase != floppyMediaTrackData || memory.dmaMode != 0x0082 {
+		t.Fatalf("track selector phase/mode=%d/%04x", memory.floppyMediaPhase, memory.dmaMode)
+	}
+	if err := memory.WriteWord(STDiskController, 0, 5); err != nil {
+		t.Fatalf("track data: %v", err)
+	}
+	if memory.floppyMediaPhase != floppyMediaDriveSelector || memory.floppyMediaCurrent.Track != 0 {
+		t.Fatalf("track data phase/track=%d/%d", memory.floppyMediaPhase, memory.floppyMediaCurrent.Track)
+	}
+}
+
 func TestFloppyMediaRecurringNoDiskTransactions(t *testing.T) {
 	memory, err := NewMemory(RAM1M, testROM())
 	if err != nil {

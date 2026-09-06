@@ -663,3 +663,8 @@
   floppy 都疊在上面），所以合併時取 main 的實作，只留下這條線獨有的 UCSD p-System
   四片，規格重編號成 134–137。`tools/hatari-oracle/` 一併留下，`bus_error_address_test.go`
   的兩條 synthetic 負對照（sign-extend 與位址暫存器高位元）也留著——main 那邊沒有。
+- 同步合併後的`main`至`e957113`並確認全測試通過；規格133繼續採可回復遷移。
+  共用軟碟phase補齊第一輪才有的`$0082` track selector與track 0 data前綴，新增錯誤
+  即關閉的狀態／mode測試，完整`go test ./...`與CLI建置通過。Go 1.24的`go vet ./...`
+  會在既有`ReadByte`／`WriteByte`方法觸發標準介面簽章警告，屬同步後基線問題；正式
+  入口與前三輪舊stage尚未切換，因此規格維持READY，不提前宣稱已完成統一。

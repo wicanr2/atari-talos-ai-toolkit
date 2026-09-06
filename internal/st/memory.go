@@ -1389,6 +1389,16 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		}
 		if m.floppyReadStage == 68 {
 			switch {
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaTrackSelector &&
+				m.dmaMode == 0x0080 && value == 0x0082:
+				m.dmaMode = value
+				m.floppyMediaPhase = floppyMediaTrackData
+				return nil
+			case address == STDiskController && m.floppyMediaPhase == floppyMediaTrackData &&
+				m.dmaMode == 0x0082 && value == 0:
+				m.floppyMediaCurrent.Track = 0
+				m.floppyMediaPhase = floppyMediaDriveSelector
+				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSectorSelector &&
 				m.dmaMode == 0x0080 && value == 0x0084:
 				m.dmaMode = value

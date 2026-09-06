@@ -62,6 +62,16 @@ type floppyMediaReceipts struct {
 	Entries [floppyMediaReceiptCapacity]floppyMediaReceipt
 }
 
+func (m *Memory) beginFloppyMediaAtTrack() {
+	m.floppyMediaCurrent = floppyMediaReceipt{Drive: 0}
+	m.floppyMediaPhase = floppyMediaTrackSelector
+}
+
+func (m *Memory) beginFloppyMediaAtDrive() {
+	m.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Track: 0}
+	m.floppyMediaPhase = floppyMediaDriveSelector
+}
+
 func (r *floppyMediaReceipts) append(receipt floppyMediaReceipt) {
 	r.Total++
 	receipt.Attempt = r.Total
