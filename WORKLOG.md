@@ -561,3 +561,8 @@
   Talos於clock 106,338,122提交track data，1,286,016 instructions／1,761 interrupts／
   106,339,274 clocks完成read stage 5；下一gate為`$0084` sector selector。既有73輪
   media-check count未被這條非VBL序列污染。
+- 完成規格123：固定EmuTOS依序寫sector 1、DMA address `$001004`、兩次DMA direction
+  toggle、sector count 1與WD1772 Type-II `$80`。Talos於1,286,164 instructions／1,761
+  interrupts／106,340,824 clocks完成read stage 15，command clock為106,340,810；
+  synthetic另驗證錯序拒絕、cold reset與無磁片時DMA buffer不變。無磁片timeout與
+  force-interrupt留給獨立規格，沒有把command receipt寫成成功讀取證據。

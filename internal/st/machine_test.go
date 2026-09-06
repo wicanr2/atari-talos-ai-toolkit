@@ -1908,28 +1908,25 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.psgRegisters[14], machine.Instructions, machine.Interrupts,
 			machine.Clocks, machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 200_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 200_000 && machine.Memory.floppyReadStage < 15 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 2-byte bus fault at 0xff8606 fc=5: unsupported_device_state" ||
-		machine.Memory.flopVBLMediaChecks != 73 || machine.Memory.flopVBLMediaDrive != 0 ||
-		machine.Memory.flopVBLMediaStage != 8 || machine.Memory.flopVBLStatusReadClock != 105344570 ||
-		machine.Memory.psgRegisters[14] != 0x25 || machine.Memory.dmaMode != 0x0082 ||
-		machine.Memory.fdcStatus != 0xe4 || machine.Memory.floppyReadStage != 5 ||
-		machine.Memory.floppyReadTrack != 0 || machine.Memory.floppyReadDrive != 0 ||
-		machine.Memory.floppyReadTrackWriteClock != 106338122 || machine.Instructions != 1286016 ||
-		machine.Interrupts != 1761 || machine.Clocks != 106339274 ||
-		machine.CPU.State.D != [8]uint32{1, 0x2700, 0, 0x1004, 0x00fc3a88, 0x00100000, 0x00fc37ea, 1} ||
-		machine.CPU.State.A != [7]uint32{0x300c, 0x2f44, 1, 1, 0x1004, 0, 0x00fcccf0} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f38 ||
-		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc3728 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
-		t.Fatalf("post-second-flopvbl gate checks=%d drive=%d stage=%d status-clock=%d port=%02x DMA=%04x FDC=%02x read-stage/track/drive/clock=%d/%02x/%d/%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
-			machine.Memory.flopVBLMediaChecks, machine.Memory.flopVBLMediaDrive,
-			machine.Memory.flopVBLMediaStage, machine.Memory.flopVBLStatusReadClock,
-			machine.Memory.psgRegisters[14], machine.Memory.dmaMode, machine.Memory.fdcStatus,
-			machine.Memory.floppyReadStage, machine.Memory.floppyReadTrack,
-			machine.Memory.floppyReadDrive, machine.Memory.floppyReadTrackWriteClock,
+	if nextGate != nil || machine.Memory.floppyReadStage != 15 || machine.Memory.floppyReadSector != 1 ||
+		machine.Memory.dmaAddress != 0x001004 || machine.Memory.floppyReadDMAAddressStage != 3 ||
+		machine.Memory.floppyReadDMAResetCount != 2 || machine.Memory.dmaSectorCount != 1 ||
+		machine.Memory.floppyReadCommand != 0x80 || machine.Memory.floppyReadCommandClock != 106340810 ||
+		machine.Memory.flopVBLMediaChecks != 73 || machine.Instructions != 1286164 ||
+		machine.Interrupts != 1761 || machine.Clocks != 106340824 ||
+		machine.CPU.State.D != [8]uint32{0xffffffff, 0x80, 0x12c, 0x1004, 0x00fc3a88, 0x00100000, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0x00fc37ea, 0x2f44, 0x00fc3720, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f2a ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc373a ||
+		machine.CPU.State.Prefetch != [2]uint16{0x4e75, 0x2f0a} {
+		t.Fatalf("sector-read setup stage=%d sector=%02x address=%06x address-stage=%d resets=%d DMA-count=%d command=%02x command-clock=%d checks=%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyReadStage, machine.Memory.floppyReadSector, machine.Memory.dmaAddress,
+			machine.Memory.floppyReadDMAAddressStage, machine.Memory.floppyReadDMAResetCount,
+			machine.Memory.dmaSectorCount, machine.Memory.floppyReadCommand,
+			machine.Memory.floppyReadCommandClock, machine.Memory.flopVBLMediaChecks,
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }

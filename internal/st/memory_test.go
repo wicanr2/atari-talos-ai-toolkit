@@ -1,6 +1,7 @@
 package st
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -1332,12 +1333,71 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.floppyReadStage, memory.floppyReadDrive, memory.psgRegisters[14],
 			memory.flopVBLMediaChecks, err)
 	}
-	if err := memory.WriteWord(STDMAControl, 0x0084, 5); err == nil {
-		t.Fatal("sector selector unexpectedly accepted before follow-up spec")
+	if err := memory.WriteWord(STDiskController, 1, 5); err == nil {
+		t.Fatal("sector data before selector unexpectedly accepted")
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0084, 5); err != nil || memory.floppyReadStage != 6 {
+		t.Fatalf("sector selector stage=%d err=%v", memory.floppyReadStage, err)
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err != nil ||
+		memory.floppyReadStage != 7 || memory.floppyReadSector != 1 {
+		t.Fatalf("sector data stage/sector=%d/%02x err=%v",
+			memory.floppyReadStage, memory.floppyReadSector, err)
+	}
+	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err != nil || memory.floppyReadStage != 7 {
+		t.Fatalf("out-of-order DMA middle stage=%d err=%v", memory.floppyReadStage, err)
+	}
+	for index, write := range []struct {
+		address uint32
+		value   byte
+		stage   uint8
+	}{{STDMAAddressLow, 0x04, 8}, {STDMAAddressMiddle, 0x10, 9}, {STDMAAddressHigh, 0, 10}} {
+		if err := memory.WriteByte(write.address, write.value, 5); err != nil ||
+			memory.floppyReadStage != write.stage || memory.floppyReadDMAAddressStage != uint8(index+1) {
+			t.Fatalf("DMA address %d stage/address-stage=%d/%d err=%v", index,
+				memory.floppyReadStage, memory.floppyReadDMAAddressStage, err)
+		}
+	}
+	if memory.dmaAddress != 0x001004 {
+		t.Fatalf("DMA address=%06x", memory.dmaAddress)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0190, 5); err != nil ||
+		memory.floppyReadStage != 11 || memory.floppyReadDMAResetCount != 1 {
+		t.Fatalf("DMA reset one stage/count=%d/%d err=%v",
+			memory.floppyReadStage, memory.floppyReadDMAResetCount, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0090, 5); err != nil ||
+		memory.floppyReadStage != 12 || memory.floppyReadDMAResetCount != 2 {
+		t.Fatalf("DMA reset two stage/count=%d/%d err=%v",
+			memory.floppyReadStage, memory.floppyReadDMAResetCount, err)
+	}
+	if err := memory.WriteWord(STDiskController, 1, 5); err != nil ||
+		memory.floppyReadStage != 13 || memory.dmaSectorCount != 1 {
+		t.Fatalf("DMA count stage/count=%d/%d err=%v",
+			memory.floppyReadStage, memory.dmaSectorCount, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0080, 5); err != nil || memory.floppyReadStage != 14 {
+		t.Fatalf("command selector stage=%d err=%v", memory.floppyReadStage, err)
+	}
+	before := append([]byte(nil), memory.ram[0x1004:0x1204]...)
+	if wait, err := memory.WriteWordAt(STDiskController, 0x0080,
+		m68k.BusAccess{Clock: 200, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 15 || memory.floppyReadCommand != 0x80 ||
+		memory.floppyReadCommandClock != 200 || memory.fdcCommand != 0x80 ||
+		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("read command wait/stage/command/clock/FDC/IRQ/GPIP=%d/%d/%02x/%d/%02x/%v/%02x err=%v",
+			wait, memory.floppyReadStage, memory.floppyReadCommand,
+			memory.floppyReadCommandClock, memory.fdcCommand, memory.fdcIRQ,
+			memory.mfpGPIPIn, err)
+	}
+	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
+		t.Fatal("no-disk command modified DMA buffer before successful transfer")
 	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
-		memory.floppyReadTrackWriteClock != 0 {
+		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
+		memory.floppyReadDMAAddressStage != 0 || memory.floppyReadDMAResetCount != 0 ||
+		memory.floppyReadCommand != 0 || memory.floppyReadCommandClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

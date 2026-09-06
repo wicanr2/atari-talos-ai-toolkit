@@ -120,6 +120,11 @@ type Memory struct {
 	floppyReadTrack                 byte
 	floppyReadDrive                 int8
 	floppyReadTrackWriteClock       uint64
+	floppyReadSector                byte
+	floppyReadDMAAddressStage       uint8
+	floppyReadDMAResetCount         uint8
+	floppyReadCommand               byte
+	floppyReadCommandClock          uint64
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -655,6 +660,19 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 			candidate += 0x10000
 		}
 		m.dmaAddress = candidate & 0x003ffffe
+		if m.floppyReadStage >= 7 && m.floppyReadStage <= 9 {
+			switch {
+			case m.floppyReadStage == 7 && address == STDMAAddressLow && value == 0x04:
+				m.floppyReadStage = 8
+				m.floppyReadDMAAddressStage = 1
+			case m.floppyReadStage == 8 && address == STDMAAddressMiddle && value == 0x10:
+				m.floppyReadStage = 9
+				m.floppyReadDMAAddressStage = 2
+			case m.floppyReadStage == 9 && address == STDMAAddressHigh && value == 0:
+				m.floppyReadStage = 10
+				m.floppyReadDMAAddressStage = 3
+			}
+		}
 		if m.fdcProbeDrive == 1 && m.fdcInitStage == 14 {
 			switch {
 			case m.dmaAddressWriteStage == 0 && address == STDMAAddressLow && value == 0x04:
@@ -1204,6 +1222,51 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			m.floppyReadStage = 2
 			return nil
 		}
+		if address == STDMAControl && m.floppyReadStage == 5 && m.dmaMode == 0x0082 && value == 0x0084 {
+			m.dmaMode = value
+			m.floppyReadStage = 6
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 6 && m.dmaMode == 0x0084 && value == 1 {
+			m.floppyReadSector = 1
+			m.floppyReadStage = 7
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 10 &&
+			m.floppyReadDMAAddressStage == 3 && value == 0x0190 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.floppyReadDMAResetCount = 1
+			m.floppyReadStage = 11
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 11 && m.dmaMode == 0x0190 && value == 0x0090 {
+			m.dmaMode = value
+			m.dmaSectorCount = 0
+			m.floppyReadDMAResetCount = 2
+			m.floppyReadStage = 12
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 12 && m.dmaMode == 0x0090 && value == 1 {
+			m.dmaSectorCount = 1
+			m.floppyReadStage = 13
+			return nil
+		}
+		if address == STDMAControl && m.floppyReadStage == 13 && m.dmaMode == 0x0090 && value == 0x0080 {
+			m.dmaMode = value
+			m.floppyReadStage = 14
+			return nil
+		}
+		if address == STDiskController && m.floppyReadStage == 14 && m.dmaMode == 0x0080 && value == 0x0080 {
+			m.floppyReadCommand = 0x80
+			m.fdcCommand = 0x80
+			m.fdcStatus = 0x81
+			m.fdcStatusTypeI = false
+			m.fdcIRQ = false
+			m.mfpGPIPIn |= 0x20
+			m.floppyReadStage = 15
+			return nil
+		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
@@ -1401,6 +1464,9 @@ func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess
 		if floppyReadStage == 1 && m.floppyReadStage == 2 {
 			m.floppyReadTrackWriteClock = access.Clock
 		}
+		if floppyReadStage == 14 && m.floppyReadStage == 15 {
+			m.floppyReadCommandClock = access.Clock
+		}
 	}
 	return wait, err
 }
@@ -1452,6 +1518,11 @@ func (m *Memory) ColdReset() {
 	m.floppyReadTrack = 0
 	m.floppyReadDrive = -1
 	m.floppyReadTrackWriteClock = 0
+	m.floppyReadSector = 0
+	m.floppyReadDMAAddressStage = 0
+	m.floppyReadDMAResetCount = 0
+	m.floppyReadCommand = 0
+	m.floppyReadCommandClock = 0
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0
