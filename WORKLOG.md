@@ -616,3 +616,7 @@
   欄位，不保留永久相容層。先建立單一phase列舉、完整同型receipt與容量8 ring；12輪
   synthetic wrap／lookup／reset、完整CPU corpus、全測試、vet與build均通過。正式FDC／
   PSG分支尚未遷移，規格維持READY，不宣稱循環已接線。
+- 規格133第二階段前半：移除`Memory`內約50個分散的逐輪receipt欄位，將前三次已驗證
+  收據機械遷入`[3]floppyMediaReceipt`；所有既有分支與測試改查同型欄位。固定ROM前三輪
+  instructions／clock錨點完全不變，完整CPU corpus、全測試、vet與build均通過。這個
+  `floppyMediaLegacy`陣列只是下一個可回退遷移點，尚未取代固定stage，規格維持READY。

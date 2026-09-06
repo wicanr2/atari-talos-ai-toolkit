@@ -1310,11 +1310,11 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0,
 		m68k.BusAccess{Clock: 100, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 2 || memory.floppyReadTrack != 0 ||
-		memory.floppyReadTrackWriteClock != 100 {
+		memory.floppyReadStage != 2 || memory.floppyMediaLegacy[0].Track != 0 ||
+		memory.floppyMediaLegacy[0].TrackWriteClock != 100 {
 		t.Fatalf("track write wait/stage/track/clock=%d/%d/%02x/%d err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadTrack,
-			memory.floppyReadTrackWriteClock, err)
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[0].Track,
+			memory.floppyMediaLegacy[0].TrackWriteClock, err)
 	}
 	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err == nil {
 		t.Fatal("drive data before select/read unexpectedly accepted")
@@ -1327,10 +1327,10 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		t.Fatalf("drive old port/stage=%02x/%d err=%v", got, memory.floppyReadStage, err)
 	}
 	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err != nil ||
-		memory.floppyReadStage != 5 || memory.floppyReadDrive != 0 ||
+		memory.floppyReadStage != 5 || memory.floppyMediaLegacy[0].Drive != 0 ||
 		memory.psgRegisters[14] != 0x25 || memory.flopVBLMediaChecks != 73 {
 		t.Fatalf("drive completion stage/drive/port/checks=%d/%d/%02x/%d err=%v",
-			memory.floppyReadStage, memory.floppyReadDrive, memory.psgRegisters[14],
+			memory.floppyReadStage, memory.floppyMediaLegacy[0].Drive, memory.psgRegisters[14],
 			memory.flopVBLMediaChecks, err)
 	}
 	if err := memory.WriteWord(STDiskController, 1, 5); err == nil {
@@ -1340,9 +1340,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		t.Fatalf("sector selector stage=%d err=%v", memory.floppyReadStage, err)
 	}
 	if err := memory.WriteWord(STDiskController, 1, 5); err != nil ||
-		memory.floppyReadStage != 7 || memory.floppyReadSector != 1 {
+		memory.floppyReadStage != 7 || memory.floppyMediaLegacy[0].Sector != 1 {
 		t.Fatalf("sector data stage/sector=%d/%02x err=%v",
-			memory.floppyReadStage, memory.floppyReadSector, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[0].Sector, err)
 	}
 	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err != nil || memory.floppyReadStage != 7 {
 		t.Fatalf("out-of-order DMA middle stage=%d err=%v", memory.floppyReadStage, err)
@@ -1353,23 +1353,23 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		stage   uint8
 	}{{STDMAAddressLow, 0x04, 8}, {STDMAAddressMiddle, 0x10, 9}, {STDMAAddressHigh, 0, 10}} {
 		if err := memory.WriteByte(write.address, write.value, 5); err != nil ||
-			memory.floppyReadStage != write.stage || memory.floppyReadDMAAddressStage != uint8(index+1) {
+			memory.floppyReadStage != write.stage || memory.floppyMediaLegacy[0].DMAAddressStage != uint8(index+1) {
 			t.Fatalf("DMA address %d stage/address-stage=%d/%d err=%v", index,
-				memory.floppyReadStage, memory.floppyReadDMAAddressStage, err)
+				memory.floppyReadStage, memory.floppyMediaLegacy[0].DMAAddressStage, err)
 		}
 	}
 	if memory.dmaAddress != 0x001004 {
 		t.Fatalf("DMA address=%06x", memory.dmaAddress)
 	}
 	if err := memory.WriteWord(STDMAControl, 0x0190, 5); err != nil ||
-		memory.floppyReadStage != 11 || memory.floppyReadDMAResetCount != 1 {
+		memory.floppyReadStage != 11 || memory.floppyMediaLegacy[0].DMAResetCount != 1 {
 		t.Fatalf("DMA reset one stage/count=%d/%d err=%v",
-			memory.floppyReadStage, memory.floppyReadDMAResetCount, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[0].DMAResetCount, err)
 	}
 	if err := memory.WriteWord(STDMAControl, 0x0090, 5); err != nil ||
-		memory.floppyReadStage != 12 || memory.floppyReadDMAResetCount != 2 {
+		memory.floppyReadStage != 12 || memory.floppyMediaLegacy[0].DMAResetCount != 2 {
 		t.Fatalf("DMA reset two stage/count=%d/%d err=%v",
-			memory.floppyReadStage, memory.floppyReadDMAResetCount, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[0].DMAResetCount, err)
 	}
 	if err := memory.WriteWord(STDiskController, 1, 5); err != nil ||
 		memory.floppyReadStage != 13 || memory.dmaSectorCount != 1 {
@@ -1382,12 +1382,12 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	before := append([]byte(nil), memory.ram[0x1004:0x1204]...)
 	if wait, err := memory.WriteWordAt(STDiskController, 0x0080,
 		m68k.BusAccess{Clock: 200, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 15 || memory.floppyReadCommand != 0x80 ||
-		memory.floppyReadCommandClock != 200 || memory.fdcCommand != 0x80 ||
+		memory.floppyReadStage != 15 || memory.floppyMediaLegacy[0].ReadCommand != 0x80 ||
+		memory.floppyMediaLegacy[0].ReadCommandClock != 200 || memory.fdcCommand != 0x80 ||
 		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("read command wait/stage/command/clock/FDC/IRQ/GPIP=%d/%d/%02x/%d/%02x/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadCommand,
-			memory.floppyReadCommandClock, memory.fdcCommand, memory.fdcIRQ,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[0].ReadCommand,
+			memory.floppyMediaLegacy[0].ReadCommandClock, memory.fdcCommand, memory.fdcIRQ,
 			memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
@@ -1398,9 +1398,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
 		m68k.BusAccess{Clock: 300, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 16 || memory.floppyReadTimeoutSelectorClock != 300 {
+		memory.floppyReadStage != 16 || memory.floppyMediaLegacy[0].TimeoutSelectorClock != 300 {
 		t.Fatalf("timeout selector wait/stage/clock=%d/%d/%d err=%v", wait,
-			memory.floppyReadStage, memory.floppyReadTimeoutSelectorClock, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[0].TimeoutSelectorClock, err)
 	}
 	if err := memory.WriteWord(STDiskController, 0x00d8, 5); err == nil ||
 		memory.floppyReadStage != 16 || memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
@@ -1409,13 +1409,13 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0x00d0,
 		m68k.BusAccess{Clock: 400, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 17 || memory.floppyReadForceInterrupt != 0xd0 ||
-		memory.floppyReadForceInterruptClock != 400 || memory.fdcCommand != 0xd0 ||
+		memory.floppyReadStage != 17 || memory.floppyMediaLegacy[0].ForceInterrupt != 0xd0 ||
+		memory.floppyMediaLegacy[0].ForceInterruptClock != 400 || memory.fdcCommand != 0xd0 ||
 		memory.fdcStatus != 0x80 || memory.fdcStatusTypeI || memory.fdcIRQ ||
 		memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("force interrupt wait/stage/receipt/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadForceInterrupt,
-			memory.floppyReadForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[0].ForceInterrupt,
+			memory.floppyMediaLegacy[0].ForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
@@ -1432,9 +1432,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0,
 		m68k.BusAccess{Clock: 600, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 19 || memory.floppyReadRetryData != 0 || memory.fdcData != 0 {
+		memory.floppyReadStage != 19 || memory.floppyMediaLegacy[0].SeekData != 0 || memory.fdcData != 0 {
 		t.Fatalf("retry data wait/stage/data/FDC=%d/%d/%02x/%02x err=%v", wait,
-			memory.floppyReadStage, memory.floppyReadRetryData, memory.fdcData, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[0].SeekData, memory.fdcData, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
 		m68k.BusAccess{Clock: 700, FunctionCode: 5}); err != nil || wait != 4 ||
@@ -1448,13 +1448,13 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0x0013,
 		m68k.BusAccess{Clock: 800, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 21 || memory.floppyReadRetrySeekCommand != 0x13 ||
-		memory.floppyReadRetrySeekStartClock != 800 || memory.fdcSeekStartClock != 800 ||
+		memory.floppyReadStage != 21 || memory.floppyMediaLegacy[0].SeekCommand != 0x13 ||
+		memory.floppyMediaLegacy[0].SeekStartClock != 800 || memory.fdcSeekStartClock != 800 ||
 		!memory.fdcSeekPending || memory.fdcStatus != 0xe5 || !memory.fdcStatusTypeI ||
 		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("retry seek wait/stage/command/clocks/pending/status/type/IRQ/GPIP=%d/%d/%02x/%d/%d/%v/%02x/%v/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadRetrySeekCommand,
-			memory.floppyReadRetrySeekStartClock, memory.fdcSeekStartClock,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[0].SeekCommand,
+			memory.floppyMediaLegacy[0].SeekStartClock, memory.fdcSeekStartClock,
 			memory.fdcSeekPending, memory.fdcStatus, memory.fdcStatusTypeI,
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
@@ -1463,8 +1463,8 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			t.Fatalf("retry inactive poll %d=%02x err=%v", index, got, err)
 		}
 	}
-	if memory.floppyReadRetryInactivePolls != 9 || !memory.fdcSeekPending {
-		t.Fatalf("retry polls/pending=%d/%v", memory.floppyReadRetryInactivePolls,
+	if memory.floppyMediaLegacy[0].InactivePolls != 9 || !memory.fdcSeekPending {
+		t.Fatalf("retry polls/pending=%d/%v", memory.floppyMediaLegacy[0].InactivePolls,
 			memory.fdcSeekPending)
 	}
 	machine := &Machine{Memory: memory, Clocks: 1528}
@@ -1486,9 +1486,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.fdcSeekPending, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
 	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
-		!memory.floppyReadRetryIRQObserved {
+		!memory.floppyMediaLegacy[0].IRQObserved {
 		t.Fatalf("retry IRQ poll=%02x observed=%v err=%v", got,
-			memory.floppyReadRetryIRQObserved, err)
+			memory.floppyMediaLegacy[0].IRQObserved, err)
 	}
 	if _, err := memory.ReadWord(STDiskController, 5); err == nil {
 		t.Fatal("retry status before selector unexpectedly accepted")
@@ -1502,10 +1502,10 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	if value, wait, err := memory.ReadWordAt(STDiskController,
 		m68k.BusAccess{Clock: 1700, FunctionCode: 5}); err != nil || wait != 4 ||
 		value != 0x00e4 || memory.floppyReadStage != 24 ||
-		memory.floppyReadRetryStatusReadClock != 1700 || memory.fdcIRQ ||
+		memory.floppyMediaLegacy[0].StatusReadClock != 1700 || memory.fdcIRQ ||
 		memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("retry status value/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
-			value, wait, memory.floppyReadStage, memory.floppyReadRetryStatusReadClock,
+			value, wait, memory.floppyReadStage, memory.floppyMediaLegacy[0].StatusReadClock,
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
@@ -1535,18 +1535,18 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteByteAt(PSGRegisterData, 0x25,
 		m68k.BusAccess{Clock: 2100, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 27 || memory.floppyReadRetryDrivePort != 0x25 ||
-		memory.floppyReadRetryDriveWriteClock != 2100 || memory.psgRegisters[14] != 0x25 ||
+		memory.floppyReadStage != 27 || memory.floppyMediaLegacy[1].DrivePort != 0x25 ||
+		memory.floppyMediaLegacy[1].DriveWriteClock != 2100 || memory.psgRegisters[14] != 0x25 ||
 		memory.flopVBLMediaChecks != mediaChecks {
 		t.Fatalf("retry drive write wait/stage/receipt/clock/port/checks=%d/%d/%02x/%d/%02x/%d err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadRetryDrivePort,
-			memory.floppyReadRetryDriveWriteClock, memory.psgRegisters[14],
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].DrivePort,
+			memory.floppyMediaLegacy[1].DriveWriteClock, memory.psgRegisters[14],
 			memory.flopVBLMediaChecks, err)
 	}
 	if err := memory.WriteWord(STDiskController, 1, 5); err == nil ||
-		memory.floppyReadStage != 27 || memory.floppyReadRetrySector != 0 {
+		memory.floppyReadStage != 27 || memory.floppyMediaLegacy[1].Sector != 0 {
 		t.Fatalf("retry sector before selector mutated stage/sector=%d/%02x err=%v",
-			memory.floppyReadStage, memory.floppyReadRetrySector, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].Sector, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0084,
 		m68k.BusAccess{Clock: 2202, FunctionCode: 5}); err != nil || wait != 6 ||
@@ -1562,14 +1562,14 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 1,
 		m68k.BusAccess{Clock: 2300, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 29 || memory.floppyReadRetrySector != 1 {
+		memory.floppyReadStage != 29 || memory.floppyMediaLegacy[1].Sector != 1 {
 		t.Fatalf("retry sector wait/stage/sector=%d/%d/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadRetrySector, err)
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].Sector, err)
 	}
 	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err == nil ||
-		memory.floppyReadStage != 29 || memory.floppyReadRetryDMAAddressStage != 0 {
+		memory.floppyReadStage != 29 || memory.floppyMediaLegacy[1].DMAAddressStage != 0 {
 		t.Fatalf("retry DMA out of order mutated stage/address-stage=%d/%d err=%v",
-			memory.floppyReadStage, memory.floppyReadRetryDMAAddressStage, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].DMAAddressStage, err)
 	}
 	for index, write := range []struct {
 		address uint32
@@ -1583,26 +1583,26 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		if wait, err := memory.WriteByteAt(write.address, write.value,
 			m68k.BusAccess{Clock: uint64(2400 + index*100), FunctionCode: 5}); err != nil || wait != 0 ||
 			memory.floppyReadStage != write.stage ||
-			memory.floppyReadRetryDMAAddressStage != uint8(index+1) {
+			memory.floppyMediaLegacy[1].DMAAddressStage != uint8(index+1) {
 			t.Fatalf("retry DMA address[%d] wait/stage/address-stage=%d/%d/%d err=%v", index,
-				wait, memory.floppyReadStage, memory.floppyReadRetryDMAAddressStage, err)
+				wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].DMAAddressStage, err)
 		}
 	}
-	if memory.dmaAddress != 0x001004 || memory.floppyReadDMAAddressStage != 3 {
+	if memory.dmaAddress != 0x001004 || memory.floppyMediaLegacy[0].DMAAddressStage != 3 {
 		t.Fatalf("retry DMA address/first receipt=%06x/%d", memory.dmaAddress,
-			memory.floppyReadDMAAddressStage)
+			memory.floppyMediaLegacy[0].DMAAddressStage)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0190,
 		m68k.BusAccess{Clock: 2700, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 33 || memory.floppyReadRetryDMAResetCount != 1 {
+		memory.floppyReadStage != 33 || memory.floppyMediaLegacy[1].DMAResetCount != 1 {
 		t.Fatalf("retry DMA first reset wait/stage/count=%d/%d/%d err=%v", wait,
-			memory.floppyReadStage, memory.floppyReadRetryDMAResetCount, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].DMAResetCount, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0090,
 		m68k.BusAccess{Clock: 2800, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 34 || memory.floppyReadRetryDMAResetCount != 2 {
+		memory.floppyReadStage != 34 || memory.floppyMediaLegacy[1].DMAResetCount != 2 {
 		t.Fatalf("retry DMA second reset wait/stage/count=%d/%d/%d err=%v", wait,
-			memory.floppyReadStage, memory.floppyReadRetryDMAResetCount, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].DMAResetCount, err)
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 1,
 		m68k.BusAccess{Clock: 2900, FunctionCode: 5}); err != nil || wait != 4 ||
@@ -1618,60 +1618,60 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0x0080,
 		m68k.BusAccess{Clock: 3100, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 37 || memory.floppyReadRetryCommand != 0x80 ||
-		memory.floppyReadRetryCommandClock != 3100 || memory.fdcCommand != 0x80 ||
+		memory.floppyReadStage != 37 || memory.floppyMediaLegacy[1].ReadCommand != 0x80 ||
+		memory.floppyMediaLegacy[1].ReadCommandClock != 3100 || memory.fdcCommand != 0x80 ||
 		memory.fdcStatus != 0x81 || memory.fdcStatusTypeI || memory.fdcIRQ ||
 		memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("retry command wait/stage/receipt/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyReadRetryCommand,
-			memory.floppyReadRetryCommandClock, memory.fdcCommand, memory.fdcStatus,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].ReadCommand,
+			memory.floppyMediaLegacy[1].ReadCommandClock, memory.fdcCommand, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
-		memory.floppyReadSector != 1 || memory.floppyReadDMAResetCount != 2 ||
-		memory.floppyReadCommand != 0x80 || memory.floppyReadCommandClock != 200 {
+		memory.floppyMediaLegacy[0].Sector != 1 || memory.floppyMediaLegacy[0].DMAResetCount != 2 ||
+		memory.floppyMediaLegacy[0].ReadCommand != 0x80 || memory.floppyMediaLegacy[0].ReadCommandClock != 200 {
 		t.Fatal("retry command modified DMA buffer or first transaction receipts")
 	}
 	if err := memory.WriteWord(STDiskController, 0x00d0, 5); err == nil ||
-		memory.floppyReadStage != 37 || memory.floppyRetryForceInterrupt != 0 ||
+		memory.floppyReadStage != 37 || memory.floppyMediaLegacy[1].ForceInterrupt != 0 ||
 		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
 		t.Fatalf("retry force interrupt before selector mutated stage/receipt/FDC/status=%d/%02x/%02x/%02x err=%v",
-			memory.floppyReadStage, memory.floppyRetryForceInterrupt,
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].ForceInterrupt,
 			memory.fdcCommand, memory.fdcStatus, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
 		m68k.BusAccess{Clock: 3202, FunctionCode: 5}); err != nil || wait != 6 ||
-		memory.floppyReadStage != 38 || memory.floppyRetryTimeoutSelectorClock != 3202 {
+		memory.floppyReadStage != 38 || memory.floppyMediaLegacy[1].TimeoutSelectorClock != 3202 {
 		t.Fatalf("retry timeout selector wait/stage/clock=%d/%d/%d err=%v", wait,
-			memory.floppyReadStage, memory.floppyRetryTimeoutSelectorClock, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].TimeoutSelectorClock, err)
 	}
 	if err := memory.WriteWord(STDiskController, 0x00d8, 5); err == nil ||
-		memory.floppyReadStage != 38 || memory.floppyRetryForceInterrupt != 0 ||
+		memory.floppyReadStage != 38 || memory.floppyMediaLegacy[1].ForceInterrupt != 0 ||
 		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
 		t.Fatalf("wrong retry force interrupt mutated stage/receipt/FDC/status=%d/%02x/%02x/%02x err=%v",
-			memory.floppyReadStage, memory.floppyRetryForceInterrupt,
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].ForceInterrupt,
 			memory.fdcCommand, memory.fdcStatus, err)
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0x00d0,
 		m68k.BusAccess{Clock: 3300, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 39 || memory.floppyRetryForceInterrupt != 0xd0 ||
-		memory.floppyRetryForceInterruptClock != 3300 || memory.fdcCommand != 0xd0 ||
+		memory.floppyReadStage != 39 || memory.floppyMediaLegacy[1].ForceInterrupt != 0xd0 ||
+		memory.floppyMediaLegacy[1].ForceInterruptClock != 3300 || memory.fdcCommand != 0xd0 ||
 		memory.fdcStatus != 0x80 || memory.fdcStatusTypeI || memory.fdcIRQ ||
 		memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("retry force interrupt wait/stage/receipt/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyRetryForceInterrupt,
-			memory.floppyRetryForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].ForceInterrupt,
+			memory.floppyMediaLegacy[1].ForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
-		memory.floppyReadTimeoutSelectorClock != 300 || memory.floppyReadForceInterrupt != 0xd0 ||
-		memory.floppyReadForceInterruptClock != 400 {
+		memory.floppyMediaLegacy[0].TimeoutSelectorClock != 300 || memory.floppyMediaLegacy[0].ForceInterrupt != 0xd0 ||
+		memory.floppyMediaLegacy[0].ForceInterruptClock != 400 {
 		t.Fatal("retry timeout modified DMA buffer or first timeout receipts")
 	}
 	if err := memory.WriteWord(STDiskController, 0, 5); err == nil ||
-		memory.floppyReadStage != 39 || memory.floppyRetry2Data != 0 {
+		memory.floppyReadStage != 39 || memory.floppyMediaLegacy[1].SeekData != 0 {
 		t.Fatalf("second dummy data before selector mutated stage/data=%d/%02x err=%v",
-			memory.floppyReadStage, memory.floppyRetry2Data, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].SeekData, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0086,
 		m68k.BusAccess{Clock: 3400, FunctionCode: 5}); err != nil || wait != 4 ||
@@ -1681,9 +1681,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0,
 		m68k.BusAccess{Clock: 3500, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 41 || memory.floppyRetry2Data != 0 || memory.fdcData != 0 {
+		memory.floppyReadStage != 41 || memory.floppyMediaLegacy[1].SeekData != 0 || memory.fdcData != 0 {
 		t.Fatalf("second dummy data wait/stage/data/FDC=%d/%d/%02x/%02x err=%v", wait,
-			memory.floppyReadStage, memory.floppyRetry2Data, memory.fdcData, err)
+			memory.floppyReadStage, memory.floppyMediaLegacy[1].SeekData, memory.fdcData, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
 		m68k.BusAccess{Clock: 3600, FunctionCode: 5}); err != nil || wait != 4 ||
@@ -1697,13 +1697,13 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0x0013,
 		m68k.BusAccess{Clock: 3700, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 43 || memory.floppyRetry2SeekCommand != 0x13 ||
-		memory.floppyRetry2SeekStartClock != 3700 || memory.fdcSeekStartClock != 3700 ||
+		memory.floppyReadStage != 43 || memory.floppyMediaLegacy[1].SeekCommand != 0x13 ||
+		memory.floppyMediaLegacy[1].SeekStartClock != 3700 || memory.fdcSeekStartClock != 3700 ||
 		!memory.fdcSeekPending || memory.fdcStatus != 0xe5 || !memory.fdcStatusTypeI ||
 		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("second dummy seek wait/stage/command/clocks/pending/status/type/IRQ/GPIP=%d/%d/%02x/%d/%d/%v/%02x/%v/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyRetry2SeekCommand,
-			memory.floppyRetry2SeekStartClock, memory.fdcSeekStartClock,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].SeekCommand,
+			memory.floppyMediaLegacy[1].SeekStartClock, memory.fdcSeekStartClock,
 			memory.fdcSeekPending, memory.fdcStatus, memory.fdcStatusTypeI,
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
@@ -1712,8 +1712,8 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			t.Fatalf("second dummy inactive poll %d=%02x err=%v", index, got, err)
 		}
 	}
-	if memory.floppyRetry2InactivePolls != 9 || !memory.fdcSeekPending {
-		t.Fatalf("second dummy polls/pending=%d/%v", memory.floppyRetry2InactivePolls,
+	if memory.floppyMediaLegacy[1].InactivePolls != 9 || !memory.fdcSeekPending {
+		t.Fatalf("second dummy polls/pending=%d/%v", memory.floppyMediaLegacy[1].InactivePolls,
 			memory.fdcSeekPending)
 	}
 	machine.Clocks = 4428
@@ -1734,9 +1734,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.fdcSeekPending, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
 	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
-		!memory.floppyRetry2IRQObserved {
+		!memory.floppyMediaLegacy[1].IRQObserved {
 		t.Fatalf("second dummy IRQ poll=%02x observed=%v err=%v", got,
-			memory.floppyRetry2IRQObserved, err)
+			memory.floppyMediaLegacy[1].IRQObserved, err)
 	}
 	if _, err := memory.ReadWord(STDiskController, 5); err == nil {
 		t.Fatal("second dummy status before selector unexpectedly accepted")
@@ -1750,15 +1750,15 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	if value, wait, err := memory.ReadWordAt(STDiskController,
 		m68k.BusAccess{Clock: 4600, FunctionCode: 5}); err != nil || wait != 4 ||
 		value != 0x00e4 || memory.floppyReadStage != 46 ||
-		memory.floppyRetry2StatusReadClock != 4600 || memory.fdcIRQ ||
+		memory.floppyMediaLegacy[1].StatusReadClock != 4600 || memory.fdcIRQ ||
 		memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("second dummy status value/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
-			value, wait, memory.floppyReadStage, memory.floppyRetry2StatusReadClock,
+			value, wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].StatusReadClock,
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
-		memory.floppyReadRetrySeekStartClock != 800 || memory.floppyReadRetryInactivePolls != 9 ||
-		!memory.floppyReadRetryIRQObserved || memory.floppyReadRetryStatusReadClock != 1700 {
+		memory.floppyMediaLegacy[0].SeekStartClock != 800 || memory.floppyMediaLegacy[0].InactivePolls != 9 ||
+		!memory.floppyMediaLegacy[0].IRQObserved || memory.floppyMediaLegacy[0].StatusReadClock != 1700 {
 		t.Fatal("second dummy seek modified DMA buffer or first dummy-seek receipts")
 	}
 	mediaChecks = memory.flopVBLMediaChecks
@@ -1780,11 +1780,11 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteByteAt(PSGRegisterData, 0x25,
 		m68k.BusAccess{Clock: 4900, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 49 || memory.floppyRetry3DrivePort != 0x25 ||
-		memory.floppyRetry3DriveWriteClock != 4900 || memory.flopVBLMediaChecks != mediaChecks {
+		memory.floppyReadStage != 49 || memory.floppyMediaLegacy[2].DrivePort != 0x25 ||
+		memory.floppyMediaLegacy[2].DriveWriteClock != 4900 || memory.flopVBLMediaChecks != mediaChecks {
 		t.Fatalf("third retry drive write wait/stage/receipt/clock/checks=%d/%d/%02x/%d/%d err=%v",
-			wait, memory.floppyReadStage, memory.floppyRetry3DrivePort,
-			memory.floppyRetry3DriveWriteClock, memory.flopVBLMediaChecks, err)
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[2].DrivePort,
+			memory.floppyMediaLegacy[2].DriveWriteClock, memory.flopVBLMediaChecks, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0084,
 		m68k.BusAccess{Clock: 5002, FunctionCode: 5}); err != nil || wait != 6 ||
@@ -1793,9 +1793,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 1,
 		m68k.BusAccess{Clock: 5100, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 51 || memory.floppyRetry3Sector != 1 {
+		memory.floppyReadStage != 51 || memory.floppyMediaLegacy[2].Sector != 1 {
 		t.Fatalf("third retry sector wait/stage/sector=%d/%d/%d err=%v",
-			wait, memory.floppyReadStage, memory.floppyRetry3Sector, err)
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[2].Sector, err)
 	}
 	for index, write := range []struct {
 		address uint32
@@ -1808,9 +1808,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	} {
 		if wait, err := memory.WriteByteAt(write.address, write.value,
 			m68k.BusAccess{Clock: uint64(5200 + index*100), FunctionCode: 5}); err != nil || wait != 0 ||
-			memory.floppyReadStage != write.stage || memory.floppyRetry3DMAAddressStage != uint8(index+1) {
+			memory.floppyReadStage != write.stage || memory.floppyMediaLegacy[2].DMAAddressStage != uint8(index+1) {
 			t.Fatalf("third retry DMA address[%d] wait/stage/address-stage=%d/%d/%d err=%v",
-				index, wait, memory.floppyReadStage, memory.floppyRetry3DMAAddressStage, err)
+				index, wait, memory.floppyReadStage, memory.floppyMediaLegacy[2].DMAAddressStage, err)
 		}
 	}
 	for index, write := range []struct {
@@ -1831,49 +1831,49 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			t.Fatalf("third retry setup[%d] wait/stage=%d/%d err=%v", index, wait, memory.floppyReadStage, err)
 		}
 	}
-	if memory.floppyRetry3DMAResetCount != 2 || memory.dmaSectorCount != 1 ||
-		memory.floppyRetry3Command != 0x80 || memory.floppyRetry3CommandClock != 5900 ||
+	if memory.floppyMediaLegacy[2].DMAResetCount != 2 || memory.dmaSectorCount != 1 ||
+		memory.floppyMediaLegacy[2].ReadCommand != 0x80 || memory.floppyMediaLegacy[2].ReadCommandClock != 5900 ||
 		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 || memory.fdcStatusTypeI ||
 		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 || !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
 		t.Fatalf("third retry receipts reset/count/command/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x",
-			memory.floppyRetry3DMAResetCount, memory.dmaSectorCount, memory.floppyRetry3Command,
-			memory.floppyRetry3CommandClock, memory.fdcCommand, memory.fdcStatus,
+			memory.floppyMediaLegacy[2].DMAResetCount, memory.dmaSectorCount, memory.floppyMediaLegacy[2].ReadCommand,
+			memory.floppyMediaLegacy[2].ReadCommandClock, memory.fdcCommand, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
 	if err := memory.WriteWord(STDiskController, 0x00d0, 5); err == nil ||
-		memory.floppyReadStage != 59 || memory.floppyRetry3ForceInterrupt != 0 ||
+		memory.floppyReadStage != 59 || memory.floppyMediaLegacy[2].ForceInterrupt != 0 ||
 		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
 		t.Fatalf("third retry force interrupt before selector mutated stage/receipt/FDC/status=%d/%02x/%02x/%02x err=%v",
-			memory.floppyReadStage, memory.floppyRetry3ForceInterrupt,
+			memory.floppyReadStage, memory.floppyMediaLegacy[2].ForceInterrupt,
 			memory.fdcCommand, memory.fdcStatus, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
 		m68k.BusAccess{Clock: 6002, FunctionCode: 5}); err != nil || wait != 6 ||
-		memory.floppyReadStage != 60 || memory.floppyRetry3TimeoutSelectorClock != 6002 {
+		memory.floppyReadStage != 60 || memory.floppyMediaLegacy[2].TimeoutSelectorClock != 6002 {
 		t.Fatalf("third retry timeout selector wait/stage/clock=%d/%d/%d err=%v",
-			wait, memory.floppyReadStage, memory.floppyRetry3TimeoutSelectorClock, err)
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[2].TimeoutSelectorClock, err)
 	}
 	if err := memory.WriteWord(STDiskController, 0x00d8, 5); err == nil ||
-		memory.floppyReadStage != 60 || memory.floppyRetry3ForceInterrupt != 0 ||
+		memory.floppyReadStage != 60 || memory.floppyMediaLegacy[2].ForceInterrupt != 0 ||
 		memory.fdcCommand != 0x80 || memory.fdcStatus != 0x81 {
 		t.Fatalf("wrong third retry force interrupt mutated stage/receipt/FDC/status=%d/%02x/%02x/%02x err=%v",
-			memory.floppyReadStage, memory.floppyRetry3ForceInterrupt,
+			memory.floppyReadStage, memory.floppyMediaLegacy[2].ForceInterrupt,
 			memory.fdcCommand, memory.fdcStatus, err)
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 0x00d0,
 		m68k.BusAccess{Clock: 6100, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyReadStage != 61 || memory.floppyRetry3ForceInterrupt != 0xd0 ||
-		memory.floppyRetry3ForceInterruptClock != 6100 || memory.fdcCommand != 0xd0 ||
+		memory.floppyReadStage != 61 || memory.floppyMediaLegacy[2].ForceInterrupt != 0xd0 ||
+		memory.floppyMediaLegacy[2].ForceInterruptClock != 6100 || memory.fdcCommand != 0xd0 ||
 		memory.fdcStatus != 0x80 || memory.fdcStatusTypeI || memory.fdcIRQ ||
 		memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("third retry force interrupt wait/stage/receipt/clock/FDC/status/type/IRQ/GPIP=%d/%d/%02x/%d/%02x/%02x/%v/%v/%02x err=%v",
-			wait, memory.floppyReadStage, memory.floppyRetry3ForceInterrupt,
-			memory.floppyRetry3ForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
+			wait, memory.floppyReadStage, memory.floppyMediaLegacy[2].ForceInterrupt,
+			memory.floppyMediaLegacy[2].ForceInterruptClock, memory.fdcCommand, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
-		memory.floppyReadTimeoutSelectorClock != 300 || memory.floppyReadForceInterruptClock != 400 ||
-		memory.floppyRetryTimeoutSelectorClock != 3202 || memory.floppyRetryForceInterruptClock != 3300 {
+		memory.floppyMediaLegacy[0].TimeoutSelectorClock != 300 || memory.floppyMediaLegacy[0].ForceInterruptClock != 400 ||
+		memory.floppyMediaLegacy[1].TimeoutSelectorClock != 3202 || memory.floppyMediaLegacy[1].ForceInterruptClock != 3300 {
 		t.Fatal("third retry timeout modified DMA buffer or earlier timeout receipts")
 	}
 	for index, write := range []struct {
@@ -1894,12 +1894,12 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 				index, wait, memory.floppyReadStage, err)
 		}
 	}
-	if memory.floppyRetry3Data != 0 || memory.floppyRetry3SeekCommand != 0x13 ||
-		memory.floppyRetry3SeekStartClock != 6500 || !memory.fdcSeekPending ||
+	if memory.floppyMediaLegacy[2].SeekData != 0 || memory.floppyMediaLegacy[2].SeekCommand != 0x13 ||
+		memory.floppyMediaLegacy[2].SeekStartClock != 6500 || !memory.fdcSeekPending ||
 		memory.fdcStatus != 0xe5 || !memory.fdcStatusTypeI || memory.fdcIRQ {
 		t.Fatalf("third dummy receipts data/command/start/pending/status/type/IRQ=%02x/%02x/%d/%v/%02x/%v/%v",
-			memory.floppyRetry3Data, memory.floppyRetry3SeekCommand,
-			memory.floppyRetry3SeekStartClock, memory.fdcSeekPending, memory.fdcStatus,
+			memory.floppyMediaLegacy[2].SeekData, memory.floppyMediaLegacy[2].SeekCommand,
+			memory.floppyMediaLegacy[2].SeekStartClock, memory.fdcSeekPending, memory.fdcStatus,
 			memory.fdcStatusTypeI, memory.fdcIRQ)
 	}
 	for index := 0; index < 9; index++ {
@@ -1916,9 +1916,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.fdcIRQ, memory.mfpGPIPIn)
 	}
 	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
-		!memory.floppyRetry3IRQObserved {
+		!memory.floppyMediaLegacy[2].IRQObserved {
 		t.Fatalf("third dummy IRQ poll=%02x observed=%v err=%v", got,
-			memory.floppyRetry3IRQObserved, err)
+			memory.floppyMediaLegacy[2].IRQObserved, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
 		m68k.BusAccess{Clock: 7400, FunctionCode: 5}); err != nil || wait != 4 ||
@@ -1928,41 +1928,41 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	if value, wait, err := memory.ReadWordAt(STDiskController,
 		m68k.BusAccess{Clock: 7500, FunctionCode: 5}); err != nil || wait != 4 ||
 		value != 0x00e4 || memory.floppyReadStage != 68 ||
-		memory.floppyRetry3StatusReadClock != 7500 || memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		memory.floppyMediaLegacy[2].StatusReadClock != 7500 || memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
 		t.Fatalf("third dummy status value/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
-			value, wait, memory.floppyReadStage, memory.floppyRetry3StatusReadClock,
+			value, wait, memory.floppyReadStage, memory.floppyMediaLegacy[2].StatusReadClock,
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
-	if memory.floppyRetry3InactivePolls != 9 || !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
-		memory.floppyRetry2SeekStartClock != 3700 || memory.floppyRetry2StatusReadClock != 4600 {
+	if memory.floppyMediaLegacy[2].InactivePolls != 9 || !bytes.Equal(before, memory.ram[0x1004:0x1204]) ||
+		memory.floppyMediaLegacy[1].SeekStartClock != 3700 || memory.floppyMediaLegacy[1].StatusReadClock != 4600 {
 		t.Fatal("third dummy seek modified DMA buffer or earlier dummy-seek receipts")
 	}
 	memory.ColdReset()
-	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
-		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
-		memory.floppyReadDMAAddressStage != 0 || memory.floppyReadDMAResetCount != 0 ||
-		memory.floppyReadCommand != 0 || memory.floppyReadCommandClock != 0 ||
-		memory.floppyReadTimeoutSelectorClock != 0 || memory.floppyReadForceInterrupt != 0 ||
-		memory.floppyReadForceInterruptClock != 0 || memory.floppyReadRetryData != 0 ||
-		memory.floppyReadRetrySeekCommand != 0 || memory.floppyReadRetrySeekStartClock != 0 ||
-		memory.floppyReadRetryInactivePolls != 0 || memory.floppyReadRetryIRQObserved ||
-		memory.floppyReadRetryStatusReadClock != 0 || memory.floppyReadRetryDrivePort != 0 ||
-		memory.floppyReadRetryDriveWriteClock != 0 || memory.floppyReadRetrySector != 0 ||
-		memory.floppyReadRetryDMAAddressStage != 0 || memory.floppyReadRetryDMAResetCount != 0 ||
-		memory.floppyReadRetryCommand != 0 || memory.floppyReadRetryCommandClock != 0 ||
-		memory.floppyRetryTimeoutSelectorClock != 0 ||
-		memory.floppyRetryForceInterrupt != 0 || memory.floppyRetryForceInterruptClock != 0 ||
-		memory.floppyRetry2Data != 0 || memory.floppyRetry2SeekCommand != 0 ||
-		memory.floppyRetry2SeekStartClock != 0 || memory.floppyRetry2InactivePolls != 0 ||
-		memory.floppyRetry2IRQObserved || memory.floppyRetry2StatusReadClock != 0 ||
-		memory.floppyRetry3DrivePort != 0 || memory.floppyRetry3DriveWriteClock != 0 ||
-		memory.floppyRetry3Sector != 0 || memory.floppyRetry3DMAAddressStage != 0 ||
-		memory.floppyRetry3DMAResetCount != 0 || memory.floppyRetry3Command != 0 ||
-		memory.floppyRetry3CommandClock != 0 || memory.floppyRetry3TimeoutSelectorClock != 0 ||
-		memory.floppyRetry3ForceInterrupt != 0 || memory.floppyRetry3ForceInterruptClock != 0 ||
-		memory.floppyRetry3Data != 0 || memory.floppyRetry3SeekCommand != 0 ||
-		memory.floppyRetry3SeekStartClock != 0 || memory.floppyRetry3InactivePolls != 0 ||
-		memory.floppyRetry3IRQObserved || memory.floppyRetry3StatusReadClock != 0 {
+	if memory.floppyReadStage != 0 || memory.floppyMediaLegacy[0].Track != 0 || memory.floppyMediaLegacy[0].Drive != -1 ||
+		memory.floppyMediaLegacy[0].TrackWriteClock != 0 || memory.floppyMediaLegacy[0].Sector != 0 ||
+		memory.floppyMediaLegacy[0].DMAAddressStage != 0 || memory.floppyMediaLegacy[0].DMAResetCount != 0 ||
+		memory.floppyMediaLegacy[0].ReadCommand != 0 || memory.floppyMediaLegacy[0].ReadCommandClock != 0 ||
+		memory.floppyMediaLegacy[0].TimeoutSelectorClock != 0 || memory.floppyMediaLegacy[0].ForceInterrupt != 0 ||
+		memory.floppyMediaLegacy[0].ForceInterruptClock != 0 || memory.floppyMediaLegacy[0].SeekData != 0 ||
+		memory.floppyMediaLegacy[0].SeekCommand != 0 || memory.floppyMediaLegacy[0].SeekStartClock != 0 ||
+		memory.floppyMediaLegacy[0].InactivePolls != 0 || memory.floppyMediaLegacy[0].IRQObserved ||
+		memory.floppyMediaLegacy[0].StatusReadClock != 0 || memory.floppyMediaLegacy[1].DrivePort != 0 ||
+		memory.floppyMediaLegacy[1].DriveWriteClock != 0 || memory.floppyMediaLegacy[1].Sector != 0 ||
+		memory.floppyMediaLegacy[1].DMAAddressStage != 0 || memory.floppyMediaLegacy[1].DMAResetCount != 0 ||
+		memory.floppyMediaLegacy[1].ReadCommand != 0 || memory.floppyMediaLegacy[1].ReadCommandClock != 0 ||
+		memory.floppyMediaLegacy[1].TimeoutSelectorClock != 0 ||
+		memory.floppyMediaLegacy[1].ForceInterrupt != 0 || memory.floppyMediaLegacy[1].ForceInterruptClock != 0 ||
+		memory.floppyMediaLegacy[1].SeekData != 0 || memory.floppyMediaLegacy[1].SeekCommand != 0 ||
+		memory.floppyMediaLegacy[1].SeekStartClock != 0 || memory.floppyMediaLegacy[1].InactivePolls != 0 ||
+		memory.floppyMediaLegacy[1].IRQObserved || memory.floppyMediaLegacy[1].StatusReadClock != 0 ||
+		memory.floppyMediaLegacy[2].DrivePort != 0 || memory.floppyMediaLegacy[2].DriveWriteClock != 0 ||
+		memory.floppyMediaLegacy[2].Sector != 0 || memory.floppyMediaLegacy[2].DMAAddressStage != 0 ||
+		memory.floppyMediaLegacy[2].DMAResetCount != 0 || memory.floppyMediaLegacy[2].ReadCommand != 0 ||
+		memory.floppyMediaLegacy[2].ReadCommandClock != 0 || memory.floppyMediaLegacy[2].TimeoutSelectorClock != 0 ||
+		memory.floppyMediaLegacy[2].ForceInterrupt != 0 || memory.floppyMediaLegacy[2].ForceInterruptClock != 0 ||
+		memory.floppyMediaLegacy[2].SeekData != 0 || memory.floppyMediaLegacy[2].SeekCommand != 0 ||
+		memory.floppyMediaLegacy[2].SeekStartClock != 0 || memory.floppyMediaLegacy[2].InactivePolls != 0 ||
+		memory.floppyMediaLegacy[2].IRQObserved || memory.floppyMediaLegacy[2].StatusReadClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

@@ -150,16 +150,16 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 		m.Memory.ikbdClockReadbackReadClocks[readbackReads] = stepEpoch
 	}
 	if m.Memory != nil && floppyReadStage == 26 && m.Memory.floppyReadStage == 27 &&
-		m.Memory.floppyReadRetryDriveWriteClock == 0 {
+		m.Memory.floppyMediaLegacy[1].DriveWriteClock == 0 {
 		// MOVE.B Dn,d(An) still uses the untimed byte bus path.  Preserve the
 		// instruction epoch until that CPU path exposes its exact bus phase.
-		m.Memory.floppyReadRetryDriveWriteClock = stepEpoch
+		m.Memory.floppyMediaLegacy[1].DriveWriteClock = stepEpoch
 	}
 	if m.Memory != nil && floppyReadStage == 48 && m.Memory.floppyReadStage == 49 &&
-		m.Memory.floppyRetry3DriveWriteClock == 0 {
+		m.Memory.floppyMediaLegacy[2].DriveWriteClock == 0 {
 		// MOVE.B Dn,d(An) still uses the untimed byte bus path.  Preserve the
 		// instruction epoch until that CPU path exposes its exact bus phase.
-		m.Memory.floppyRetry3DriveWriteClock = stepEpoch
+		m.Memory.floppyMediaLegacy[2].DriveWriteClock = stepEpoch
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
