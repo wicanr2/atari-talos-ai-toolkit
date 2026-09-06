@@ -799,3 +799,10 @@
   逐週期 parity；到期前 RAM 不變，到期時原子搬入 512 bytes、address 加 512、count
   歸零並拉低 GPIP5。固定 ROM 完成點為 1,300,992 instructions／1,766 interrupts／
   106,504,776 clocks。完整測試、vet 與 build 全綠。
+- 規格 143 將成功 status 後的出口拆成兩條：客體寫 `$0084` 就繼續下一 sector，寫
+  `$0086` 才進整次 `flopio()` 的 dummy seek。sector 與 DMA address 不再綁死 1／
+  `$001004`，但仍須依順序設定，command 提交時再以 raw geometry 與 RAM 範圍驗證。
+  receipt 新增一次 `flopio()` 的 sector／byte 累計，不把每個硬體 command 誤記成高階呼叫。
+- 固定 EmuTOS 第二筆 `flopio()` 自然完成 sector 1–6；DMA `$001004..$001C03` 共 3,072
+  bytes 與 raw image 逐 byte 相同，沒有 timeout／force-interrupt。完成點為 1,391,231
+  instructions／1,797 interrupts／107,502,748 clocks；完整測試、vet 與 build 全綠。

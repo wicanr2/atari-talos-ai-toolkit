@@ -703,7 +703,7 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			value := uint16(m.fdcStatus)
 			m.fdcIRQ = false
 			m.mfpGPIPIn |= 0x20
-			m.floppyMediaPhase = floppyMediaSeekDataSelector
+			m.floppyMediaPhase = floppyMediaPostRead
 			return value, nil
 		}
 		if (m.fdcInitStage != 6 && m.fdcInitStage != 13) || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
@@ -808,9 +808,9 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if isDMAAddressByte(address) {
-		validMediaAddressWrite := m.floppyMediaPhase == floppyMediaAddressLow && address == STDMAAddressLow && value == 0x04 ||
-			m.floppyMediaPhase == floppyMediaAddressMiddle && address == STDMAAddressMiddle && value == 0x10 ||
-			m.floppyMediaPhase == floppyMediaAddressHigh && address == STDMAAddressHigh && value == 0
+		validMediaAddressWrite := m.floppyMediaPhase == floppyMediaAddressLow && address == STDMAAddressLow ||
+			m.floppyMediaPhase == floppyMediaAddressMiddle && address == STDMAAddressMiddle ||
+			m.floppyMediaPhase == floppyMediaAddressHigh && address == STDMAAddressHigh
 		// 媒體確認一開跑，DMA 位址就只接受當下那一個位元組：三個位元組要按
 		// low、middle、high 的次序，其餘一律失敗即關閉。
 		if m.floppyMediaPhase != floppyMediaIdle && !validMediaAddressWrite {
@@ -1433,6 +1433,20 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		}
 		{
 			switch {
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaPostRead &&
+				m.dmaMode == 0x0080 && !m.fdcStatusTypeI && !m.fdcIRQ &&
+				m.mfpGPIPIn&0x20 != 0 && value == 0x0084:
+				m.dmaMode = value
+				m.floppyMediaCurrent.DMAAddressStage = 0
+				m.floppyMediaCurrent.DMAResetCount = 0
+				m.floppyMediaPhase = floppyMediaSectorData
+				return nil
+			case address == STDMAControl && m.floppyMediaPhase == floppyMediaPostRead &&
+				m.dmaMode == 0x0080 && !m.fdcStatusTypeI && !m.fdcIRQ &&
+				m.mfpGPIPIn&0x20 != 0 && value == 0x0086:
+				m.dmaMode = value
+				m.floppyMediaPhase = floppyMediaSeekData
+				return nil
 			// flop_mediach() 的第一次呼叫先鎖 track：DMA `$0082` 選 track 暫存器，
 			// 再寫 track 0。之後每一輪都跳過這兩步，直接重選 drive。
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaIdle &&
@@ -1455,8 +1469,8 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				m.floppyMediaPhase = floppyMediaSectorData
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaSectorData &&
-				m.dmaMode == 0x0084 && value == 1:
-				m.floppyMediaCurrent.Sector = 1
+				m.dmaMode == 0x0084 && value != 0:
+				m.floppyMediaCurrent.Sector = value
 				m.floppyMediaPhase = floppyMediaAddressLow
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaDMAResetRead &&
@@ -1487,7 +1501,7 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				m.dmaMode == 0x0080 && value == 0x0080:
 				if m.floppyA != nil {
 					sector, err := m.floppyA.Sector(uint16(m.floppyMediaCurrent.Track), 0,
-						uint16(m.floppyMediaCurrent.Sector))
+						m.floppyMediaCurrent.Sector)
 					end := uint64(m.dmaAddress) + rawFloppySectorSize
 					if err != nil || m.floppyMediaCurrent.Drive != 0 || m.dmaSectorCount != 1 ||
 						end > uint64(len(m.ram)) {
@@ -2012,6 +2026,8 @@ func (m *Memory) completeFDCRead(clock uint64) {
 	m.mfpGPIPIn &^= 0x20
 	m.fdcReadPending = false
 	m.floppyMediaCurrent.ReadCompleteClock = clock
+	m.floppyMediaCurrent.SectorsRead++
+	m.floppyMediaCurrent.BytesRead += rawFloppySectorSize
 	m.floppyMediaPhase = floppyMediaReadIRQReset
 }
 

@@ -551,6 +551,11 @@
   interrupts／106,504,776 clocks，且沒有進 timeout／force-interrupt。下一步擴充連續
   sector、一般 CHS 與真實遊戲磁片的啟動／載入入口；尚未宣稱 Talos 已能載入
   Dungeon Master。
+- 同軌連續 sector 已接線（規格 143 CONFORMED）：成功 FDC status 後由客體選擇下一個
+  sector 或進 dummy seek，每個 sector 都重做 DMA count 1 與 `$80` command。固定
+  EmuTOS 第二筆 `flopio()` 自然讀完 sector 1–6，DMA `$001004..$001C03` 的 3,072 bytes
+  與 raw image 完全相同，完成點 1,391,231 instructions／1,797 interrupts／
+  107,502,748 clocks。下一步是 track／side 選擇與完整 boot-sector／檔案載入工作負載。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

@@ -26,6 +26,7 @@ const (
 	floppyMediaReadDMAStatus
 	floppyMediaReadIRQSelector
 	floppyMediaReadStatusRead
+	floppyMediaPostRead
 	floppyMediaTimeoutSelector
 	floppyMediaForceInterrupt
 	floppyMediaSeekDataSelector
@@ -48,12 +49,14 @@ type floppyMediaReceipt struct {
 	TrackWriteClock      uint64
 	DrivePort            byte
 	DriveWriteClock      uint64
-	Sector               byte
+	Sector               uint16
 	DMAAddressStage      uint8
 	DMAResetCount        uint8
 	ReadCommand          byte
 	ReadCommandClock     uint64
 	ReadCompleteClock    uint64
+	SectorsRead          uint16
+	BytesRead            uint32
 	TimeoutSelectorClock uint64
 	ForceInterrupt       byte
 	ForceInterruptClock  uint64

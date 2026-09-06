@@ -100,9 +100,13 @@ func TestMountedFloppyReadSectorCompletesDMAAndRaisesIRQ(t *testing.T) {
 	}
 	if status, err := memory.ReadWord(STDiskController, 5); err != nil || status != 0x0080 ||
 		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 ||
-		memory.floppyMediaPhase != floppyMediaSeekDataSelector {
+		memory.floppyMediaPhase != floppyMediaPostRead {
 		t.Fatalf("status=%04x IRQ/GPIP/phase=%v/%02x/%d err=%v", status, memory.fdcIRQ,
 			memory.mfpGPIPIn, memory.floppyMediaPhase, err)
+	}
+	if err := memory.WriteWord(STDMAControl, 0x0086, 5); err != nil ||
+		memory.floppyMediaPhase != floppyMediaSeekData {
+		t.Fatalf("dummy-seek selector phase=%d err=%v", memory.floppyMediaPhase, err)
 	}
 }
 
@@ -128,9 +132,20 @@ func TestMountedFloppyReadRejectsDMAOverflowAtomically(t *testing.T) {
 		memory.floppyMediaPhase != floppyMediaReadBusy || memory.fdcCommand != 0 {
 		t.Fatal("rejected DMA overflow mutated controller or RAM")
 	}
+	memory.dmaAddress = 0x1004
+	memory.floppyMediaCurrent.Sector = 10
+	if err := memory.WriteWord(STDiskController, 0x0080, 5); err == nil || memory.fdcReadPending ||
+		memory.floppyMediaPhase != floppyMediaReadBusy || memory.fdcCommand != 0 {
+		t.Fatal("out-of-range sector unexpectedly accepted or mutated controller")
+	}
+	memory.floppyMediaPhase = floppyMediaSectorData
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil ||
+		memory.floppyMediaPhase != floppyMediaSectorData {
+		t.Fatal("sector zero unexpectedly accepted")
+	}
 }
 
-func TestEmuTOSMountedFloppyCompletesFirstMediaRead(t *testing.T) {
+func TestEmuTOSMountedFloppyCompletesSequentialMediaRead(t *testing.T) {
 	path := os.Getenv("TALOS_TOS_ROM")
 	if path == "" {
 		t.Skip("TALOS_TOS_ROM is not set")
@@ -176,6 +191,21 @@ func TestEmuTOSMountedFloppyCompletesFirstMediaRead(t *testing.T) {
 	if !ok || receipt.ReadCompleteClock == 0 || receipt.TimeoutSelectorClock != 0 ||
 		receipt.ForceInterrupt != 0 || !bytes.Equal(machine.Memory.ram[0x1004:0x1204], image[:rawFloppySectorSize]) {
 		t.Fatalf("first mounted receipt=%+v ok=%v", receipt, ok)
+	}
+	for steps := 0; steps < 3_000_000 && machine.Memory.floppyMediaReceipts.Total < 2 && gate == nil; steps++ {
+		_, gate = machine.Step()
+	}
+	if gate != nil {
+		t.Fatalf("multi-sector normal path reached unsupported gate: %v", gate)
+	}
+	second, ok := machine.Memory.floppyMediaReceipts.attempt(2)
+	t.Logf("second mounted media receipt: %+v; instructions=%d interrupts=%d clocks=%d", second,
+		machine.Instructions, machine.Interrupts, machine.Clocks)
+	if !ok || second.Sector != 6 || second.SectorsRead != 6 || second.BytesRead != 6*rawFloppySectorSize ||
+		second.ReadCompleteClock != 107499042 || second.StatusReadClock != 107502734 ||
+		second.TimeoutSelectorClock != 0 || second.ForceInterrupt != 0 ||
+		!bytes.Equal(machine.Memory.ram[0x1004:0x1c04], image[:6*rawFloppySectorSize]) {
+		t.Fatalf("multi-sector receipt=%+v ok=%v", second, ok)
 	}
 }
 
