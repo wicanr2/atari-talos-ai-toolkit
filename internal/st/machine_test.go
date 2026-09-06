@@ -2150,20 +2150,26 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts, machine.Clocks,
 			machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 5_000_000 && machine.Memory.floppyMediaReceipts.Total < 3 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xff8800 fc=5: unsupported_device_state" ||
-		machine.Memory.floppyReadStage != 68 || machine.Instructions != 4601570 ||
-		machine.Interrupts != 2903 || machine.Clocks != 142994602 ||
-		machine.CPU.State.D != [8]uint32{5, 5, 0x2300, 0x1004, 0, 0, 0, 0x0a} ||
-		machine.CPU.State.A != [7]uint32{0xffff8800, 0x2f44, 6, 1, 0x1200, 5, 0x00fc413a} ||
-		machine.CPU.State.USP != 0x7d22 || machine.CPU.State.SSP != 0x6880 ||
-		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36d0 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
-		t.Fatalf("post-third-dummy gate stage=%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
-			machine.Memory.floppyReadStage, machine.Instructions, machine.Interrupts,
-			machine.Clocks, machine.CPU.State, nextGate)
+	last, ok := machine.Memory.floppyMediaReceipts.attempt(2)
+	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xfffc02 fc=5: unsupported_device_state" ||
+		machine.Memory.floppyMediaPhase != floppyMediaIdle ||
+		machine.Memory.floppyMediaReceipts.Total != 2 || machine.Memory.floppyMediaReceipts.Count != 2 ||
+		machine.Memory.floppyMediaReceipts.Next != 2 || !ok || last.DrivePort != 0x25 ||
+		last.DriveWriteClock != 155070654 || last.Sector != 1 || last.DMAAddressStage != 3 ||
+		last.DMAResetCount != 2 || last.ReadCommand != 0x80 || last.ReadCommandClock != 155072894 ||
+		last.TimeoutSelectorClock != 167083840 || last.ForceInterrupt != 0xd0 ||
+		last.ForceInterruptClock != 167084278 || last.SeekCommand != 0x13 ||
+		last.SeekStartClock != 167086198 || last.InactivePolls != 9 || !last.IRQObserved ||
+		last.StatusReadClock != 167087514 || machine.Instructions != 6779282 ||
+		machine.Interrupts != 3656 || machine.Clocks != 167143396 {
+		t.Fatalf("recurring gate phase=%d total/count/next=%d/%d/%d current=%+v last=%+v present=%v instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.floppyMediaPhase, machine.Memory.floppyMediaReceipts.Total,
+			machine.Memory.floppyMediaReceipts.Count, machine.Memory.floppyMediaReceipts.Next,
+			machine.Memory.floppyMediaCurrent, last, ok, machine.Instructions,
+			machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }
 

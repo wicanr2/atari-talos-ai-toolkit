@@ -620,3 +620,8 @@
   收據機械遷入`[3]floppyMediaReceipt`；所有既有分支與測試改查同型欄位。固定ROM前三輪
   instructions／clock錨點完全不變，完整CPU corpus、全測試、vet與build均通過。這個
   `floppyMediaLegacy`陣列只是下一個可回退遷移點，尚未取代固定stage，規格維持READY。
+- 規格133第二階段後半：接入第四輪起的單一可重入phase，完整涵蓋PSG、sector／DMA、
+  Type-II read、guest timeout／`$D0`、dummy seek scheduler、九次poll與status read-clear。
+  synthetic連續12輪驗證ring wrap與RAM不變；固定ROM自然完成第四、第五輪，於
+  6,779,282 instructions／3,656 interrupts／167,143,396 clocks才抵達新IKBD gate。
+  完整CPU corpus、全測試、vet與build通過；前三輪固定stage尚待遷移，規格維持READY。

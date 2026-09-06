@@ -475,3 +475,11 @@
   clocks為142,981,658／142,982,974，完成狀態與前兩輪同型。跨裝置繼續執行後，真正
   下一gate在142,994,602 clocks的YM2149 `$FF8800`，因此不能由FDC序列直接宣稱
   retry迴圈已結束或猜測最終錯誤碼。
+- EmuTOS固定原始碼訂正：`IO_RETRIES=2`只適用非timeout的decode-error重試；
+  `flopcmd()<0`會立即設`EDRVNR`並break。因此先前稱作第二／第三「retry」的無磁片
+  交易實為上層反覆呼叫`flop_mediach()`。700-VBL Hatari trace顯示VBL235、310、389、
+  464、539、620持續出現read command，證明固定次數stage不成立。
+- Talos可重入模型已自然完成第四、第五次高階交易；第五筆receipt的drive write／read
+  command／timeout selector／`$D0`／seek／status clocks依序為155,070,654／155,072,894／
+  167,083,840／167,084,278／167,086,198／167,087,514。下一gate已轉為IKBD `$FFFC02`，
+  不再是FDC重複分支。

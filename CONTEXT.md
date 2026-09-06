@@ -481,6 +481,10 @@
   trace證實會持續重入。採單一交易phase、單調attempt count與容量8 receipt ring；
   排除繼續增加固定stage。使用者並要求移除現有約50個逐輪欄位，前三輪精確錨點
   遷入同型receipt，不保留永久相容層。先驗證資料模型，再分批遷移狀態分支。
+- 可重入媒體確認已接通第四輪以後：12輪synthetic與固定ROM第四／第五輪均通過，
+  第五輪完成後下一gate為6,779,282 instructions／167,143,396 clocks的IKBD `$FFFC02`
+  write。前三輪仍在`floppyReadStage`／`floppyMediaLegacy[3]`遷移層，規格133保持READY；
+  下一步將前三輪改用同一phase與ring後刪除遷移層。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
