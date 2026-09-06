@@ -105,7 +105,8 @@
 | ST low-res 320×200 4-plane 索引畫面 | **CONFORMED** | 32,000-byte DMA snapshot→64,000 indices；Hatari VBL7 raw／decoded SHA-256 與 histogram 通過 |
 | ST MFP GPIP fixed input sample | **CONFORMED** | color／FDC idle／no-printer `$A1` 依 DDR 合併；monitor probe 與 STOP 前 D2=`$2710` 對上 Hatari |
 | 68000 bus error／vector 2 | 進行中 | `MOVE.W` 與 `TST.B (An)` read 切片已 CONFORMED；其餘讀寫、寬度、instruction fetch 與 double fault 仍須逐片驗收 |
-| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe、IKBD `$1C` transmit 與 `Initmous` 四條命令已接；下一步是 `$FC36DE` 的 PSG `$FF8802` write |
+| ST／STF I/O memory map | 進行中 | recurring VBL、video、MFP、PSG／ACIA／USART、雙drive FDC鏈、空ACSI、parallel strobe、IKBD `$1C` transmit 與 `Initmous` 四條命令已接；下一步是 `$FC36DE` 的 PSG `$FF8802` 寫一個還沒建模的 port A 值（Hatari 的 VBL 1418 顯示是 `$27`，兩個 drive 都不選）|
+| ST `flopvbl()` 的共用前置與進場值（規格 139）| **CONFORMED** | `set_psg_porta` 的三步是 `flopvbl()` 與媒體確認共用的，分派要等下一個 DMA control（`$0084` 媒體確認／`$0080` status）；還原的是進場值不是固定的 `$23`（Hatari 的 `io_porta_old/new` 顯示 `$23`／`$25`／`$27` 都出現過）。開機推進到 **10,544,770 條／209,189,796 clocks** |
 | ST IKBD `Initmous` 四條命令（規格 138）| **CONFORMED** | `$08`／`$0B x y`／`$10`／`$07 n` 的命令組裝器：長度表、參數不重新解讀成命令、未知命令碼 fail-closed、四條都不回應。Hatari 的 `ikbd_cmds` trace 在 VBL 615 獨立解出同一串。開機推進到 **8,058,248 條／180,984,736 clocks** |
 | ST floppy可重入媒體確認（規格 133）| **CONFORMED** | 前三輪的遷移層拆掉：`floppyReadStage`（0–68 固定 stage 機）與 `floppyMediaLegacy[3]`（約 50 個逐輪欄位）整組移除，每一輪都走同一條 phase 循環，`internal/st` 淨減 499 行。第一輪與後續輪的差異收進 receipt 的 `LockedTrack`（只有第一次呼叫會鎖 track）。DMA 位址的亂序寫入現在三輪一致 fail-closed。固定 ROM 的錨點一個都沒動 |
 | UCSD p-System 直譯器真實碼驗收（規格 134）| **CONFORMED** | SunDog 的 `SYSTEM.INTERP`（固定 SHA-256）：分派表結構、短常數、區域變數 `+8+n×2`、`ixa` 的 `base+index×n×2` 與變長運算元全部通過，每條都有負對照 |

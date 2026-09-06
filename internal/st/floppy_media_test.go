@@ -41,6 +41,12 @@ func TestFloppyMediaRecurringNoDiskTransactions(t *testing.T) {
 	memory.psgRegisterSelect = 14
 	memory.psgRegisters[7] = 0xc0
 	memory.psgRegisters[14] = 0x25
+	// 第二輪起的 drive 重選走 flopvbl() 的共用前置（規格 139）：選 R14、讀回舊值，
+	// 到 data 那一步才分派。這幾個是那條路的閘門。
+	memory.ikbdClockReadbackComplete = true
+	memory.fdcInitStage = 14
+	memory.acsiStage = 5
+	memory.flopVBLMediaStage = 8
 	memory.dmaMode = 0x0080
 	memory.dmaAddress = 0x001004
 	memory.mfpGPIPIn = 0xb1

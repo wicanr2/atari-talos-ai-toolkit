@@ -130,10 +130,12 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	clockReads := uint8(0)
 	readbackReads := uint8(0)
 	floppyMediaPhase := floppyMediaIdle
+	vblStage := uint8(0)
 	if m.Memory != nil {
 		clockReads = m.Memory.ikbdClockResponseReadCount
 		readbackReads = m.Memory.ikbdClockReadbackReadCount
 		floppyMediaPhase = m.Memory.floppyMediaPhase
+		vblStage = m.Memory.flopVBLMediaStage
 	}
 	result, err := m.CPU.StepAt(stepEpoch)
 	if err != nil {
@@ -151,10 +153,16 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	}
 	// MOVE.B Dn,d(An) still uses the untimed byte bus path. Preserve the
 	// instruction epoch until that CPU path exposes its exact bus phase.
+	// MOVE.B Dn,d(An) 仍走未定時的 byte bus 路徑，先用指令 epoch 頂著。第一輪直接
+	// 記進收據；第二輪起這一步只推進共用前置，clock 先存著（規格 139）。
 	if m.Memory != nil && floppyMediaPhase == floppyMediaDriveWrite &&
 		m.Memory.floppyMediaPhase == floppyMediaSectorSelector &&
 		m.Memory.floppyMediaCurrent.DriveWriteClock == 0 {
 		m.Memory.floppyMediaCurrent.DriveWriteClock = stepEpoch
+	}
+	// 每一輪都要更新：這是「最近一次共用前置的 data 寫入」，不是一次性的。
+	if m.Memory != nil && vblStage == 2 && m.Memory.flopVBLMediaStage == 3 {
+		m.Memory.flopVBLMediaDriveWriteClock = stepEpoch
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)

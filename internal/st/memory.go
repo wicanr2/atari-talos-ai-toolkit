@@ -112,6 +112,8 @@ type Memory struct {
 	psgRegisters                    [16]byte
 	psgDriveStage                   uint8
 	flopVBLMediaStage               uint8
+	flopVBLMediaEntryPort           byte
+	flopVBLMediaDriveWriteClock     uint64
 	flopVBLStatusReadClock          uint64
 	flopVBLMediaComplete            bool
 	flopVBLMediaChecks              uint32
@@ -338,6 +340,13 @@ func (m *Memory) floppyMediaSectorSelectorMode() uint16 {
 	return 0x0080
 }
 
+// isFlopVBLEntryPort is what port A may hold when flopvbl() takes its turn:
+// drive 1 ($23), drive 0 ($25) or neither ($27). The top five bits are the
+// other port A lines and stay put.
+func isFlopVBLEntryPort(value byte) bool {
+	return value == 0x23 || value == 0x25 || value == 0x27
+}
+
 func (m *Memory) flopVBLTargetPort() byte {
 	if m.flopVBLMediaDrive == 0 {
 		return 0x25
@@ -442,18 +451,24 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		m.psgRegisters[14] == 3:
 		m.psgDriveStage = 8
 		return m.psgRegisters[14], nil
+	case address == PSGRegisterSelect && m.floppyMediaPhase == floppyMediaDriveRead &&
+		m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
+		m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x23:
+		// 第一輪：track lock 之後自己走完 select／read／data，因為它的進場值是
+		// `$23` 而不是 `$25`，與第二輪起的共用前置分得開（規格 139）。
+		m.floppyMediaPhase = floppyMediaDriveWrite
+		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 9 && m.flopVBLMediaStage == 1 &&
-		m.ikbdClockReadbackComplete && m.psgRegisterSelect == 14 && m.psgRegisters[14] == 0x23:
+		m.ikbdClockReadbackComplete && m.psgRegisterSelect == 14 &&
+		isFlopVBLEntryPort(m.psgRegisters[14]):
+		// set_psg_porta 回傳舊值的低三位，呼叫端收尾時拿它還原。進場值不是固定的
+		// `$23`——前 73 輪碰巧是，第 74 輪媒體確認留下的是 `$25`（規格 139）。
+		m.flopVBLMediaEntryPort = m.psgRegisters[14]
 		m.flopVBLMediaStage = 2
 		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 9 && m.flopVBLMediaStage == 6 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[14] == m.flopVBLTargetPort():
 		m.flopVBLMediaStage = 7
-		return m.psgRegisters[14], nil
-	case address == PSGRegisterSelect && m.floppyMediaPhase == floppyMediaDriveRead &&
-		m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
-		m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == m.floppyMediaDrivePort():
-		m.floppyMediaPhase = floppyMediaDriveWrite
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
@@ -814,21 +829,18 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == PSGRegisterSelect {
-		// 第二輪起，重選 drive 就是這一輪的第一步；第一輪則先走完 track lock 才到這裡。
-		if (m.floppyMediaPhase == floppyMediaIdle && m.floppyMediaLocked ||
-			m.floppyMediaPhase == floppyMediaDriveSelector) &&
+		// 第一輪：track lock 之後自己選 R14。它的進場值是 `$23`，與第二輪起的
+		// 共用前置（`$25`）分得開（規格 139）。
+		if m.floppyMediaPhase == floppyMediaDriveSelector &&
 			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
-			m.psgRegisters[14] == m.floppyMediaDrivePort() && value == 14 {
-			if m.floppyMediaPhase == floppyMediaIdle {
-				m.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Track: 0}
-			}
+			m.psgRegisters[14] == 0x23 && value == 14 {
 			m.floppyMediaPhase = floppyMediaDriveRead
 			return nil
 		}
 		if m.psgDriveStage == 9 && (m.flopVBLMediaStage == 0 || m.flopVBLMediaStage == 8) &&
 			m.ikbdClockReadbackComplete &&
 			m.fdcInitStage == 14 && m.acsiStage == 5 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x23 && value == 14 {
+			m.psgRegisters[7] == 0xc0 && isFlopVBLEntryPort(m.psgRegisters[14]) && value == 14 {
 			m.flopVBLMediaDrive = int8(m.flopVBLMediaChecks & 1)
 			m.flopVBLMediaStage = 1
 			return nil
@@ -862,22 +874,31 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 	}
 	if address == PSGRegisterData {
+		// 分派點：進場值與寫入值都是 `$25` 就是媒體確認重選同一個 drive，
+		// 其餘是 flopvbl() 要切到的目標 drive（規格 139）。前面的 select 與 read
+		// 兩步是共用的，分不出來也不該分。
 		if m.floppyMediaPhase == floppyMediaDriveWrite &&
 			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
-			m.psgRegisters[14] == m.floppyMediaDrivePort() && value == 0x25 {
+			m.psgRegisters[14] == 0x23 && value == 0x25 {
 			m.psgRegisters[14] = value
 			m.floppyMediaCurrent.DrivePort = value
 			m.floppyMediaPhase = floppyMediaSectorSelector
 			return nil
 		}
+		// set_psg_porta 的三步是共用前置，寫哪個 drive 還分不出是誰要用——分派在
+		// 下一個 DMA control（規格 139）。
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[14] == 0x23 && value == m.flopVBLTargetPort() {
+			m.psgRegisters[14] == m.flopVBLMediaEntryPort &&
+			(value == m.flopVBLTargetPort() || value == 0x25) {
+			// 兩條路都可能寫 `$25`：flopvbl() 的 drive 0 那一輪，以及媒體確認。
+			// 哪一條要留到 DMA control 才判得出來，所以這裡只驗值是合法的 drive
+			// 選擇，真正的目標檢查放在 stage 3 的兩個出口。
 			m.psgRegisters[14] = value
 			m.flopVBLMediaStage = 3
 			return nil
 		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 7 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x23 {
+			m.psgRegisters[14] == m.flopVBLTargetPort() && value == m.flopVBLMediaEntryPort {
 			m.psgRegisters[14] = value
 			m.flopVBLMediaStage = 8
 			m.flopVBLMediaComplete = true
@@ -1331,6 +1352,7 @@ func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) 
 		wasTimerC := m.mfpTimerCStart
 		wasSystemTimerD := m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart
 		floppyMediaPhase := m.floppyMediaPhase
+		vblStage := m.flopVBLMediaStage
 		err := m.WriteByte(address, value, access.FunctionCode)
 		if err == nil && !wasTimerC && m.mfpTimerCStart {
 			m.mfpTimerCStartClock = access.Clock
@@ -1339,9 +1361,14 @@ func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) 
 			m.mfpTCDCR&0x07 == 2 {
 			m.mfpTimerDStartClock = access.Clock
 		}
+		// 第一輪從 DriveWrite 進來，直接記進收據；第二輪起這一步只推進共用前置，
+		// clock 先存著，等 DMA control 分派到媒體確認時才寫進收據（規格 139）。
 		if err == nil && floppyMediaPhase == floppyMediaDriveWrite &&
 			m.floppyMediaPhase == floppyMediaSectorSelector {
 			m.floppyMediaCurrent.DriveWriteClock = access.Clock
+		}
+		if err == nil && vblStage == 2 && m.flopVBLMediaStage == 3 {
+			m.flopVBLMediaDriveWriteClock = access.Clock
 		}
 		return 4, err
 	}
@@ -1462,6 +1489,23 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				m.floppyMediaPhase = floppyMediaStatusRead
 				return nil
 			}
+		}
+		// 分派點：set_psg_porta 的三步是共用的，寫哪個 drive 還分不出是誰要用——
+		// drive 0 那一輪兩邊都寫 `$25`。真正分岔的是下一個 DMA control：`$0084`
+		// 是媒體確認的 sector selector，`$0080` 是 flopvbl() 的 status 讀取（規格 139）。
+		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
+			m.floppyMediaPhase == floppyMediaIdle && m.floppyMediaLocked &&
+			m.psgRegisters[14] == 0x25 && value == 0x0084 {
+			// 媒體確認借走了這一輪的前置，那一輪 flopvbl() 沒有真的跑。
+			m.dmaMode = value
+			m.floppyMediaCurrent = floppyMediaReceipt{
+				Drive: 0, Track: 0, DrivePort: 0x25,
+				DriveWriteClock: m.flopVBLMediaDriveWriteClock,
+			}
+			m.floppyMediaPhase = floppyMediaSectorData
+			m.flopVBLMediaDriveWriteClock = 0
+			m.flopVBLMediaStage = 8
+			return nil
 		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
 			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
@@ -1714,6 +1758,8 @@ func (m *Memory) ColdReset() {
 	m.psgRegisters = [16]byte{}
 	m.psgDriveStage = 0
 	m.flopVBLMediaStage = 0
+	m.flopVBLMediaEntryPort = 0
+	m.flopVBLMediaDriveWriteClock = 0
 	m.flopVBLStatusReadClock = 0
 	m.flopVBLMediaComplete = false
 	m.flopVBLMediaChecks = 0

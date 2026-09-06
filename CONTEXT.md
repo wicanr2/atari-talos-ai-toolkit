@@ -524,8 +524,14 @@
   `$0B 01 01` 門檻、`$10` Y 軸原點在上、`$07 00` button action。命令組裝器有長度表，
   參數期間的位元組不重新解讀成命令，未知命令碼 fail-closed。四條都不回應（Hatari 的
   `tx_state` 在整串期間是 0），所以沒有 response deadline。
-- 下一 gate：`$FC36DE` 的 PSG `$FF8802` write，在 8,058,248 instructions／4,088 interrupts／
-  180,984,736 clocks。
+- `set_psg_porta` 的三步（選 R14、讀回舊值、寫 data）是 `flopvbl()` 與媒體確認**共用的
+  前置**（規格 139 CONFORMED，2026-09-06）：寫哪個 drive 還分不出是誰要用——drive 0
+  那一輪兩邊都寫 `$25`——所以分派移到下一個 DMA control（`$0084` 是媒體確認的 sector
+  selector、`$0080` 是 `flopvbl()` 的 status 讀取）。`flopvbl()` 收尾還原的是**進場值**，
+  不是固定的 `$23`；Hatari 的 trace 顯示 `$23`／`$25`／`$27` 都出現過。
+- 下一 gate：`$FC36DE` 的 PSG `$FF8802` 寫一個還沒建模的 port A 值，在 10,544,770
+  instructions／4,967 interrupts／209,189,796 clocks。從 Hatari 的 VBL 1418 看，
+  那是 `$27`（兩個 drive 都不選）。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。

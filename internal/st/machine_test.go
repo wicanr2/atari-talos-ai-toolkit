@@ -1977,19 +1977,20 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Memory.mfpGPIPIn, machine.Instructions, machine.Interrupts, machine.Clocks,
 			machine.CPU.State, nextGate)
 	}
-	for steps := 0; steps < 10_000 && !reachedMedia(machine.Memory, 2, floppyMediaSectorSelector) && nextGate == nil; steps++ {
+	for steps := 0; steps < 10_000 && !reachedMedia(machine.Memory, 2, floppyMediaSectorData) && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate != nil || machine.Memory.floppyMediaPhase != floppyMediaSectorSelector ||
+	// 第二輪起，drive 重選走共用前置，收據要等 sector selector 那一步才成形（規格 139）。
+	if nextGate != nil || machine.Memory.floppyMediaPhase != floppyMediaSectorData ||
 		mediaReceipt(machine.Memory, 2).DrivePort != 0x25 ||
 		mediaReceipt(machine.Memory, 2).DriveWriteClock != 118369158 ||
 		machine.Memory.psgRegisters[14] != 0x25 || machine.Memory.flopVBLMediaChecks != 73 ||
-		machine.Instructions != 2371990 || machine.Interrupts != 2136 || machine.Clocks != 118369170 ||
-		machine.CPU.State.D != [8]uint32{0x25, 0x25, 0x2300, 0x1020, 0, 0, 0, 0x0a} ||
-		machine.CPU.State.A != [7]uint32{0xffff8800, 0x2f44, 6, 1, 0x1200, 5, 0x00fc413a} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x6880 ||
-		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36e4 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x40c1, 0x46c2} {
+		machine.Instructions != 2372056 || machine.Interrupts != 2136 || machine.Clocks != 118369888 ||
+		machine.CPU.State.D != [8]uint32{6, 0x2700, 0, 0x1004, 0x00fc3a88, 0, 0x00fc37ea, 1} ||
+		machine.CPU.State.A != [7]uint32{0x300c, 0x2f44, 6, 1, 0x1004, 0, 0x00fcccf0} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x688a ||
+		machine.CPU.State.SR != 0x2310 || machine.CPU.State.PC != 0x00fc372a ||
+		machine.CPU.State.Prefetch != [2]uint16{0x2039, 0x0000} {
 		t.Fatalf("retry drive reselect stage=%d port/clock=%02x/%d R14=%02x checks=%d instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
 			machine.Memory.floppyMediaPhase, mediaReceipt(machine.Memory, 2).DrivePort,
 			mediaReceipt(machine.Memory, 2).DriveWriteClock, machine.Memory.psgRegisters[14],

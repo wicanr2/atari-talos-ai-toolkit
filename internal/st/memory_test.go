@@ -1294,6 +1294,9 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	memory.flopVBLMediaStage = 8
 	memory.flopVBLMediaComplete = true
 	memory.flopVBLMediaChecks = 73
+	// 第二輪起的 drive 重選走 flopvbl() 的共用前置（規格 139），那條路要求時鐘
+	// 回讀已經完成。
+	memory.ikbdClockReadbackComplete = true
 	memory.fdcInitStage = 14
 	memory.fdcProbeDrive = 1
 	memory.acsiStage = 5
@@ -1521,43 +1524,51 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		m68k.BusAccess{Clock: 1800, FunctionCode: 5}); err == nil {
 		t.Fatal("retry drive port read before selector unexpectedly accepted")
 	}
+	// 第二輪起，選 R14 與讀回舊值是 flopvbl() 與媒體確認共用的前置，分派要等到
+	// data 那一步才做得到（規格 139）。
 	if wait, err := memory.WriteByteAt(PSGRegisterSelect, 14,
 		m68k.BusAccess{Clock: 1900, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyMediaPhase != floppyMediaDriveRead || memory.psgRegisterSelect != 14 {
-		t.Fatalf("retry drive selector wait/stage/select=%d/%d/%02x err=%v", wait,
-			memory.floppyMediaPhase, memory.psgRegisterSelect, err)
+		memory.flopVBLMediaStage != 1 || memory.psgRegisterSelect != 14 {
+		t.Fatalf("retry drive selector wait/vblStage/select=%d/%d/%02x err=%v", wait,
+			memory.flopVBLMediaStage, memory.psgRegisterSelect, err)
 	}
 	if value, wait, err := memory.ReadByteAt(PSGRegisterSelect,
 		m68k.BusAccess{Clock: 2000, FunctionCode: 5}); err != nil || wait != 4 ||
-		value != 0x25 || memory.floppyMediaPhase != floppyMediaDriveWrite || memory.psgRegisters[14] != 0x25 {
-		t.Fatalf("retry drive read value/wait/stage/port=%02x/%d/%d/%02x err=%v",
-			value, wait, memory.floppyMediaPhase, memory.psgRegisters[14], err)
+		value != 0x25 || memory.flopVBLMediaStage != 2 || memory.flopVBLMediaEntryPort != 0x25 ||
+		memory.psgRegisters[14] != 0x25 {
+		t.Fatalf("retry drive read value/wait/vblStage/entry/port=%02x/%d/%d/%02x/%02x err=%v",
+			value, wait, memory.flopVBLMediaStage, memory.flopVBLMediaEntryPort,
+			memory.psgRegisters[14], err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
-		memory.floppyMediaPhase != floppyMediaDriveWrite || memory.psgRegisters[14] != 0x25 {
-		t.Fatalf("wrong retry drive value mutated stage/port=%d/%02x err=%v",
-			memory.floppyMediaPhase, memory.psgRegisters[14], err)
+	// `$23` 在這裡不再是錯的值——進場 `$25`、寫 `$23` 就是 flopvbl() 切到 drive 1
+	// 的合法路（規格 139）。真正兩條路都不接受的是別的 drive 組合。
+	if err := memory.WriteByte(PSGRegisterData, 0x21, 5); err == nil ||
+		memory.flopVBLMediaStage != 2 || memory.floppyMediaPhase != floppyMediaIdle ||
+		memory.psgRegisters[14] != 0x25 {
+		t.Fatalf("wrong retry drive value mutated vblStage/stage/port=%d/%d/%02x err=%v",
+			memory.flopVBLMediaStage, memory.floppyMediaPhase, memory.psgRegisters[14], err)
 	}
+	// data 這一步只推進共用前置，clock 先存著；分派要等 DMA control（規格 139）。
 	if wait, err := memory.WriteByteAt(PSGRegisterData, 0x25,
 		m68k.BusAccess{Clock: 2100, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyMediaPhase != floppyMediaSectorSelector || mediaReceipt(memory, 2).DrivePort != 0x25 ||
-		mediaReceipt(memory, 2).DriveWriteClock != 2100 || memory.psgRegisters[14] != 0x25 ||
-		memory.flopVBLMediaChecks != mediaChecks {
-		t.Fatalf("retry drive write wait/stage/receipt/clock/port/checks=%d/%d/%02x/%d/%02x/%d err=%v",
-			wait, memory.floppyMediaPhase, mediaReceipt(memory, 2).DrivePort,
-			mediaReceipt(memory, 2).DriveWriteClock, memory.psgRegisters[14],
-			memory.flopVBLMediaChecks, err)
+		memory.flopVBLMediaStage != 3 || memory.flopVBLMediaDriveWriteClock != 2100 ||
+		memory.psgRegisters[14] != 0x25 || memory.flopVBLMediaChecks != mediaChecks {
+		t.Fatalf("retry drive write wait/vblStage/clock/port/checks=%d/%d/%d/%02x/%d err=%v",
+			wait, memory.flopVBLMediaStage, memory.flopVBLMediaDriveWriteClock,
+			memory.psgRegisters[14], memory.flopVBLMediaChecks, err)
 	}
 	if err := memory.WriteWord(STDiskController, 1, 5); err == nil ||
-		memory.floppyMediaPhase != floppyMediaSectorSelector || mediaReceipt(memory, 2).Sector != 0 {
+		memory.floppyMediaPhase != floppyMediaIdle || mediaReceipt(memory, 2).Sector != 0 {
 		t.Fatalf("retry sector before selector mutated stage/sector=%d/%02x err=%v",
 			memory.floppyMediaPhase, mediaReceipt(memory, 2).Sector, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0084,
 		m68k.BusAccess{Clock: 2202, FunctionCode: 5}); err != nil || wait != 6 ||
-		memory.floppyMediaPhase != floppyMediaSectorData || memory.dmaMode != 0x0084 {
-		t.Fatalf("retry sector selector wait/stage/mode=%d/%d/%04x err=%v",
-			wait, memory.floppyMediaPhase, memory.dmaMode, err)
+		memory.floppyMediaPhase != floppyMediaSectorData || memory.dmaMode != 0x0084 ||
+		mediaReceipt(memory, 2).DrivePort != 0x25 || mediaReceipt(memory, 2).DriveWriteClock != 2100 {
+		t.Fatalf("retry sector selector wait/stage/mode/port/clock=%d/%d/%04x/%02x/%d err=%v",
+			wait, memory.floppyMediaPhase, memory.dmaMode,
+			mediaReceipt(memory, 2).DrivePort, mediaReceipt(memory, 2).DriveWriteClock, err)
 	}
 	retryAddressBefore := memory.dmaAddress
 	if err := memory.WriteByte(STDMAAddressLow, 0x04, 5); err == nil ||
@@ -1769,32 +1780,36 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	mediaChecks = memory.flopVBLMediaChecks
 	if wait, err := memory.WriteByteAt(PSGRegisterSelect, 14,
 		m68k.BusAccess{Clock: 4700, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyMediaPhase != floppyMediaDriveRead {
-		t.Fatalf("third retry drive selector wait/stage=%d/%d err=%v", wait, memory.floppyMediaPhase, err)
+		memory.flopVBLMediaStage != 1 {
+		t.Fatalf("third retry drive selector wait/vblStage=%d/%d err=%v", wait, memory.flopVBLMediaStage, err)
 	}
 	if value, wait, err := memory.ReadByteAt(PSGRegisterSelect,
 		m68k.BusAccess{Clock: 4800, FunctionCode: 5}); err != nil || wait != 4 ||
-		value != 0x25 || memory.floppyMediaPhase != floppyMediaDriveWrite {
-		t.Fatalf("third retry drive read value/wait/stage=%02x/%d/%d err=%v",
-			value, wait, memory.floppyMediaPhase, err)
+		value != 0x25 || memory.flopVBLMediaStage != 2 || memory.flopVBLMediaEntryPort != 0x25 {
+		t.Fatalf("third retry drive read value/wait/vblStage/entry=%02x/%d/%d/%02x err=%v",
+			value, wait, memory.flopVBLMediaStage, memory.flopVBLMediaEntryPort, err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
-		memory.floppyMediaPhase != floppyMediaDriveWrite || memory.psgRegisters[14] != 0x25 {
+	if err := memory.WriteByte(PSGRegisterData, 0x21, 5); err == nil ||
+		memory.flopVBLMediaStage != 2 || memory.floppyMediaPhase != floppyMediaIdle ||
+		memory.psgRegisters[14] != 0x25 {
 		t.Fatalf("wrong third retry drive value mutated stage/port=%d/%02x err=%v",
 			memory.floppyMediaPhase, memory.psgRegisters[14], err)
 	}
 	if wait, err := memory.WriteByteAt(PSGRegisterData, 0x25,
 		m68k.BusAccess{Clock: 4900, FunctionCode: 5}); err != nil || wait != 4 ||
-		memory.floppyMediaPhase != floppyMediaSectorSelector || mediaReceipt(memory, 3).DrivePort != 0x25 ||
-		mediaReceipt(memory, 3).DriveWriteClock != 4900 || memory.flopVBLMediaChecks != mediaChecks {
-		t.Fatalf("third retry drive write wait/stage/receipt/clock/checks=%d/%d/%02x/%d/%d err=%v",
-			wait, memory.floppyMediaPhase, mediaReceipt(memory, 3).DrivePort,
-			mediaReceipt(memory, 3).DriveWriteClock, memory.flopVBLMediaChecks, err)
+		memory.flopVBLMediaStage != 3 || memory.flopVBLMediaDriveWriteClock != 4900 ||
+		memory.flopVBLMediaChecks != mediaChecks {
+		t.Fatalf("third retry drive write wait/vblStage/clock/checks=%d/%d/%d/%d err=%v",
+			wait, memory.flopVBLMediaStage, memory.flopVBLMediaDriveWriteClock,
+			memory.flopVBLMediaChecks, err)
 	}
 	if wait, err := memory.WriteWordAt(STDMAControl, 0x0084,
 		m68k.BusAccess{Clock: 5002, FunctionCode: 5}); err != nil || wait != 6 ||
-		memory.floppyMediaPhase != floppyMediaSectorData {
-		t.Fatalf("third retry sector selector wait/stage=%d/%d err=%v", wait, memory.floppyMediaPhase, err)
+		memory.floppyMediaPhase != floppyMediaSectorData ||
+		mediaReceipt(memory, 3).DrivePort != 0x25 || mediaReceipt(memory, 3).DriveWriteClock != 4900 {
+		t.Fatalf("third retry sector selector wait/stage/port/clock=%d/%d/%02x/%d err=%v",
+			wait, memory.floppyMediaPhase, mediaReceipt(memory, 3).DrivePort,
+			mediaReceipt(memory, 3).DriveWriteClock, err)
 	}
 	if wait, err := memory.WriteWordAt(STDiskController, 1,
 		m68k.BusAccess{Clock: 5100, FunctionCode: 5}); err != nil || wait != 4 ||
