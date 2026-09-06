@@ -433,6 +433,11 @@
   118,354,530送`$D0`中斷仍busy的Type-II `$80`，於2,370,884 instructions／2,136
   interrupts／118,354,544 clocks完成。status `$81→$80`、Type-II型別與inactive IRQ
   均與固定Hatari 75-VBL序列一致；下一gate為`$FF8606=$0086` data-register selector。
+- floppy timeout後dummy seek已CONFORMED：`flopunlk()`以data 0／seek `$13`把FDC轉回
+  Type-I status，重用既有728-FDC-clock scheduler；Talos記錄九次inactive GPIP poll，
+  於2,371,204 instructions／2,136 interrupts／118,357,780 clocks讀回`$E4`並清IRQ。
+  真正最早下一gate是2,371,983／118,369,110的YM2149 `$FF8800` byte write；必須先
+  處理它，不能因FDC-only trace直接跳到下一個sector selector。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -442,8 +447,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步接入固定Hatari已確認的timeout後
-   data-register／seek與重試序列；不可把無磁片當成成功讀取。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步確認並接入dummy seek後的YM2149
+   transaction，再銜接下一次sector讀取；不可把無磁片當成成功讀取。
    RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

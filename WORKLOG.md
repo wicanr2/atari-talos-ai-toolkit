@@ -571,3 +571,8 @@
   `hz_200`自然抵達相同分支，於2,370,884 instructions／2,136 interrupts／
   118,354,544 clocks完成force-interrupt；status `$80`、Type-II型別與inactive IRQ均
   鎖入回歸測試。下一gate為`$0086` data-register selector。
+- 完成規格125：EmuTOS `flopunlk/dummy_seek`與固定Hatari VBL310 trace證實timeout後
+  依序送data 0、seek `$13`、等待IRQ並讀status `$E4`。Talos重用既有seek scheduler，
+  記錄九次inactive GPIP poll，於2,371,204 instructions／2,136 interrupts／
+  118,357,780 clocks完成。跨裝置驗證另發現真正下一gate是YM2149 `$FF8800` byte
+  write，不可由FDC-only trace直接外推為sector selector。

@@ -66,10 +66,11 @@
 | ST floppy媒體確認讀取lock | `$0082` track selector、track 0 data、YM2149選drive 0、與VBL count隔離 | EmuTOS `flop_mediach/flopio/floplock/set_fdc_reg`；Hatari VBL235 trace；固定EmuTOS ROM | 通過；1,286,016條／106,339,274 clocks完成，下一gate為`$0084` sector selector |
 | ST floppy sector 1 DMA讀取設定 | sector 1、DMA address `$001004`、兩次direction toggle、sector count 1、Type-II `$80`、錯序／reset／buffer不變 | EmuTOS `flopio/set_fdc_reg/fdc_start_dma_read`；Hatari VBL235 trace；固定EmuTOS ROM | 通過；1,286,164條／1,761 IRQ／106,340,824 clocks完成command提交；無磁片timeout待補 |
 | ST floppy無磁片讀取timeout／force-interrupt | 既有guest 1.5秒期限、`$0080/$D0`、busy clear、Type-II status、inactive IRQ、錯序／reset／buffer不變 | EmuTOS `flopcmd/timeout_gpip`；Hatari VBL235→310 FDC trace；固定EmuTOS ROM | 通過；2,370,884條／2,136 IRQ／118,354,544 clocks完成；下一gate `$0086` data register |
+| ST floppy timeout後dummy seek | data 0、seek `$13`、728-FDC-clock期限、九次GPIP poll、IRQ／status `$E4` read-clear、獨立retry收據 | EmuTOS `flopunlk/dummy_seek`；Hatari VBL310 FDC trace；固定EmuTOS ROM | 通過；2,371,204條／2,136 IRQ／118,357,780 clocks完成；下一gate為YM2149 `$FF8800` |
 | ST IKBD可重入讀時鐘 | 重複`$1C`、10-tick request、16／10-tick response、MFP channel 6、每輪收據與backpressure | EmuTOS `igetregs/clockvec`；Hatari VBL77 ACIA／IKBD trace；固定EmuTOS ROM | 通過；第三輪於1,092,926條／558 IRQ／14,015,626 clocks收齊，下一gate為VBL90 `flopvbl()` |
 | ST 空 cartridge window | 128 KiB `$FF`、FC、MMU 獨立、ROM write fault、邊界 | Hatari v2.4.1 固定原始碼；Hatari／EmuTOS 同 ROM | 通過；第 12 條／380 clocks state／prefetch 全同 |
 | 其餘 68000 指令 | 待建立 | SingleStepTests；TAS／TRAPV 暫不採信 | 進行中 |
-| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑已於2,370,884條／118,354,544 clocks完成首筆無磁片read timeout／force-interrupt，下一gate為`$0086` data register |
+| TOS 開機 | reset、MMU、exceptions、`RESET`、VBL、Shifter、MFP Timer C/D、部分PSG／ACIA／USART／FDC已建立；bus arbitration／I/O待擴充 | Hatari 2.4.1／EmuTOS 1.3同ROM | 進行中；正常路徑已於2,371,204條／118,357,780 clocks完成timeout後dummy seek；下一gate為YM2149 `$FF8800` |
 | 畫面 | low-res 4-plane→palette index 與 VBL snapshot 已建立 | Hatari VBL7 raw framebuffer、decoded index hash | 進行中；RGB／PNG、border、raster palette與遊戲畫面待補 |
 | 輸入與時序 | 待建立 | Hatari 同事件與狀態點 | 未開始 |
 | Dungeon Master | 待建立 | Hatari 正常入口同狀態路徑 | 未開始 |

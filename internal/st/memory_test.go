@@ -1421,13 +1421,106 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
 		t.Fatal("force interrupt modified DMA buffer")
 	}
+	if err := memory.WriteWord(STDiskController, 0, 5); err == nil {
+		t.Fatal("retry data before selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0086,
+		m68k.BusAccess{Clock: 500, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 18 || memory.dmaMode != 0x0086 {
+		t.Fatalf("retry data selector wait/stage/mode=%d/%d/%04x err=%v",
+			wait, memory.floppyReadStage, memory.dmaMode, err)
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0,
+		m68k.BusAccess{Clock: 600, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 19 || memory.floppyReadRetryData != 0 || memory.fdcData != 0 {
+		t.Fatalf("retry data wait/stage/data/FDC=%d/%d/%02x/%02x err=%v", wait,
+			memory.floppyReadStage, memory.floppyReadRetryData, memory.fdcData, err)
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 700, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 20 || memory.dmaMode != 0x0080 {
+		t.Fatalf("retry command selector wait/stage/mode=%d/%d/%04x err=%v",
+			wait, memory.floppyReadStage, memory.dmaMode, err)
+	}
+	if err := memory.WriteWord(STDiskController, 0x0012, 5); err == nil ||
+		memory.floppyReadStage != 20 || memory.fdcSeekPending {
+		t.Fatal("wrong retry seek command unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDiskController, 0x0013,
+		m68k.BusAccess{Clock: 800, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 21 || memory.floppyReadRetrySeekCommand != 0x13 ||
+		memory.floppyReadRetrySeekStartClock != 800 || memory.fdcSeekStartClock != 800 ||
+		!memory.fdcSeekPending || memory.fdcStatus != 0xe5 || !memory.fdcStatusTypeI ||
+		memory.fdcIRQ || memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("retry seek wait/stage/command/clocks/pending/status/type/IRQ/GPIP=%d/%d/%02x/%d/%d/%v/%02x/%v/%v/%02x err=%v",
+			wait, memory.floppyReadStage, memory.floppyReadRetrySeekCommand,
+			memory.floppyReadRetrySeekStartClock, memory.fdcSeekStartClock,
+			memory.fdcSeekPending, memory.fdcStatus, memory.fdcStatusTypeI,
+			memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	for index := 0; index < 9; index++ {
+		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+			t.Fatalf("retry inactive poll %d=%02x err=%v", index, got, err)
+		}
+	}
+	if memory.floppyReadRetryInactivePolls != 9 || !memory.fdcSeekPending {
+		t.Fatalf("retry polls/pending=%d/%v", memory.floppyReadRetryInactivePolls,
+			memory.fdcSeekPending)
+	}
+	machine := &Machine{Memory: memory, Clocks: 1528}
+	machine.CPU.Bus = memory
+	machine.advanceClockedDevices()
+	if !machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 1529 ||
+		memory.floppyReadStage != 21 || !memory.fdcSeekPending {
+		t.Fatalf("retry early scheduler/next/stage/pending=%v/%d/%d/%v",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock,
+			memory.floppyReadStage, memory.fdcSeekPending)
+	}
+	machine.Clocks = 1529
+	machine.advanceClockedDevices()
+	if machine.fdcSeekClockStarted || machine.nextFDCSeekClock != 0 ||
+		memory.floppyReadStage != 22 || memory.fdcSeekPending || memory.fdcStatus != 0xe4 ||
+		!memory.fdcIRQ || memory.mfpGPIPIn&0x20 != 0 {
+		t.Fatalf("retry complete scheduler/next/stage/pending/status/IRQ/GPIP=%v/%d/%d/%v/%02x/%v/%02x",
+			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.floppyReadStage,
+			memory.fdcSeekPending, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
+	}
+	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+		!memory.floppyReadRetryIRQObserved {
+		t.Fatalf("retry IRQ poll=%02x observed=%v err=%v", got,
+			memory.floppyReadRetryIRQObserved, err)
+	}
+	if _, err := memory.ReadWord(STDiskController, 5); err == nil {
+		t.Fatal("retry status before selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteWordAt(STDMAControl, 0x0080,
+		m68k.BusAccess{Clock: 1600, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 23 {
+		t.Fatalf("retry status selector wait/stage=%d/%d err=%v", wait,
+			memory.floppyReadStage, err)
+	}
+	if value, wait, err := memory.ReadWordAt(STDiskController,
+		m68k.BusAccess{Clock: 1700, FunctionCode: 5}); err != nil || wait != 4 ||
+		value != 0x00e4 || memory.floppyReadStage != 24 ||
+		memory.floppyReadRetryStatusReadClock != 1700 || memory.fdcIRQ ||
+		memory.mfpGPIPIn&0x20 == 0 {
+		t.Fatalf("retry status value/wait/stage/clock/IRQ/GPIP=%04x/%d/%d/%d/%v/%02x err=%v",
+			value, wait, memory.floppyReadStage, memory.floppyReadRetryStatusReadClock,
+			memory.fdcIRQ, memory.mfpGPIPIn, err)
+	}
+	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
+		t.Fatal("retry dummy seek modified DMA buffer")
+	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
 		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
 		memory.floppyReadDMAAddressStage != 0 || memory.floppyReadDMAResetCount != 0 ||
 		memory.floppyReadCommand != 0 || memory.floppyReadCommandClock != 0 ||
 		memory.floppyReadTimeoutSelectorClock != 0 || memory.floppyReadForceInterrupt != 0 ||
-		memory.floppyReadForceInterruptClock != 0 {
+		memory.floppyReadForceInterruptClock != 0 || memory.floppyReadRetryData != 0 ||
+		memory.floppyReadRetrySeekCommand != 0 || memory.floppyReadRetrySeekStartClock != 0 ||
+		memory.floppyReadRetryInactivePolls != 0 || memory.floppyReadRetryIRQObserved ||
+		memory.floppyReadRetryStatusReadClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }

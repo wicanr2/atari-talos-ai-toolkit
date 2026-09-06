@@ -429,3 +429,9 @@
   送出Type-II `$80`後，無磁片不產生IRQ且command保持busy；EmuTOS到VBL310才送
   `$D0` force-interrupt，恰為motor-on `MOTORON_TIMEOUT`的75個50 Hz VBL／1.5秒。
   Hatari隨後清busy與IRQ並完成command；下一筆FDC transaction是`$0086` data register。
+- 固定Hatari 2.4.1／EmuTOS 1.3 UK的330-VBL FDC trace SHA-256
+  `a0e4a318dfbe98d21788d1f56071827104beba085fedf7f130ba715bf19b2251`證實VBL310
+  force-interrupt後的`$0086/$0000/$0080/$0013` dummy seek、command complete／IRQ及
+  `$0080` status `$E4` read-clear。固定Talos跨裝置繼續執行後，先遇到YM2149
+  `$FF8800`，因此FDC trace所示的下一筆`$0084`只代表「下一筆FDC transaction」，
+  不能當成整台機器的下一個typed gate。
