@@ -37,6 +37,10 @@ func TestFloppyMediaFirstTransactionTrackPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	memory.dmaMode = 0x0080
+	memory.psgDriveStage = 9
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7] = 0xc0
+	memory.psgRegisters[14] = 0x23
 	memory.beginFloppyMediaAtTrack()
 
 	if err := memory.WriteWord(STDMAControl, 0x0082, 5); err != nil {
@@ -50,6 +54,20 @@ func TestFloppyMediaFirstTransactionTrackPrefix(t *testing.T) {
 	}
 	if memory.floppyMediaPhase != floppyMediaDriveSelector || memory.floppyMediaCurrent.Track != 0 {
 		t.Fatalf("track data phase/track=%d/%d", memory.floppyMediaPhase, memory.floppyMediaCurrent.Track)
+	}
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil {
+		t.Fatalf("drive selector: %v", err)
+	}
+	if value, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || value != 0x23 {
+		t.Fatalf("drive read=%02x err=%v", value, err)
+	}
+	if err := memory.WriteByteFC(PSGRegisterData, 0x25, 5); err != nil {
+		t.Fatalf("drive write: %v", err)
+	}
+	if memory.floppyMediaPhase != floppyMediaSectorSelector ||
+		memory.floppyMediaCurrent.DrivePort != 0x25 || memory.psgRegisters[14] != 0x25 {
+		t.Fatalf("drive write phase/receipt/R14=%d/%02x/%02x", memory.floppyMediaPhase,
+			memory.floppyMediaCurrent.DrivePort, memory.psgRegisters[14])
 	}
 }
 

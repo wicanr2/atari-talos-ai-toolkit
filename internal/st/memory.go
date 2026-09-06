@@ -363,7 +363,8 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.floppyMediaPhase == floppyMediaDriveRead &&
 		m.psgDriveStage == 9 &&
-		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25:
+		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+		(m.psgRegisters[14] == 0x23 || m.psgRegisters[14] == 0x25):
 		m.floppyMediaPhase = floppyMediaDriveWrite
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
@@ -814,6 +815,12 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == PSGRegisterSelect {
+		if m.floppyMediaPhase == floppyMediaDriveSelector && m.psgDriveStage == 9 &&
+			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			(m.psgRegisters[14] == 0x23 || m.psgRegisters[14] == 0x25) && value == 14 {
+			m.floppyMediaPhase = floppyMediaDriveRead
+			return nil
+		}
 		if m.floppyReadStage == 68 && m.floppyMediaPhase == floppyMediaIdle &&
 			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
 			m.psgRegisters[14] == 0x25 && value == 14 {
@@ -877,7 +884,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 	if address == PSGRegisterData {
 		if m.floppyMediaPhase == floppyMediaDriveWrite &&
 			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
-			m.psgRegisters[14] == 0x25 && value == 0x25 {
+			(m.psgRegisters[14] == 0x23 || m.psgRegisters[14] == 0x25) && value == 0x25 {
 			m.psgRegisters[14] = value
 			m.floppyMediaCurrent.DrivePort = value
 			m.floppyMediaPhase = floppyMediaSectorSelector

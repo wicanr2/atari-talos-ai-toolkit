@@ -697,3 +697,7 @@
   固定ROM證實attempt 1–5、第三輪完整欄位與第五輪6,779,282 instructions／
   167,143,396 clocks gate皆不變；完整68000外部語料、全測試、vet與CLI建置通過。
   尚餘固定`floppyReadStage`控制流程待改用phase，規格維持READY。
+- 規格133補齊正式入口前的最後一個phase差異：第一輪track 0後可由共用phase接受
+  YM2149 R14 select、讀舊port `$23`、寫drive 0 port `$25`；後續輪既有`$25→$25`
+  同值重選仍走同一分支。測試由track selector一路延伸至sector selector，完整測試、
+  vet與CLI建置通過；正常入口尚未切換，規格維持READY。

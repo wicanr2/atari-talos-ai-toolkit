@@ -514,7 +514,8 @@
   使用`floppyMediaCurrent`，完成後的歷史只從ring讀取，`floppyMediaLegacy`已從程式與
   測試完全移除。
   共用phase現已補齊第一輪專有的track selector／track 0前綴，且交易開始後的PSG、
-  DMA、FDC、IRQ與收據時序已不再依賴固定stage sentinel。正常ROM的前三輪完成時也已
+  R14 `$23→$25`與後續輪的`$25→$25`drive序列；DMA、FDC、IRQ與收據時序已不再依賴
+  固定stage sentinel。正常ROM的前三輪完成時也已
   寫入同一ring，形成連續attempt 1–5；下一步將正式第一輪入口改用同一phase，再依序
   刪除剩餘固定stage控制流程。
 
