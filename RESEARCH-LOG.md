@@ -435,3 +435,8 @@
   `$0080` status `$E4` read-clear。固定Talos跨裝置繼續執行後，先遇到YM2149
   `$FF8800`，因此FDC trace所示的下一筆`$0084`只代表「下一筆FDC transaction」，
   不能當成整台機器的下一個typed gate。
+- 固定Hatari 2.4.1／EmuTOS 1.3 UK的330-VBL PSG＋FDC trace SHA-256
+  `aa08a1b7743650950ad8e489659fc830efb9ca37383865777444a561b717c7dd`補出VBL310
+  status `$E4` read後的R14 select／read `$25`／同值write `$25`，其後才是FDC
+  `$0084`。因此該PSG transaction是新一輪`select(0,0)`的可觀察bus行為，但不代表
+  drive或side狀態改變。

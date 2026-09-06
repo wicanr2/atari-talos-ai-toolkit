@@ -576,3 +576,8 @@
   記錄九次inactive GPIP poll，於2,371,204 instructions／2,136 interrupts／
   118,357,780 clocks完成。跨裝置驗證另發現真正下一gate是YM2149 `$FF8800` byte
   write，不可由FDC-only trace直接外推為sector selector。
+- 完成規格126：固定Hatari PSG＋FDC trace補出dummy seek與下一次sector讀取之間的
+  R14同值重選`$0E→read $25→write $25`。Talos於2,371,990 instructions／2,136
+  interrupts／118,369,170 clocks完成，R14與media-check count均不變；下一gate為
+  `$FF8606=$0084`。由於`MOVE.B Dn,d(An)`仍走未定時byte bus路徑，本輪明確保存
+  instruction epoch 118,369,158而非虛構精確bus phase。

@@ -1511,6 +1511,38 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 	if !bytes.Equal(before, memory.ram[0x1004:0x1204]) {
 		t.Fatal("retry dummy seek modified DMA buffer")
 	}
+	mediaChecks := memory.flopVBLMediaChecks
+	if _, _, err := memory.ReadByteAt(PSGRegisterSelect,
+		m68k.BusAccess{Clock: 1800, FunctionCode: 5}); err == nil {
+		t.Fatal("retry drive port read before selector unexpectedly accepted")
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterSelect, 14,
+		m68k.BusAccess{Clock: 1900, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 25 || memory.psgRegisterSelect != 14 {
+		t.Fatalf("retry drive selector wait/stage/select=%d/%d/%02x err=%v", wait,
+			memory.floppyReadStage, memory.psgRegisterSelect, err)
+	}
+	if value, wait, err := memory.ReadByteAt(PSGRegisterSelect,
+		m68k.BusAccess{Clock: 2000, FunctionCode: 5}); err != nil || wait != 4 ||
+		value != 0x25 || memory.floppyReadStage != 26 || memory.psgRegisters[14] != 0x25 {
+		t.Fatalf("retry drive read value/wait/stage/port=%02x/%d/%d/%02x err=%v",
+			value, wait, memory.floppyReadStage, memory.psgRegisters[14], err)
+	}
+	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
+		memory.floppyReadStage != 26 || memory.psgRegisters[14] != 0x25 {
+		t.Fatalf("wrong retry drive value mutated stage/port=%d/%02x err=%v",
+			memory.floppyReadStage, memory.psgRegisters[14], err)
+	}
+	if wait, err := memory.WriteByteAt(PSGRegisterData, 0x25,
+		m68k.BusAccess{Clock: 2100, FunctionCode: 5}); err != nil || wait != 4 ||
+		memory.floppyReadStage != 27 || memory.floppyReadRetryDrivePort != 0x25 ||
+		memory.floppyReadRetryDriveWriteClock != 2100 || memory.psgRegisters[14] != 0x25 ||
+		memory.flopVBLMediaChecks != mediaChecks {
+		t.Fatalf("retry drive write wait/stage/receipt/clock/port/checks=%d/%d/%02x/%d/%02x/%d err=%v",
+			wait, memory.floppyReadStage, memory.floppyReadRetryDrivePort,
+			memory.floppyReadRetryDriveWriteClock, memory.psgRegisters[14],
+			memory.flopVBLMediaChecks, err)
+	}
 	memory.ColdReset()
 	if memory.floppyReadStage != 0 || memory.floppyReadTrack != 0 || memory.floppyReadDrive != -1 ||
 		memory.floppyReadTrackWriteClock != 0 || memory.floppyReadSector != 0 ||
@@ -1520,7 +1552,8 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		memory.floppyReadForceInterruptClock != 0 || memory.floppyReadRetryData != 0 ||
 		memory.floppyReadRetrySeekCommand != 0 || memory.floppyReadRetrySeekStartClock != 0 ||
 		memory.floppyReadRetryInactivePolls != 0 || memory.floppyReadRetryIRQObserved ||
-		memory.floppyReadRetryStatusReadClock != 0 {
+		memory.floppyReadRetryStatusReadClock != 0 || memory.floppyReadRetryDrivePort != 0 ||
+		memory.floppyReadRetryDriveWriteClock != 0 {
 		t.Fatal("cold reset retained floppy read-lock state")
 	}
 }
