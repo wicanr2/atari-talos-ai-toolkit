@@ -1890,17 +1890,42 @@ func TestMachineEmuTOSStopsTimerD(t *testing.T) {
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State,
 			machine.nextIKBDClockResponseClock, nextGate)
 	}
-	for steps := 0; steps < 100_000 && nextGate == nil; steps++ {
+	for steps := 0; steps < 100_000 && machine.Memory.flopVBLMediaChecks < 2 && nextGate == nil; steps++ {
 		_, nextGate = machine.Step()
 	}
-	if nextGate == nil || nextGate.Error() != "st: write 1-byte bus fault at 0xff8800 fc=5: unsupported_device_state" ||
-		machine.Instructions != 1120640 || machine.Interrupts != 568 || machine.Clocks != 14318580 ||
-		machine.CPU.State.D != [8]uint32{3, 3, 0x2410, 1, 0x00fce2fa, 3, 0, 0x11} ||
-		machine.CPU.State.A != [7]uint32{0xffff8800, 8, 0x00fc36b8, 1039580, 0x100, 0x00fc58e8, 0x00fcc8d8} ||
-		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0df8 ||
-		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36d0 ||
-		machine.CPU.State.Prefetch != [2]uint16{0x000e, 0x1010} {
-		t.Fatalf("post-clock-poll gate instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+	if nextGate != nil || machine.Memory.flopVBLMediaChecks != 2 || machine.Memory.flopVBLMediaDrive != 1 ||
+		machine.Memory.flopVBLMediaStage != 8 || machine.Memory.flopVBLStatusReadClock != 14319166 ||
+		machine.Memory.psgRegisters[14] != 0x23 || machine.Instructions != 1120734 ||
+		machine.Interrupts != 568 || machine.Clocks != 14319494 ||
+		machine.CPU.State.D != [8]uint32{0xffff0023, 0x23, 0x2400, 0x20, 0x00fc0003, 3, 0, 0x11} ||
+		machine.CPU.State.A != [7]uint32{0xffff8800, 0x3010, 0x00fc36b8, 2, 0x100, 0x00fc58e8, 0x00fcc8d8} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0df6 ||
+		machine.CPU.State.SR != 0x2700 || machine.CPU.State.PC != 0x00fc36e4 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x40c1, 0x46c2} {
+		t.Fatalf("second flopvbl checks=%d drive=%d stage=%d status-clock=%d port=%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.flopVBLMediaChecks, machine.Memory.flopVBLMediaDrive,
+			machine.Memory.flopVBLMediaStage, machine.Memory.flopVBLStatusReadClock,
+			machine.Memory.psgRegisters[14], machine.Instructions, machine.Interrupts,
+			machine.Clocks, machine.CPU.State, nextGate)
+	}
+	for steps := 0; steps < 200_000 && nextGate == nil; steps++ {
+		_, nextGate = machine.Step()
+	}
+	if nextGate == nil || nextGate.Error() != "st: write 2-byte bus fault at 0xff8606 fc=5: unsupported_device_state" ||
+		machine.Memory.flopVBLMediaChecks != 73 || machine.Memory.flopVBLMediaDrive != 0 ||
+		machine.Memory.flopVBLMediaStage != 8 || machine.Memory.flopVBLStatusReadClock != 105344570 ||
+		machine.Memory.psgRegisters[14] != 0x23 || machine.Memory.dmaMode != 0x0080 ||
+		machine.Memory.fdcStatus != 0xe4 || machine.Instructions != 1285863 ||
+		machine.Interrupts != 1761 || machine.Clocks != 106337672 ||
+		machine.CPU.State.D != [8]uint32{0, 0x14, 0, 0x1004, 0x00080140, 0x00100000, 0, 1} ||
+		machine.CPU.State.A != [7]uint32{0, 0x2f44, 0x3008, 1, 0, 0x00fc01f4, 0x00000ffc} ||
+		machine.CPU.State.USP != 0 || machine.CPU.State.SSP != 0x0f2e ||
+		machine.CPU.State.SR != 0x2300 || machine.CPU.State.PC != 0x00fc3728 ||
+		machine.CPU.State.Prefetch != [2]uint16{0x8606, 0x2039} {
+		t.Fatalf("post-second-flopvbl gate checks=%d drive=%d stage=%d status-clock=%d port=%02x DMA=%04x FDC=%02x instructions=%d interrupts=%d clocks=%d state=%+v err=%v",
+			machine.Memory.flopVBLMediaChecks, machine.Memory.flopVBLMediaDrive,
+			machine.Memory.flopVBLMediaStage, machine.Memory.flopVBLStatusReadClock,
+			machine.Memory.psgRegisters[14], machine.Memory.dmaMode, machine.Memory.fdcStatus,
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.CPU.State, nextGate)
 	}
 }

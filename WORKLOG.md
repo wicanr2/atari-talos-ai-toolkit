@@ -551,3 +551,8 @@
   `$FC,$24,$03,$17,$00,$00,$00`於14,015,326送畢，guest在1,092,926 instructions／
   558 interrupts／14,015,626 clocks收齊。下一gate為1,120,640／14,318,580的
   `$FF8800=$0E`；Hatari VBL90顯示為port A維持`$23`的週期性`flopvbl()`檢查。
+- 完成規格121：將單次`flopvbl()`擴充為依count輪替drive `0,1,0,1`的可重入媒體檢查，
+  每輪保存drive／status clock並恢復port A `$23`。第二輪在1,120,734 instructions／
+  14,319,494 clocks完成；固定ROM自然連續完成73輪後，於1,285,863 instructions／
+  1,761 interrupts／106,337,672 clocks抵達新的`$FF8606` word write。synthetic四輪、
+  完整CPU語料、全測試、vet與build均通過。

@@ -413,6 +413,11 @@
   14,015,626 clocks收齊。實作以單調request／response counters與每輪獨立receipt取代
   一次性特例，synthetic已連續跑過兩輪。下一gate為1,120,640／568／14,318,580的
   `$FF8800=$0E`；Hatari VBL90證實這是port A保持`$23`的下一輪`flopvbl()`檢查。
+- `flopvbl()`雙磁碟機媒體檢查已CONFORMED：以單調count輪替drive `0,1,0,1`，每輪
+  保存drive與status clock，並恢復原port `$23`。第二輪於1,120,734 instructions／
+  14,319,494 clocks完成；固定ROM正常路徑其後連續完成至第73輪，才在1,285,863／
+  1,761／106,337,672抵達新的`$FF8606` word write。該gate發生時media stage已是8，
+  因此屬另一種FDC transaction，尚待原版trace確認。
 - 尚未實作完整 68000 或 Atari ST 周邊硬體，不宣稱可開機或執行遊戲。
 
 ## 下一步
@@ -422,8 +427,8 @@
 2. 依 Dungeon Master DM12EN 產生組語的靜態使用次數選下一批，優先補齊仍缺的
    高頻指令族，並維持完整固定語料驗收。
 3. 另建 Hatari 外部 oracle 收據格式，不讓 Hatari 成為 library dependency。
-4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步將`flopvbl()`由首輪drive-0特例
-   收攏成可重入、依輪次選drive 0／1的媒體檢查，先接固定Hatari VBL90序列。
+4. 為解鎖第一張 Talos 非黑正常路徑畫面，下一步以固定Hatari trace確認
+   106,337,672 clocks附近的新`$FF8606` word transaction值與FDC consumer，再立READY規格。
    RGB／PNG
    色階契約與正常50 Hz HBL310提前重載仍須各自READY，不得由palette index或
    VBL 保底提交外推。

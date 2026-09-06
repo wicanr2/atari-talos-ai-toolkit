@@ -114,6 +114,8 @@ type Memory struct {
 	flopVBLMediaStage               uint8
 	flopVBLStatusReadClock          uint64
 	flopVBLMediaComplete            bool
+	flopVBLMediaChecks              uint32
+	flopVBLMediaDrive               int8
 	dmaMode                         uint16
 	dmaAddress                      uint32
 	dmaAddressWriteStage            uint8
@@ -231,6 +233,16 @@ type Memory struct {
 	mfpTSRSet                       bool
 }
 
+func (m *Memory) flopVBLTargetPort() byte {
+	if m.flopVBLMediaDrive == 0 {
+		return 0x25
+	}
+	if m.flopVBLMediaDrive == 1 {
+		return 0x23
+	}
+	return 0xff
+}
+
 func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
 	return m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address)
 }
@@ -330,7 +342,7 @@ func (m *Memory) ReadByte(address uint32, functionCode uint8) (byte, error) {
 		m.flopVBLMediaStage = 2
 		return m.psgRegisters[14], nil
 	case address == PSGRegisterSelect && m.psgDriveStage == 9 && m.flopVBLMediaStage == 6 &&
-		m.psgRegisterSelect == 14 && m.psgRegisters[14] == 0x25:
+		m.psgRegisterSelect == 14 && m.psgRegisters[14] == m.flopVBLTargetPort():
 		m.flopVBLMediaStage = 7
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
@@ -517,7 +529,7 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			return 0, fault
 		}
 		if m.flopVBLMediaStage == 4 && m.dmaMode == 0x0080 && m.fdcInitStage == 14 &&
-			m.psgRegisters[14] == 0x25 {
+			m.psgRegisters[14] == m.flopVBLTargetPort() {
 			m.fdcStatus = 0xe4
 			m.fdcIRQ = false
 			m.mfpGPIPIn |= 0x20
@@ -648,14 +660,16 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 		return nil
 	}
 	if address == PSGRegisterSelect {
-		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 0 && m.ikbdClockReadbackComplete &&
+		if m.psgDriveStage == 9 && (m.flopVBLMediaStage == 0 || m.flopVBLMediaStage == 8) &&
+			m.ikbdClockReadbackComplete &&
 			m.fdcInitStage == 14 && m.acsiStage == 5 && m.psgRegisterSelect == 14 &&
 			m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x23 && value == 14 {
+			m.flopVBLMediaDrive = int8(m.flopVBLMediaChecks & 1)
 			m.flopVBLMediaStage = 1
 			return nil
 		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 5 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[14] == 0x25 && value == 14 {
+			m.psgRegisters[14] == m.flopVBLTargetPort() && value == 14 {
 			m.flopVBLMediaStage = 6
 			return nil
 		}
@@ -684,16 +698,17 @@ func (m *Memory) WriteByte(address uint32, value byte, functionCode uint8) error
 	}
 	if address == PSGRegisterData {
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 2 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[14] == 0x23 && value == 0x25 {
+			m.psgRegisters[14] == 0x23 && value == m.flopVBLTargetPort() {
 			m.psgRegisters[14] = value
 			m.flopVBLMediaStage = 3
 			return nil
 		}
 		if m.psgDriveStage == 9 && m.flopVBLMediaStage == 7 && m.psgRegisterSelect == 14 &&
-			m.psgRegisters[14] == 0x25 && value == 0x23 {
+			m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x23 {
 			m.psgRegisters[14] = value
 			m.flopVBLMediaStage = 8
 			m.flopVBLMediaComplete = true
+			m.flopVBLMediaChecks++
 			return nil
 		}
 		if m.psgDriveStage == 8 && m.acsiStage == 5 && m.fdcInitStage == 14 &&
@@ -1158,7 +1173,7 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 			return fault
 		}
 		if address == STDMAControl && m.flopVBLMediaStage == 3 && m.psgDriveStage == 9 &&
-			m.fdcInitStage == 14 && m.psgRegisters[14] == 0x25 && value == 0x0080 {
+			m.fdcInitStage == 14 && m.psgRegisters[14] == m.flopVBLTargetPort() && value == 0x0080 {
 			m.dmaMode = value
 			m.flopVBLMediaStage = 4
 			return nil
@@ -1395,6 +1410,8 @@ func (m *Memory) ColdReset() {
 	m.flopVBLMediaStage = 0
 	m.flopVBLStatusReadClock = 0
 	m.flopVBLMediaComplete = false
+	m.flopVBLMediaChecks = 0
+	m.flopVBLMediaDrive = -1
 	m.dmaMode = 0
 	m.dmaAddress = 0
 	m.dmaAddressWriteStage = 0

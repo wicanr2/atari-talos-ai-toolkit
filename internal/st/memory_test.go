@@ -1215,15 +1215,70 @@ func TestFlopVBLChecksDriveZeroAndRestoresPortA(t *testing.T) {
 	}
 	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err != nil ||
 		memory.psgRegisters[14] != 0x23 || memory.flopVBLMediaStage != 8 ||
-		!memory.flopVBLMediaComplete || memory.fdcInitStage != 14 || memory.fdcProbeDrive != 1 {
-		t.Fatalf("media-check completion port/stage/complete/FDC/drive=%02x/%d/%v/%d/%d err=%v",
+		!memory.flopVBLMediaComplete || memory.flopVBLMediaChecks != 1 || memory.flopVBLMediaDrive != 0 ||
+		memory.fdcInitStage != 14 || memory.fdcProbeDrive != 1 {
+		t.Fatalf("media-check completion port/stage/complete/checks/media-drive/FDC/probe-drive=%02x/%d/%v/%d/%d/%d/%d err=%v",
 			memory.psgRegisters[14], memory.flopVBLMediaStage, memory.flopVBLMediaComplete,
-			memory.fdcInitStage, memory.fdcProbeDrive, err)
+			memory.flopVBLMediaChecks, memory.flopVBLMediaDrive, memory.fdcInitStage,
+			memory.fdcProbeDrive, err)
 	}
 	memory.ColdReset()
 	if memory.flopVBLMediaStage != 0 || memory.flopVBLStatusReadClock != 0 ||
-		memory.flopVBLMediaComplete {
+		memory.flopVBLMediaComplete || memory.flopVBLMediaChecks != 0 || memory.flopVBLMediaDrive != -1 {
 		t.Fatal("cold reset retained flopvbl media-check state")
+	}
+}
+
+func TestFlopVBLAlternatesDriveChecks(t *testing.T) {
+	memory, err := NewMemory(RAM1M, testROM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory.psgDriveStage = 9
+	memory.psgRegisterSelect = 14
+	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 0x23
+	memory.fdcInitStage = 14
+	memory.fdcProbeDrive = 1
+	memory.acsiStage = 5
+	memory.dmaMode = 0x0080
+	memory.fdcStatus = 0xe4
+	memory.fdcStatusTypeI = true
+	memory.ikbdClockReadbackComplete = true
+
+	targets := [4]byte{0x25, 0x23, 0x25, 0x23}
+	for cycle, target := range targets {
+		if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil {
+			t.Fatalf("cycle %d select: %v", cycle, err)
+		}
+		if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x23 {
+			t.Fatalf("cycle %d old port=%02x err=%v", cycle, got, err)
+		}
+		if err := memory.WriteByte(PSGRegisterData, target, 5); err != nil {
+			t.Fatalf("cycle %d target %02x: %v", cycle, target, err)
+		}
+		if err := memory.WriteWord(STDMAControl, 0x0080, 5); err != nil {
+			t.Fatalf("cycle %d DMA mode: %v", cycle, err)
+		}
+		clock := uint64(100 + 2*cycle)
+		if got, _, err := memory.ReadWordAt(STDiskController,
+			m68k.BusAccess{Clock: clock, FunctionCode: 5}); err != nil || got != 0xe4 {
+			t.Fatalf("cycle %d status=%04x err=%v", cycle, got, err)
+		}
+		if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil {
+			t.Fatalf("cycle %d restore select: %v", cycle, err)
+		}
+		if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != target {
+			t.Fatalf("cycle %d selected port=%02x err=%v want %02x", cycle, got, err, target)
+		}
+		if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err != nil ||
+			memory.flopVBLMediaChecks != uint32(cycle+1) ||
+			memory.flopVBLMediaDrive != int8(cycle&1) || memory.flopVBLStatusReadClock != clock ||
+			memory.flopVBLMediaStage != 8 || memory.psgRegisters[14] != 0x23 {
+			t.Fatalf("cycle %d completion checks/drive/clock/stage/port=%d/%d/%d/%d/%02x err=%v",
+				cycle, memory.flopVBLMediaChecks, memory.flopVBLMediaDrive,
+				memory.flopVBLStatusReadClock, memory.flopVBLMediaStage,
+				memory.psgRegisters[14], err)
+		}
 	}
 }
 
