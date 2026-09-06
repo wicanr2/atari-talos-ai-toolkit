@@ -110,7 +110,7 @@ func TestFloppyMediaRecurringNoDiskTransactions(t *testing.T) {
 		wordAt(STDMAControl, 0x0080, 1700)
 		wordAt(STDiskController, 0x0013, 1800)
 		for poll := 0; poll < 9; poll++ {
-			if value, err := memory.ReadByte(MFPGPIP, 5); err != nil || value&0x20 == 0 {
+			if value, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || value&0x20 == 0 {
 				t.Fatalf("attempt %d inactive poll %d=%02x err=%v", attempt, poll, value, err)
 			}
 		}
@@ -120,7 +120,7 @@ func TestFloppyMediaRecurringNoDiskTransactions(t *testing.T) {
 			t.Fatalf("attempt %d seek completion phase/IRQ=%d/%v", attempt,
 				memory.floppyMediaPhase, memory.fdcIRQ)
 		}
-		if value, err := memory.ReadByte(MFPGPIP, 5); err != nil || value&0x20 != 0 {
+		if value, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || value&0x20 != 0 {
 			t.Fatalf("attempt %d IRQ poll=%02x err=%v", attempt, value, err)
 		}
 		wordAt(STDMAControl, 0x0080, 2600)

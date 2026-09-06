@@ -58,12 +58,12 @@ func TestMemoryLowResolutionFrameSnapshotsActiveRAMAndPalette(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(VideoBaseMiddle, 0x10, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseMiddle, 0x10, 5); err != nil {
 		t.Fatal(err)
 	}
 	memory.reloadVideoBaseOnVBL()
 	for plane, value := range []byte{0x80, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00} {
-		if err := memory.WriteByte(0x1000+uint32(plane), value, 5); err != nil {
+		if err := memory.WriteByteFC(0x1000+uint32(plane), value, 5); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -78,7 +78,7 @@ func TestMemoryLowResolutionFrameSnapshotsActiveRAMAndPalette(t *testing.T) {
 		frame.Indices[0] != 15 || frame.Indices[1] != 0 || frame.Palette[15] != 0x0777 {
 		t.Fatalf("frame=%+v first=%v", frame, frame.Indices[:2])
 	}
-	if err := memory.WriteByte(0x1000, 0, 5); err != nil {
+	if err := memory.WriteByteFC(0x1000, 0, 5); err != nil {
 		t.Fatal(err)
 	}
 	if err := memory.WriteWord(ShifterPaletteEnd, 0, 5); err != nil {
@@ -94,7 +94,7 @@ func TestMemoryLowResolutionFrameFailsOnUnmappedActiveBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(VideoBaseHigh, 0x1f, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseHigh, 0x1f, 5); err != nil {
 		t.Fatal(err)
 	}
 	memory.reloadVideoBaseOnVBL()

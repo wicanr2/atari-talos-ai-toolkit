@@ -105,7 +105,7 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 	machine.CPU.State.USP = 0x00abcdef
 	machine.Instructions, machine.Interrupts, machine.Clocks = 99, 3, 1234
 	machine.nextVBLClock, machine.vblFrameClocks, machine.vblPending = 9999, 8888, true
-	if err := machine.Memory.WriteByte(MMUConfig, 0x0a, 5); err != nil {
+	if err := machine.Memory.WriteByteFC(MMUConfig, 0x0a, 5); err != nil {
 		t.Fatal(err)
 	}
 	if err := machine.Reset(); err != nil {
@@ -124,7 +124,7 @@ func TestMachineResetFromROMShadow(t *testing.T) {
 		t.Fatalf("reset counters/events instructions=%d interrupts=%d clocks=%d next=%d period=%d pending=%v",
 			machine.Instructions, machine.Interrupts, machine.Clocks, machine.nextVBLClock, machine.vblFrameClocks, machine.vblPending)
 	}
-	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+	if got, err := machine.Memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("machine cold-reset MMU=%02x err=%v", got, err)
 	}
 	result, err := machine.Step()
@@ -168,7 +168,7 @@ func TestMachineEmuTOSReachesMOVECProbe(t *testing.T) {
 		t.Fatalf("MOVEC probe boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+	if got, err := machine.Memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("MMU config at MOVEC probe=%02x err=%v", got, err)
 	}
 }
@@ -285,7 +285,7 @@ func TestMachineEmuTOSExecutesRESET(t *testing.T) {
 		t.Fatalf("RESET boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+	if got, err := machine.Memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("MMU config after RESET=%02x err=%v", got, err)
 	}
 }
@@ -616,7 +616,7 @@ func TestMachineEmuTOSWritesMFPResetGPIP(t *testing.T) {
 		t.Fatalf("MFP GPIP boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MFPGPIP, 5); err != nil || got != 0xa1 {
+	if got, err := machine.Memory.ReadByteFC(MFPGPIP, 5); err != nil || got != 0xa1 {
 		t.Fatalf("MFP GPIP sampled=%02x/%v want a1", got, err)
 	}
 }
@@ -659,7 +659,7 @@ func TestMachineEmuTOSWritesMFPResetAER(t *testing.T) {
 		t.Fatalf("MFP AER boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MFPAER, 5); err != nil || got != 0 {
+	if got, err := machine.Memory.ReadByteFC(MFPAER, 5); err != nil || got != 0 {
 		t.Fatalf("MFP AER=%02x/%v want 00", got, err)
 	}
 }
@@ -702,7 +702,7 @@ func TestMachineEmuTOSWritesMFPResetDDR(t *testing.T) {
 		t.Fatalf("MFP DDR boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MFPDDR, 5); err != nil || got != 0 {
+	if got, err := machine.Memory.ReadByteFC(MFPDDR, 5); err != nil || got != 0 {
 		t.Fatalf("MFP DDR=%02x/%v want 00", got, err)
 	}
 }
@@ -746,7 +746,7 @@ func TestMachineEmuTOSWritesMFPResetIERs(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPIERA, MFPIERB} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("MFP IER %06x=%02x/%v want 00", address, got, err)
 		}
 	}
@@ -791,7 +791,7 @@ func TestMachineEmuTOSClearsMFPResetIPRs(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPIPRA, MFPIPRB} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("MFP IPR %06x=%02x/%v want 00", address, got, err)
 		}
 	}
@@ -836,7 +836,7 @@ func TestMachineEmuTOSClearsMFPResetISRs(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPISRA, MFPISRB} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("MFP ISR %06x=%02x/%v want 00", address, got, err)
 		}
 	}
@@ -881,7 +881,7 @@ func TestMachineEmuTOSMasksMFPResetInterrupts(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPIMRA, MFPIMRB} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("MFP IMR %06x=%02x/%v want 00", address, got, err)
 		}
 	}
@@ -925,7 +925,7 @@ func TestMachineEmuTOSResetsMFPVectorRegister(t *testing.T) {
 		t.Fatalf("MFP VR boundary instructions=%d clocks=%d state=%+v",
 			machine.Instructions, machine.Clocks, state)
 	}
-	if got, err := machine.Memory.ReadByte(MFPVR, 5); err != nil || got != 0 {
+	if got, err := machine.Memory.ReadByteFC(MFPVR, 5); err != nil || got != 0 {
 		t.Fatalf("MFP VR=%02x/%v want 00", got, err)
 	}
 }
@@ -969,7 +969,7 @@ func TestMachineEmuTOSStopsMFPResetTimers(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPTACR, MFPTBCR, MFPTCDCR} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("MFP timer control %06x=%02x/%v want 00", address, got, err)
 		}
 	}
@@ -1014,7 +1014,7 @@ func TestMachineEmuTOSLoadsMFPResetTimerData(t *testing.T) {
 			machine.Instructions, machine.Clocks, state)
 	}
 	for _, address := range []uint32{MFPTADR, MFPTBDR, MFPTCDR, MFPTDDR} {
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("MFP timer data %06x=%02x/%v want 00", address, got, err)
 		}
 	}
@@ -1185,11 +1185,11 @@ func TestMachineAdvancesIKBDACIAAtFirstDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range []byte{3, 0x96} {
-		if err := memory.WriteByte(IKBDACIAControl, value, 5); err != nil {
+		if err := memory.WriteByteFC(IKBDACIAControl, value, 5); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0x80, 5); err != nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x80, 5); err != nil {
 		t.Fatal(err)
 	}
 	machine := &Machine{Memory: memory, aciaClockStarted: true, nextACIABitClock: 2024, Clocks: 2023}
@@ -2340,7 +2340,7 @@ func TestMachineCompletesFDCRestoreAtDeadline(t *testing.T) {
 			machine.fdcRestoreClockStarted, machine.nextFDCRestoreClock,
 			memory.fdcRestorePending, memory.fdcStatus, memory.mfpGPIPIn)
 	}
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 ||
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 == 0 ||
 		memory.fdcRestoreInactivePolls != 1 || !memory.fdcRestorePending {
 		t.Fatalf("inactive poll=%02x err=%v polls=%d pending=%v", got, err,
 			memory.fdcRestoreInactivePolls, memory.fdcRestorePending)
@@ -2354,7 +2354,7 @@ func TestMachineCompletesFDCRestoreAtDeadline(t *testing.T) {
 			machine.fdcRestoreClockStarted, machine.nextFDCRestoreClock, memory.fdcRestorePending,
 			memory.fdcInitStage, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
 		!memory.fdcRestoreIRQObserved {
 		t.Fatalf("active poll=%02x err=%v observed=%v", got, err, memory.fdcRestoreIRQObserved)
 	}
@@ -2470,7 +2470,7 @@ func TestFDCSeekTrackZeroDeadlineAndStatus(t *testing.T) {
 			memory.fdcSeekStartClock, memory.fdcStatus, memory.fdcIRQ)
 	}
 	for i := 0; i < 9; i++ {
-		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+		if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 == 0 {
 			t.Fatalf("inactive poll %d=%02x err=%v", i, got, err)
 		}
 	}
@@ -2495,7 +2495,7 @@ func TestFDCSeekTrackZeroDeadlineAndStatus(t *testing.T) {
 			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.fdcSeekPending,
 			memory.fdcInitStage, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
 		!memory.fdcSeekIRQObserved {
 		t.Fatalf("active poll=%02x err=%v observed=%v", got, err, memory.fdcSeekIRQObserved)
 	}
@@ -2572,7 +2572,7 @@ func TestMachineEmuTOSWritesMFPUSARTResetRegisters(t *testing.T) {
 		if address == MFPTSR {
 			want = 0x80
 		}
-		if got, err := machine.Memory.ReadByte(address, 5); err != nil || got != want {
+		if got, err := machine.Memory.ReadByteFC(address, 5); err != nil || got != want {
 			t.Fatalf("MFP USART %06x=%02x/%v want %02x", address, got, err, want)
 		}
 	}

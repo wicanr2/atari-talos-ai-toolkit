@@ -51,9 +51,9 @@ type StepResult struct {
 }
 
 type Bus interface {
-	ReadByte(address uint32, functionCode uint8) (byte, error)
+	ReadByteFC(address uint32, functionCode uint8) (byte, error)
 	ReadWord(address uint32, functionCode uint8) (uint16, error)
-	WriteByte(address uint32, value byte, functionCode uint8) error
+	WriteByteFC(address uint32, value byte, functionCode uint8) error
 	WriteWord(address uint32, value uint16, functionCode uint8) error
 }
 
@@ -734,7 +734,7 @@ func (s *moveByteStep) readBitOperand(mode, reg uint8) (byte, uint32, uint32, bo
 	default:
 		return 0, 0, 0, false, fmt.Errorf("m68k: invalid bit operand mode %d:%d", mode, reg)
 	}
-	value, err := c.Bus.ReadByte(address&addressMask, readFC)
+	value, err := c.Bus.ReadByteFC(address&addressMask, readFC)
 	if err != nil {
 		return 0, 0, 0, true, err
 	}
@@ -834,7 +834,7 @@ func (c *CPU) stepScc(opcode uint16) (StepResult, error) {
 			address, cost = uint32(high)<<16|uint32(low), 12
 		}
 	}
-	readValue, err := c.Bus.ReadByte(address&addressMask, stream.dataFC)
+	readValue, err := c.Bus.ReadByteFC(address&addressMask, stream.dataFC)
 	if err != nil {
 		return StepResult{}, err
 	}
@@ -962,7 +962,7 @@ func (c *CPU) stepUnaryMemory(opcode uint16, size, mode, reg uint8, negate bool)
 				address, cost = uint32(high)<<16|uint32(low), 12
 			}
 		}
-		value, err := c.Bus.ReadByte(address&addressMask, stream.dataFC)
+		value, err := c.Bus.ReadByteFC(address&addressMask, stream.dataFC)
 		if err != nil {
 			return StepResult{}, err
 		}
@@ -2287,7 +2287,7 @@ func (c *CPU) stepArithmeticMemoryWithStream(opcode uint16, size, mode, reg uint
 				address, cost = uint32(high)<<16|uint32(low), 12
 			}
 		}
-		value, err := c.Bus.ReadByte(address&addressMask, stream.dataFC)
+		value, err := c.Bus.ReadByteFC(address&addressMask, stream.dataFC)
 		if err != nil {
 			return StepResult{}, err
 		}
@@ -2899,7 +2899,7 @@ func (s *moveByteStep) logicalByteMemory(mode, reg uint8, operand byte, baseCloc
 	default:
 		return StepResult{}, fmt.Errorf("m68k: invalid AND.B memory mode %d:%d", mode, reg)
 	}
-	value, err := c.Bus.ReadByte(address&addressMask, s.dataFC)
+	value, err := c.Bus.ReadByteFC(address&addressMask, s.dataFC)
 	if err != nil {
 		return StepResult{}, err
 	}
@@ -3367,7 +3367,7 @@ func (s *moveByteStep) readSource(mode, reg uint8) (byte, uint32, bool, error) {
 			return 0, 0, false, fmt.Errorf("m68k: invalid MOVE.B source mode %d:%d", mode, reg)
 		}
 	}
-	value, err := c.Bus.ReadByte(address&addressMask, readFC)
+	value, err := c.Bus.ReadByteFC(address&addressMask, readFC)
 	if err != nil {
 		return 0, cost, true, err
 	}
@@ -3514,7 +3514,7 @@ func (s *moveByteStep) readProgramWord(address uint32) (uint16, error) {
 
 func (s *moveByteStep) writeByte(address uint32, value byte) error {
 	address &= addressMask
-	if err := s.cpu.Bus.WriteByte(address, value, s.dataFC); err != nil {
+	if err := s.cpu.Bus.WriteByteFC(address, value, s.dataFC); err != nil {
 		return err
 	}
 	s.transactions = append(s.transactions, writeByteTransaction(address, s.dataFC, value))

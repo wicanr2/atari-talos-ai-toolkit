@@ -187,7 +187,7 @@ func (b *timedRecordingBus) HasExactWordReadTiming(address uint32) bool {
 
 func (b *timedRecordingBus) ReadByteAt(address uint32, access BusAccess) (byte, uint32, error) {
 	b.accesses = append(b.accesses, access)
-	value, err := b.ReadByte(address, access.FunctionCode)
+	value, err := b.ReadByteFC(address, access.FunctionCode)
 	return value, b.wait, err
 }
 
@@ -199,7 +199,7 @@ func (b *timedRecordingBus) ReadWordAt(address uint32, access BusAccess) (uint16
 
 func (b *timedRecordingBus) WriteByteAt(address uint32, value byte, access BusAccess) (uint32, error) {
 	b.accesses = append(b.accesses, access)
-	return b.wait, b.WriteByte(address, value, access.FunctionCode)
+	return b.wait, b.WriteByteFC(address, value, access.FunctionCode)
 }
 
 func (b *timedRecordingBus) WriteWordAt(address uint32, value uint16, access BusAccess) (uint32, error) {

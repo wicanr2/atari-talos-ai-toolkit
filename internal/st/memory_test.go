@@ -57,7 +57,7 @@ func TestNewMemoryValidatesAndCopiesInputs(t *testing.T) {
 	}
 	want := rom[0]
 	rom[0] ^= 0xff
-	got, err := memory.ReadByte(TOSROMBase, 6)
+	got, err := memory.ReadByteFC(TOSROMBase, 6)
 	if err != nil || got != want {
 		t.Fatalf("ROM input was not copied: got=%02x err=%v want=%02x", got, err, want)
 	}
@@ -70,8 +70,8 @@ func TestMemoryResetShadowAndROMMirror(t *testing.T) {
 		t.Fatal(err)
 	}
 	for address := uint32(0); address < 8; address++ {
-		shadow, shadowErr := memory.ReadByte(address, 6)
-		mapped, mappedErr := memory.ReadByte(TOSROMBase+address, 6)
+		shadow, shadowErr := memory.ReadByteFC(address, 6)
+		mapped, mappedErr := memory.ReadByteFC(TOSROMBase+address, 6)
 		if shadowErr != nil || mappedErr != nil || shadow != rom[address] || mapped != rom[address] {
 			t.Fatalf("ROM mapping at %d: shadow=%02x/%v mapped=%02x/%v", address,
 				shadow, shadowErr, mapped, mappedErr)
@@ -85,31 +85,31 @@ func TestShifterResolutionResetLowMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{ShifterResolution, 0xffff8260} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != 0xfc {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != 0xfc {
 			t.Fatalf("resolution %08x=%02x/%v want fc", address, got, err)
 		}
-		if err := memory.WriteByte(address, 0, 5); err != nil {
+		if err := memory.WriteByteFC(address, 0, 5); err != nil {
 			t.Fatalf("resolution zero write %08x: %v", address, err)
 		}
 	}
 	for _, value := range []byte{1, 2, 3, 0xff} {
-		err := memory.WriteByte(ShifterResolution, value, 5)
+		err := memory.WriteByteFC(ShifterResolution, value, 5)
 		var fault *BusFault
 		if !errors.As(err, &fault) || fault.Reason != FaultUnsupportedDeviceState {
 			t.Fatalf("resolution value %02x err=%v", value, err)
 		}
-		if got, readErr := memory.ReadByte(ShifterResolution, 5); readErr != nil || got != 0xfc {
+		if got, readErr := memory.ReadByteFC(ShifterResolution, 5); readErr != nil || got != 0xfc {
 			t.Fatalf("failed write committed value: got=%02x err=%v", got, readErr)
 		}
 	}
-	if _, err := memory.ReadByte(ShifterResolution, 1); err == nil {
+	if _, err := memory.ReadByteFC(ShifterResolution, 1); err == nil {
 		t.Fatal("user resolution read unexpectedly succeeded")
 	}
-	if err := memory.WriteByte(ShifterResolution, 0, 1); err == nil {
+	if err := memory.WriteByteFC(ShifterResolution, 0, 1); err == nil {
 		t.Fatal("user resolution write unexpectedly succeeded")
 	}
 	for _, address := range []uint32{ShifterResolution - 1, ShifterResolution + 1} {
-		if _, err := memory.ReadByte(address, 5); err == nil {
+		if _, err := memory.ReadByteFC(address, 5); err == nil {
 			t.Fatalf("adjacent resolution byte %06x unexpectedly mapped", address)
 		}
 	}
@@ -124,7 +124,7 @@ func TestShifterResolutionResetLowMode(t *testing.T) {
 	}
 	memory.shifterResolution = 2
 	memory.ColdReset()
-	if got, err := memory.ReadByte(ShifterResolution, 5); err != nil || got != 0xfc {
+	if got, err := memory.ReadByteFC(ShifterResolution, 5); err != nil || got != 0xfc {
 		t.Fatalf("reset resolution=%02x/%v want fc", got, err)
 	}
 }
@@ -135,41 +135,41 @@ func TestVideoSyncResetAndFixed50HzTransition(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{VideoSyncMode, 0xffff820a} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != 0xfc {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != 0xfc {
 			t.Fatalf("sync %08x=%02x/%v want fc", address, got, err)
 		}
 	}
-	if err := memory.WriteByte(VideoSyncMode, 0, 5); err != nil || memory.videoSync50Transition {
+	if err := memory.WriteByteFC(VideoSyncMode, 0, 5); err != nil || memory.videoSync50Transition {
 		t.Fatalf("sync zero write err=%v transition=%v", err, memory.videoSync50Transition)
 	}
-	if err := memory.WriteByte(VideoSyncMode, 2, 5); err != nil || !memory.videoSync50Transition {
+	if err := memory.WriteByteFC(VideoSyncMode, 2, 5); err != nil || !memory.videoSync50Transition {
 		t.Fatalf("sync 0->2 err=%v transition=%v", err, memory.videoSync50Transition)
 	}
-	if got, err := memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfe {
+	if got, err := memory.ReadByteFC(VideoSyncMode, 5); err != nil || got != 0xfe {
 		t.Fatalf("50 Hz sync=%02x/%v want fe", got, err)
 	}
 	memory.videoSync50Transition = false
-	if err := memory.WriteByte(VideoSyncMode, 2, 5); err != nil || memory.videoSync50Transition {
+	if err := memory.WriteByteFC(VideoSyncMode, 2, 5); err != nil || memory.videoSync50Transition {
 		t.Fatalf("sync 2->2 err=%v transition=%v", err, memory.videoSync50Transition)
 	}
 	for _, value := range []byte{0, 1, 3, 0xff} {
-		err := memory.WriteByte(VideoSyncMode, value, 5)
+		err := memory.WriteByteFC(VideoSyncMode, value, 5)
 		var fault *BusFault
 		if !errors.As(err, &fault) || fault.Reason != FaultUnsupportedDeviceState {
 			t.Fatalf("sync value %02x err=%v", value, err)
 		}
-		if got, readErr := memory.ReadByte(VideoSyncMode, 5); readErr != nil || got != 0xfe {
+		if got, readErr := memory.ReadByteFC(VideoSyncMode, 5); readErr != nil || got != 0xfe {
 			t.Fatalf("failed sync write committed: got=%02x err=%v", got, readErr)
 		}
 	}
-	if _, err := memory.ReadByte(VideoSyncMode, 1); err == nil {
+	if _, err := memory.ReadByteFC(VideoSyncMode, 1); err == nil {
 		t.Fatal("user sync read unexpectedly succeeded")
 	}
 	if _, err := memory.ReadWord(VideoSyncMode, 5); err == nil {
 		t.Fatal("sync word read unexpectedly succeeded")
 	}
 	memory.ColdReset()
-	if got, err := memory.ReadByte(VideoSyncMode, 5); err != nil || got != 0xfc || memory.videoSync50Transition {
+	if got, err := memory.ReadByteFC(VideoSyncMode, 5); err != nil || got != 0xfc || memory.videoSync50Transition {
 		t.Fatalf("reset sync=%02x/%v transition=%v", got, err, memory.videoSync50Transition)
 	}
 }
@@ -180,14 +180,14 @@ func TestProgrammedVideoBaseRegisters(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{VideoBaseHigh, VideoBaseMiddle, 0xffff8201, 0xffff8203} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("video base %08x reset=%02x/%v", address, got, err)
 		}
 	}
-	if err := memory.WriteByte(VideoBaseHigh, 0xcf, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseHigh, 0xcf, 5); err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(VideoBaseMiddle, 0x80, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseMiddle, 0x80, 5); err != nil {
 		t.Fatal(err)
 	}
 	if got := memory.ProgrammedVideoBase(); got != 0x0f8000 {
@@ -200,23 +200,23 @@ func TestProgrammedVideoBaseRegisters(t *testing.T) {
 	if got := memory.ActiveVideoBase(); got != 0x0f8000 {
 		t.Fatalf("active video base after VBL=%06x want 0f8000", got)
 	}
-	if err := memory.WriteByte(VideoBaseMiddle, 0x40, 5); err != nil {
+	if err := memory.WriteByteFC(VideoBaseMiddle, 0x40, 5); err != nil {
 		t.Fatal(err)
 	}
 	if got := memory.ActiveVideoBase(); got != 0x0f8000 {
 		t.Fatalf("active video base followed programmed write: %06x", got)
 	}
-	if got, err := memory.ReadByte(VideoBaseHigh, 5); err != nil || got != 0x0f {
+	if got, err := memory.ReadByteFC(VideoBaseHigh, 5); err != nil || got != 0x0f {
 		t.Fatalf("high=%02x/%v want 0f", got, err)
 	}
-	if got, err := memory.ReadByte(VideoBaseMiddle, 5); err != nil || got != 0x40 {
+	if got, err := memory.ReadByteFC(VideoBaseMiddle, 5); err != nil || got != 0x40 {
 		t.Fatalf("middle=%02x/%v want 40", got, err)
 	}
 	for _, address := range []uint32{VideoBaseHigh, VideoBaseMiddle} {
-		if _, err := memory.ReadByte(address, 1); err == nil {
+		if _, err := memory.ReadByteFC(address, 1); err == nil {
 			t.Fatalf("user read %06x unexpectedly succeeded", address)
 		}
-		if err := memory.WriteByte(address, 0, 1); err == nil {
+		if err := memory.WriteByteFC(address, 0, 1); err == nil {
 			t.Fatalf("user write %06x unexpectedly succeeded", address)
 		}
 		if _, err := memory.ReadWord(address, 5); err == nil {
@@ -227,7 +227,7 @@ func TestProgrammedVideoBaseRegisters(t *testing.T) {
 		}
 	}
 	for _, address := range []uint32{VideoBaseHigh - 1, VideoBaseHigh + 1, VideoBaseMiddle + 1} {
-		if _, err := memory.ReadByte(address, 5); err == nil {
+		if _, err := memory.ReadByteFC(address, 5); err == nil {
 			t.Fatalf("adjacent byte %06x unexpectedly mapped", address)
 		}
 	}
@@ -270,10 +270,10 @@ func TestShifterPaletteWordBank(t *testing.T) {
 	if _, err := memory.ReadWord(ShifterPaletteBase+1, 5); err == nil {
 		t.Fatal("odd palette word read unexpectedly succeeded")
 	}
-	if _, err := memory.ReadByte(ShifterPaletteBase, 5); err == nil {
+	if _, err := memory.ReadByteFC(ShifterPaletteBase, 5); err == nil {
 		t.Fatal("palette byte read unexpectedly succeeded")
 	}
-	if err := memory.WriteByte(ShifterPaletteBase, 0, 5); err == nil {
+	if err := memory.WriteByteFC(ShifterPaletteBase, 0, 5); err == nil {
 		t.Fatal("palette byte write unexpectedly succeeded")
 	}
 	for _, address := range []uint32{ShifterPaletteBase - 2, ShifterPaletteEnd + 2} {
@@ -302,22 +302,22 @@ func TestMemoryRAMBoundsAndAddressMask(t *testing.T) {
 		if size == RAM1M {
 			config = 0x05
 		}
-		if err := memory.WriteByte(MMUConfig, config, 5); err != nil {
+		if err := memory.WriteByteFC(MMUConfig, config, 5); err != nil {
 			t.Fatal(err)
 		}
 		for _, address := range []uint32{8, 0x800, uint32(size - 1)} {
-			if err := memory.WriteByte(address, 0xa5, 5); err != nil {
+			if err := memory.WriteByteFC(address, 0xa5, 5); err != nil {
 				t.Fatalf("RAM size %d write 0x%x: %v", size, address, err)
 			}
-			got, err := memory.ReadByte(address, 5)
+			got, err := memory.ReadByteFC(address, 5)
 			if err != nil || got != 0xa5 {
 				t.Fatalf("RAM size %d read 0x%x: got=%02x err=%v", size, address, got, err)
 			}
 		}
-		if err := memory.WriteByte(0x0100_0800, 0x3c, 5); err != nil {
+		if err := memory.WriteByteFC(0x0100_0800, 0x3c, 5); err != nil {
 			t.Fatal(err)
 		}
-		got, err := memory.ReadByte(0x800, 5)
+		got, err := memory.ReadByteFC(0x800, 5)
 		if err != nil || got != 0x3c {
 			t.Fatalf("24-bit mask: got=%02x err=%v", got, err)
 		}
@@ -329,13 +329,13 @@ func TestMMUConfigurationRegisterAnd512KBankTranslation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("cold MMU config=%02x err=%v", got, err)
 	}
-	if err := memory.WriteByte(MMUConfig, 0xfa, 6); err != nil {
+	if err := memory.WriteByteFC(MMUConfig, 0xfa, 6); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0xfa {
+	if got, err := memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0xfa {
 		t.Fatalf("preserved MMU config=%02x err=%v", got, err)
 	}
 	for _, test := range []struct {
@@ -347,24 +347,24 @@ func TestMMUConfigurationRegisterAnd512KBankTranslation(t *testing.T) {
 		{0x200800, 0x080400},
 		{0x280800, 0x0c0400},
 	} {
-		if err := memory.WriteByte(test.logical, byte(test.logical>>19)+1, 5); err != nil {
+		if err := memory.WriteByteFC(test.logical, byte(test.logical>>19)+1, 5); err != nil {
 			t.Fatalf("write logical %06x: %v", test.logical, err)
 		}
 		if got := memory.ram[test.physical]; got != byte(test.logical>>19)+1 {
 			t.Fatalf("logical %06x mapped physical %06x=%02x", test.logical, test.physical, got)
 		}
 	}
-	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+	if err := memory.WriteByteFC(MMUConfig, 0x05, 5); err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(0x080000, 0xa5, 5); err != nil || memory.ram[0x080000] != 0xa5 {
+	if err := memory.WriteByteFC(0x080000, 0xa5, 5); err != nil || memory.ram[0x080000] != 0xa5 {
 		t.Fatalf("identity bank1 write err=%v physical=%02x", err, memory.ram[0x080000])
 	}
-	if _, err := memory.ReadByte(MMUConfig, 1); err == nil {
+	if _, err := memory.ReadByteFC(MMUConfig, 1); err == nil {
 		t.Fatal("user MMU read unexpectedly succeeded")
 	}
 	memory.ColdReset()
-	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("reset MMU config=%02x err=%v", got, err)
 	}
 }
@@ -374,7 +374,7 @@ func TestM68KResetClearsMMUConfigurationWithoutClearingRAM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+	if err := memory.WriteByteFC(MMUConfig, 0x05, 5); err != nil {
 		t.Fatal(err)
 	}
 	if err := memory.WriteWord(0x0100, 0x1234, 5); err != nil {
@@ -383,7 +383,7 @@ func TestM68KResetClearsMMUConfigurationWithoutClearingRAM(t *testing.T) {
 	if err := memory.M68KReset(); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MMUConfig, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MMUConfig, 5); err != nil || got != 0 {
 		t.Fatalf("MMU config after M68K reset=%02x err=%v", got, err)
 	}
 	if got, err := memory.ReadWord(0x0100, 5); err != nil || got != 0x1234 {
@@ -398,29 +398,29 @@ func TestMFPGPIPResetStateByteAccess(t *testing.T) {
 	}
 	memory.mfpGPIP = 0xa5
 	memory.mfpDDR = 0x0f
-	if err := memory.WriteByte(MFPGPIP, 0x3c, 5); err != nil {
+	if err := memory.WriteByteFC(MFPGPIP, 0x3c, 5); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(0xfffffa01, 5); err != nil || got != 0xac {
+	if got, err := memory.ReadByteFC(0xfffffa01, 5); err != nil || got != 0xac {
 		t.Fatalf("masked GPIP=%02x/%v want ac", got, err)
 	}
 	memory.ColdReset()
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got != 0xa1 {
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got != 0xa1 {
 		t.Fatalf("cold GPIP=%02x/%v", got, err)
 	}
-	if err := memory.WriteByte(MFPGPIP, 0xff, 5); err != nil {
+	if err := memory.WriteByteFC(MFPGPIP, 0xff, 5); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := memory.ReadByte(MFPGPIP, 5); got != 0xa1 {
+	if got, _ := memory.ReadByteFC(MFPGPIP, 5); got != 0xa1 {
 		t.Fatalf("DDR=0 write changed GPIP to %02x", got)
 	}
 	if wait, err := memory.WriteByteAt(MFPGPIP, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("timed GPIP write wait=%d err=%v", wait, err)
 	}
-	if _, err := memory.ReadByte(MFPGPIP, 1); err == nil {
+	if _, err := memory.ReadByteFC(MFPGPIP, 1); err == nil {
 		t.Fatal("user GPIP read unexpectedly succeeded")
 	}
-	if err := memory.WriteByte(MFPGPIP, 0, 1); err == nil {
+	if err := memory.WriteByteFC(MFPGPIP, 0, 1); err == nil {
 		t.Fatal("user GPIP write unexpectedly succeeded")
 	}
 	if _, err := memory.ReadWord(MFPGPIP, 5); err == nil {
@@ -433,13 +433,13 @@ func TestMFPDDRResetStateZeroWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MFPDDR, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MFPDDR, 5); err != nil || got != 0 {
 		t.Fatalf("cold DDR=%02x/%v", got, err)
 	}
 	if wait, err := memory.WriteByteAt(0xfffffa05, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("timed DDR zero write wait=%d err=%v", wait, err)
 	}
-	if err := memory.WriteByte(MFPDDR, 1, 5); err == nil {
+	if err := memory.WriteByteFC(MFPDDR, 1, 5); err == nil {
 		t.Fatal("nonzero DDR write unexpectedly accepted")
 	} else {
 		var fault *BusFault
@@ -447,10 +447,10 @@ func TestMFPDDRResetStateZeroWrite(t *testing.T) {
 			t.Fatalf("nonzero DDR fault=%#v/%v", fault, err)
 		}
 	}
-	if _, err := memory.ReadByte(MFPDDR, 1); err == nil {
+	if _, err := memory.ReadByteFC(MFPDDR, 1); err == nil {
 		t.Fatal("user DDR read unexpectedly succeeded")
 	}
-	if err := memory.WriteByte(MFPDDR, 0, 1); err == nil {
+	if err := memory.WriteByteFC(MFPDDR, 0, 1); err == nil {
 		t.Fatal("user DDR write unexpectedly succeeded")
 	}
 	if _, err := memory.ReadWord(MFPDDR, 5); err == nil {
@@ -460,7 +460,7 @@ func TestMFPDDRResetStateZeroWrite(t *testing.T) {
 	if err := memory.M68KReset(); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MFPDDR, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MFPDDR, 5); err != nil || got != 0 {
 		t.Fatalf("DDR after M68K reset=%02x/%v", got, err)
 	}
 }
@@ -479,14 +479,14 @@ func TestMFPIERResetStateZeroWrites(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("cold %s=%02x/%v", test.name, got, err)
 			}
 			if wait, err := memory.WriteByteAt(test.address|0xff000000, 0,
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
 			}
-			if err := memory.WriteByte(test.address, 1, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 1, 5); err == nil {
 				t.Fatalf("nonzero %s write unexpectedly accepted", test.name)
 			} else {
 				var fault *BusFault
@@ -494,10 +494,10 @@ func TestMFPIERResetStateZeroWrites(t *testing.T) {
 					t.Fatalf("nonzero %s fault=%#v/%v", test.name, fault, err)
 				}
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -507,7 +507,7 @@ func TestMFPIERResetStateZeroWrites(t *testing.T) {
 			if err := memory.M68KReset(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("%s after M68K reset=%02x/%v", test.name, got, err)
 			}
 		})
@@ -533,20 +533,20 @@ func TestMFPIPRWriteZeroToClear(t *testing.T) {
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s clear wait=%d err=%v", test.name, wait, err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0x24 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0x24 {
 				t.Fatalf("masked %s=%02x/%v want 24", test.name, got, err)
 			}
 			test.set(memory, 0)
-			if err := memory.WriteByte(test.address, 0xff, 5); err != nil {
+			if err := memory.WriteByteFC(test.address, 0xff, 5); err != nil {
 				t.Fatal(err)
 			}
-			if got, _ := memory.ReadByte(test.address, 5); got != 0 {
+			if got, _ := memory.ReadByteFC(test.address, 5); got != 0 {
 				t.Fatalf("software set %s to %02x", test.name, got)
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -556,7 +556,7 @@ func TestMFPIPRWriteZeroToClear(t *testing.T) {
 			if err := memory.M68KReset(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("%s after M68K reset=%02x/%v", test.name, got, err)
 			}
 		})
@@ -582,20 +582,20 @@ func TestMFPISRWriteZeroToClear(t *testing.T) {
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s clear wait=%d err=%v", test.name, wait, err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0x24 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0x24 {
 				t.Fatalf("masked %s=%02x/%v want 24", test.name, got, err)
 			}
 			test.set(memory, 0)
-			if err := memory.WriteByte(test.address, 0xff, 5); err != nil {
+			if err := memory.WriteByteFC(test.address, 0xff, 5); err != nil {
 				t.Fatal(err)
 			}
-			if got, _ := memory.ReadByte(test.address, 5); got != 0 {
+			if got, _ := memory.ReadByteFC(test.address, 5); got != 0 {
 				t.Fatalf("software set %s to %02x", test.name, got)
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -605,7 +605,7 @@ func TestMFPISRWriteZeroToClear(t *testing.T) {
 			if err := memory.M68KReset(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("%s after M68K reset=%02x/%v want 00", test.name, got, err)
 			}
 		})
@@ -637,22 +637,22 @@ func TestMFPIMRMaskLatchWithoutPending(t *testing.T) {
 					m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 					t.Fatalf("timed %s write %02x wait=%d err=%v", test.name, value, wait, err)
 				}
-				if got, err := memory.ReadByte(test.address, 5); err != nil || got != value {
+				if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != value {
 					t.Fatalf("%s=%02x/%v want %02x", test.name, got, err, value)
 				}
 			}
 			test.pending(memory, 1)
 			beforeMask, beforePending := test.readMask(memory), test.readPending(memory)
-			if err := memory.WriteByte(test.address, 0xff, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 0xff, 5); err == nil {
 				t.Fatalf("%s write with pending unexpectedly succeeded", test.name)
 			}
 			if test.readMask(memory) != beforeMask || test.readPending(memory) != beforePending {
 				t.Fatalf("%s failed write changed mask/pending", test.name)
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -661,7 +661,7 @@ func TestMFPIMRMaskLatchWithoutPending(t *testing.T) {
 			if err := memory.M68KReset(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("%s after M68K reset=%02x/%v want 00", test.name, got, err)
 			}
 		})
@@ -673,38 +673,38 @@ func TestMFPVectorRegister(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MFPVR, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MFPVR, 5); err != nil || got != 0 {
 		t.Fatalf("reset VR=%02x/%v want 00", got, err)
 	}
 	if wait, err := memory.WriteByteAt(MFPVR|0xff000000, 0xaf,
 		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("timed VR write wait=%d err=%v", wait, err)
 	}
-	if got, err := memory.ReadByte(MFPVR, 5); err != nil || got != 0xa8 {
+	if got, err := memory.ReadByteFC(MFPVR, 5); err != nil || got != 0xa8 {
 		t.Fatalf("software EOI VR=%02x/%v want a8", got, err)
 	}
 	memory.mfpISRA, memory.mfpISRB = 0xa5, 0x5a
-	if err := memory.WriteByte(MFPVR, 0xa7, 5); err != nil {
+	if err := memory.WriteByteFC(MFPVR, 0xa7, 5); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := memory.ReadByte(MFPVR, 5); got != 0xa0 {
+	if got, _ := memory.ReadByteFC(MFPVR, 5); got != 0xa0 {
 		t.Fatalf("automatic EOI VR=%02x want a0", got)
 	}
 	if memory.mfpISRA != 0 || memory.mfpISRB != 0 {
 		t.Fatalf("automatic EOI left ISR=%02x/%02x", memory.mfpISRA, memory.mfpISRB)
 	}
-	if err := memory.WriteByte(MFPVR, 0x07, 5); err != nil {
+	if err := memory.WriteByteFC(MFPVR, 0x07, 5); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := memory.ReadByte(MFPVR, 5); got != 0 {
+	if got, _ := memory.ReadByteFC(MFPVR, 5); got != 0 {
 		t.Fatalf("unused VR bits read %02x want 00", got)
 	}
-	if err := memory.WriteByte(MFPVR, 0x58, 5); err != nil {
+	if err := memory.WriteByteFC(MFPVR, 0x58, 5); err != nil {
 		t.Fatal(err)
 	}
 	memory.mfpIPRA, memory.mfpIPRB = 1, 2
 	memory.mfpISRA, memory.mfpISRB = 4, 8
-	if err := memory.WriteByte(MFPVR, 0x50, 5); err == nil {
+	if err := memory.WriteByteFC(MFPVR, 0x50, 5); err == nil {
 		t.Fatal("automatic EOI with pending unexpectedly succeeded")
 	}
 	if memory.mfpVR != 0x58 || memory.mfpIPRA != 1 || memory.mfpIPRB != 2 ||
@@ -712,10 +712,10 @@ func TestMFPVectorRegister(t *testing.T) {
 		t.Fatalf("failed VR write changed VR/IPR/ISR=%02x/%02x/%02x/%02x/%02x",
 			memory.mfpVR, memory.mfpIPRA, memory.mfpIPRB, memory.mfpISRA, memory.mfpISRB)
 	}
-	if _, err := memory.ReadByte(MFPVR, 1); err == nil {
+	if _, err := memory.ReadByteFC(MFPVR, 1); err == nil {
 		t.Fatal("user VR read unexpectedly succeeded")
 	}
-	if err := memory.WriteByte(MFPVR, 0, 1); err == nil {
+	if err := memory.WriteByteFC(MFPVR, 0, 1); err == nil {
 		t.Fatal("user VR write unexpectedly succeeded")
 	}
 	if _, err := memory.ReadWord(MFPVR, 5); err == nil {
@@ -725,7 +725,7 @@ func TestMFPVectorRegister(t *testing.T) {
 	if err := memory.M68KReset(); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MFPVR, 5); err != nil || got != 0 ||
+	if got, err := memory.ReadByteFC(MFPVR, 5); err != nil || got != 0 ||
 		memory.mfpISRA != 0 || memory.mfpISRB != 0 {
 		t.Fatalf("VR/ISR after M68K reset=%02x/%02x/%02x err=%v",
 			got, memory.mfpISRA, memory.mfpISRB, err)
@@ -747,30 +747,30 @@ func TestMFPTimerControlResetStopWrites(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("reset %s=%02x/%v want 00", test.name, got, err)
 			}
 			if wait, err := memory.WriteByteAt(test.address|0xff000000, 0,
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
 			}
-			if err := memory.WriteByte(test.address, 1, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 1, 5); err == nil {
 				t.Fatalf("nonzero %s write unexpectedly succeeded", test.name)
 			}
-			if got, _ := memory.ReadByte(test.address, 5); got != 0 {
+			if got, _ := memory.ReadByteFC(test.address, 5); got != 0 {
 				t.Fatalf("failed %s write changed value to %02x", test.name, got)
 			}
 			test.set(memory, 1)
-			if err := memory.WriteByte(test.address, 0, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 5); err == nil {
 				t.Fatalf("active %s stop unexpectedly succeeded", test.name)
 			}
-			if got, _ := memory.ReadByte(test.address, 5); got != 1 {
+			if got, _ := memory.ReadByteFC(test.address, 5); got != 1 {
 				t.Fatalf("failed active %s stop changed value to %02x", test.name, got)
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -779,7 +779,7 @@ func TestMFPTimerControlResetStopWrites(t *testing.T) {
 			if err := memory.M68KReset(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("%s after M68K reset=%02x/%v want 00", test.name, got, err)
 			}
 		})
@@ -796,12 +796,12 @@ func TestMFPTimerCDelayStartTransition(t *testing.T) {
 		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("Timer C start wait=%d err=%v", wait, err)
 	}
-	if got, err := memory.ReadByte(MFPTCDCR, 5); err != nil || got != 0x50 || !memory.mfpTimerCStart {
+	if got, err := memory.ReadByteFC(MFPTCDCR, 5); err != nil || got != 0x50 || !memory.mfpTimerCStart {
 		t.Fatalf("Timer C start control=%02x transition=%v err=%v", got, memory.mfpTimerCStart, err)
 	}
 	for _, value := range []byte{0, 0x10, 0x51, 0x60, 0xff} {
 		before := memory.mfpTCDCR
-		if err := memory.WriteByte(MFPTCDCR, value, 5); err == nil {
+		if err := memory.WriteByteFC(MFPTCDCR, value, 5); err == nil {
 			t.Fatalf("active Timer C value %02x unexpectedly accepted", value)
 		}
 		if memory.mfpTCDCR != before || !memory.mfpTimerCStart {
@@ -816,7 +816,7 @@ func TestMFPTimerCDelayStartTransition(t *testing.T) {
 	}
 	for _, data := range []byte{0, 0xbf, 0xc1, 0xff} {
 		memory.mfpTCDR, memory.mfpTCMain = data, data
-		if err := memory.WriteByte(MFPTCDCR, 0x50, 5); err == nil {
+		if err := memory.WriteByteFC(MFPTCDCR, 0x50, 5); err == nil {
 			t.Fatalf("Timer C start with data %02x unexpectedly accepted", data)
 		}
 		if memory.mfpTCDCR != 0 || memory.mfpTimerCStart {
@@ -835,13 +835,13 @@ func TestMFPTimerCInterruptEnable(t *testing.T) {
 		func(m *Memory) { m.mfpTCDCR = 0x50; m.mfpIPRB = 0x20 },
 	} {
 		setup(memory)
-		if err := memory.WriteByte(MFPIERB, 0x20, 5); err == nil {
+		if err := memory.WriteByteFC(MFPIERB, 0x20, 5); err == nil {
 			t.Fatal("unsafe Timer C IERB enable unexpectedly accepted")
 		}
 		memory.mfpTCDCR, memory.mfpIPRB = 0, 0
 	}
 	memory.mfpTCDCR = 0x50
-	if err := memory.WriteByte(MFPTCDCR, 0x50, 5); err != nil || memory.mfpTimerDStart {
+	if err := memory.WriteByteFC(MFPTCDCR, 0x50, 5); err != nil || memory.mfpTimerDStart {
 		t.Fatalf("Timer D stopped same-value write err=%v transition=%v", err, memory.mfpTimerDStart)
 	}
 	if wait, err := memory.WriteByteAt(0xfffffa09, 0x20,
@@ -852,7 +852,7 @@ func TestMFPTimerCInterruptEnable(t *testing.T) {
 		t.Fatalf("Timer C IERB/IPRB=%02x/%02x", memory.mfpIERB, memory.mfpIPRB)
 	}
 	for _, value := range []byte{0x20, 0x21, 0x40, 0xff} {
-		if err := memory.WriteByte(MFPIERB, value, 5); err == nil {
+		if err := memory.WriteByteFC(MFPIERB, value, 5); err == nil {
 			t.Fatalf("active IERB value %02x unexpectedly accepted", value)
 		}
 		if memory.mfpIERB != 0x20 || memory.mfpIPRB != 0 {
@@ -869,7 +869,7 @@ func TestMFPTimerDDelayStartTransition(t *testing.T) {
 	memory.mfpTCDCR = 0x50
 	for _, data := range []byte{0, 1, 3, 0xff} {
 		memory.mfpTDDR, memory.mfpTDMain = data, data
-		if err := memory.WriteByte(MFPTCDCR, 0x51, 5); err == nil {
+		if err := memory.WriteByteFC(MFPTCDCR, 0x51, 5); err == nil {
 			t.Fatalf("Timer D start with data %02x unexpectedly accepted", data)
 		}
 		if memory.mfpTCDCR != 0x50 || memory.mfpTimerDStart {
@@ -886,7 +886,7 @@ func TestMFPTimerDDelayStartTransition(t *testing.T) {
 			memory.mfpTCDCR, memory.mfpTimerDStart, memory.mfpTCDR, memory.mfpTCMain)
 	}
 	for _, value := range []byte{0, 0x50, 0x51, 0x52, 0x61, 0xff} {
-		if err := memory.WriteByte(MFPTCDCR, value, 5); err == nil {
+		if err := memory.WriteByteFC(MFPTCDCR, value, 5); err == nil {
 			t.Fatalf("active Timer D value %02x unexpectedly accepted", value)
 		}
 		if memory.mfpTCDCR != 0x51 || !memory.mfpTimerDStart {
@@ -906,7 +906,7 @@ func TestMFPUSARTFixedSerialEnable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(MFPUCR, 0x88, 5); err == nil {
+	if err := memory.WriteByteFC(MFPUCR, 0x88, 5); err == nil {
 		t.Fatal("UCR enable before Timer D unexpectedly accepted")
 	}
 	memory.mfpTCDCR, memory.mfpTDDR, memory.mfpTDMain = 0x51, 2, 2
@@ -914,16 +914,16 @@ func TestMFPUSARTFixedSerialEnable(t *testing.T) {
 		m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("UCR enable wait=%d err=%v", wait, err)
 	}
-	if err := memory.WriteByte(MFPTSR, 1, 5); err == nil {
+	if err := memory.WriteByteFC(MFPTSR, 1, 5); err == nil {
 		t.Fatal("TSR enable before RSR unexpectedly accepted")
 	}
-	if err := memory.WriteByte(MFPRSR, 1, 5); err != nil {
+	if err := memory.WriteByteFC(MFPRSR, 1, 5); err != nil {
 		t.Fatalf("RSR enable: %v", err)
 	}
-	if err := memory.WriteByte(MFPTSR, 1, 5); err == nil {
+	if err := memory.WriteByteFC(MFPTSR, 1, 5); err == nil {
 		t.Fatal("TSR enable before software-known reset unexpectedly accepted")
 	}
-	if err := memory.WriteByte(MFPTSR, 0, 5); err != nil {
+	if err := memory.WriteByteFC(MFPTSR, 0, 5); err != nil {
 		t.Fatalf("TSR software reset: %v", err)
 	}
 	if wait, err := memory.WriteByteAt(MFPTSR, 1,
@@ -935,12 +935,12 @@ func TestMFPUSARTFixedSerialEnable(t *testing.T) {
 			memory.mfpUCR, memory.mfpRSR, memory.mfpTSR, memory.mfpTSRSet)
 	}
 	for address, value := range map[uint32]byte{MFPUCR: 0x88, MFPRSR: 1, MFPTSR: 0x81} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != value {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != value {
 			t.Fatalf("USART read %06x=%02x/%v want %02x", address, got, err, value)
 		}
 	}
 	for address, value := range map[uint32]byte{MFPUCR: 0x88, MFPRSR: 1, MFPTSR: 1} {
-		if err := memory.WriteByte(address, value, 5); err == nil {
+		if err := memory.WriteByteFC(address, value, 5); err == nil {
 			t.Fatalf("repeat USART write %06x unexpectedly accepted", address)
 		}
 	}
@@ -956,7 +956,7 @@ func TestMFPUSARTReconfigureAfterTimerDStop(t *testing.T) {
 	memory.mfpUCR, memory.mfpRSR = 0x88, 1
 	memory.mfpTSR, memory.mfpTSRSet = 1, true
 
-	if err := memory.WriteByte(MFPTDDR, 2, 5); err == nil || memory.mfpUSARTReconfigStage != 0 ||
+	if err := memory.WriteByteFC(MFPTDDR, 2, 5); err == nil || memory.mfpUSARTReconfigStage != 0 ||
 		memory.mfpTDDR != 0 || memory.mfpTDMain != 0 {
 		t.Fatalf("out-of-order TDDR err/stage/data/main=%v/%d/%02x/%02x", err,
 			memory.mfpUSARTReconfigStage, memory.mfpTDDR, memory.mfpTDMain)
@@ -974,17 +974,17 @@ func TestMFPUSARTReconfigureAfterTimerDStop(t *testing.T) {
 		{MFPTSR, 1, 6},
 		{MFPSCR, 0, 7},
 	}
-	if err := memory.WriteByte(steps[0].address, steps[0].value, 5); err != nil ||
+	if err := memory.WriteByteFC(steps[0].address, steps[0].value, 5); err != nil ||
 		memory.mfpUSARTReconfigStage != 1 {
 		t.Fatalf("stage 1 start err/stage=%v/%d", err, memory.mfpUSARTReconfigStage)
 	}
-	if err := memory.WriteByte(MFPTDDR, 3, 5); err == nil || memory.mfpUSARTReconfigStage != 1 ||
+	if err := memory.WriteByteFC(MFPTDDR, 3, 5); err == nil || memory.mfpUSARTReconfigStage != 1 ||
 		memory.mfpTDDR != 0 || memory.mfpTDMain != 0 {
 		t.Fatalf("wrong TDDR err/stage/data/main=%v/%d/%02x/%02x", err,
 			memory.mfpUSARTReconfigStage, memory.mfpTDDR, memory.mfpTDMain)
 	}
 	for _, step := range steps[1:] {
-		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+		if err := memory.WriteByteFC(step.address, step.value, 5); err != nil {
 			t.Fatalf("stage %d write %06x=%02x: %v", step.stage, step.address, step.value, err)
 		}
 		if memory.mfpUSARTReconfigStage != step.stage {
@@ -992,7 +992,7 @@ func TestMFPUSARTReconfigureAfterTimerDStop(t *testing.T) {
 				memory.mfpUSARTReconfigStage, step.stage)
 		}
 	}
-	if got, err := memory.ReadByte(MFPTSR, 5); err != nil || got != 0x81 {
+	if got, err := memory.ReadByteFC(MFPTSR, 5); err != nil || got != 0x81 {
 		t.Fatalf("enabled TSR=%02x/%v want 81", got, err)
 	}
 	if !memory.mfpTimerDStart || memory.mfpTCDCR != 0x51 || memory.mfpTDDR != 2 {
@@ -1006,7 +1006,7 @@ func TestMFPUSARTInterruptEnableSequence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(MFPIERA, 0x10, 5); err == nil {
+	if err := memory.WriteByteFC(MFPIERA, 0x10, 5); err == nil {
 		t.Fatal("USART IERA before serial init unexpectedly accepted")
 	}
 	memory.mfpUCR, memory.mfpRSR, memory.mfpTSR, memory.mfpTSRSet = 0x88, 1, 1, true
@@ -1020,7 +1020,7 @@ func TestMFPUSARTInterruptEnableSequence(t *testing.T) {
 		t.Fatalf("USART IERA/IPRA=%02x/%02x", memory.mfpIERA, memory.mfpIPRA)
 	}
 	for _, value := range []byte{0, 0x10, 0x14, 0x15, 0xff} {
-		if err := memory.WriteByte(MFPIERA, value, 5); err == nil {
+		if err := memory.WriteByteFC(MFPIERA, value, 5); err == nil {
 			t.Fatalf("final IERA value %02x unexpectedly accepted", value)
 		}
 		if memory.mfpIERA != 0x14 || memory.mfpIPRA != 0 {
@@ -1053,13 +1053,13 @@ func TestPSGFixedBootPortWrites(t *testing.T) {
 			memory.psgRegisterSelect, memory.psgRegisters[7], memory.psgRegisters[14])
 	}
 	for _, address := range []uint32{PSGRegisterSelect, PSGRegisterData} {
-		if _, err := memory.ReadByte(address, 5); err == nil {
+		if _, err := memory.ReadByteFC(address, 5); err == nil {
 			t.Fatalf("unmodeled PSG read %06x unexpectedly accepted", address)
 		}
-		if err := memory.WriteByte(address, 0, 5); err == nil {
+		if err := memory.WriteByteFC(address, 0, 5); err == nil {
 			t.Fatalf("invalid PSG write %06x unexpectedly accepted", address)
 		}
-		if err := memory.WriteByte(address, 0, 1); err == nil {
+		if err := memory.WriteByteFC(address, 0, 1); err == nil {
 			t.Fatalf("user PSG write %06x unexpectedly accepted", address)
 		}
 		if err := memory.WriteWord(address, 0, 5); err == nil {
@@ -1081,10 +1081,10 @@ func TestPSGFirstDriveSelectUpdate(t *testing.T) {
 	}
 	memory.psgRegisterSelect = 14
 	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 7
-	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil || memory.psgDriveStage != 0 {
+	if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err == nil || memory.psgDriveStage != 0 {
 		t.Fatal("out-of-order PSG read unexpectedly accepted")
 	}
-	if err := memory.WriteByte(PSGRegisterData, 5, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 5, 5); err == nil ||
 		memory.psgDriveStage != 0 || memory.psgRegisters[14] != 7 {
 		t.Fatal("out-of-order PSG data write unexpectedly accepted")
 	}
@@ -1097,7 +1097,7 @@ func TestPSGFirstDriveSelectUpdate(t *testing.T) {
 		memory.psgDriveStage != 2 {
 		t.Fatalf("PSG port read value/wait/err/stage=%02x/%d/%v/%d", got, wait, err, memory.psgDriveStage)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 3, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 3, 5); err == nil ||
 		memory.psgDriveStage != 2 || memory.psgRegisters[14] != 7 {
 		t.Fatal("wrong PSG port value unexpectedly accepted")
 	}
@@ -1125,10 +1125,10 @@ func TestPSGSelectsDriveOne(t *testing.T) {
 	memory.psgRegisterSelect = 14
 	memory.psgRegisters[7], memory.psgRegisters[14] = 0xc0, 5
 	memory.fdcInitStage = 14
-	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil || memory.psgDriveStage != 3 {
+	if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err == nil || memory.psgDriveStage != 3 {
 		t.Fatal("drive-one read before reselect unexpectedly accepted")
 	}
-	if err := memory.WriteByte(PSGRegisterData, 3, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 3, 5); err == nil ||
 		memory.psgDriveStage != 3 || memory.psgRegisters[14] != 5 {
 		t.Fatal("drive-one data before reselect unexpectedly accepted")
 	}
@@ -1143,7 +1143,7 @@ func TestPSGSelectsDriveOne(t *testing.T) {
 		t.Fatalf("drive-one read value/wait/err/stage=%02x/%d/%v/%d", got, wait, err,
 			memory.psgDriveStage)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 1, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 1, 5); err == nil ||
 		memory.psgDriveStage != 5 || memory.psgRegisters[14] != 5 {
 		t.Fatal("wrong drive-one port value unexpectedly accepted")
 	}
@@ -1178,17 +1178,17 @@ func TestFlopVBLChecksDriveZeroAndRestoresPortA(t *testing.T) {
 	memory.fdcStatusTypeI = true
 	memory.ikbdClockReadbackComplete = true
 
-	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err == nil {
+	if err := memory.WriteByteFC(PSGRegisterData, 0x25, 5); err == nil {
 		t.Fatal("media-check data write before register select unexpectedly accepted")
 	}
-	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil || memory.flopVBLMediaStage != 1 {
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil || memory.flopVBLMediaStage != 1 {
 		t.Fatalf("media-check select stage=%d err=%v", memory.flopVBLMediaStage, err)
 	}
-	if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x23 ||
+	if got, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || got != 0x23 ||
 		memory.flopVBLMediaStage != 2 {
 		t.Fatalf("media-check old port/stage=%02x/%d err=%v", got, memory.flopVBLMediaStage, err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err != nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x25, 5); err != nil ||
 		memory.psgRegisters[14] != 0x25 || memory.flopVBLMediaStage != 3 {
 		t.Fatalf("media-check drive-0 port/stage=%02x/%d err=%v",
 			memory.psgRegisters[14], memory.flopVBLMediaStage, err)
@@ -1206,15 +1206,15 @@ func TestFlopVBLChecksDriveZeroAndRestoresPortA(t *testing.T) {
 			got, wait, memory.flopVBLMediaStage, memory.flopVBLStatusReadClock,
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
-	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil || memory.flopVBLMediaStage != 6 {
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil || memory.flopVBLMediaStage != 6 {
 		t.Fatalf("media-check restore select stage=%d err=%v", memory.flopVBLMediaStage, err)
 	}
-	if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x25 ||
+	if got, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || got != 0x25 ||
 		memory.flopVBLMediaStage != 7 {
 		t.Fatalf("media-check restore old port/stage=%02x/%d err=%v", got,
 			memory.flopVBLMediaStage, err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err != nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x23, 5); err != nil ||
 		memory.psgRegisters[14] != 0x23 || memory.flopVBLMediaStage != 8 ||
 		!memory.flopVBLMediaComplete || memory.flopVBLMediaChecks != 1 || memory.flopVBLMediaDrive != 0 ||
 		memory.fdcInitStage != 14 || memory.fdcProbeDrive != 1 {
@@ -1248,13 +1248,13 @@ func TestFlopVBLAlternatesDriveChecks(t *testing.T) {
 
 	targets := [4]byte{0x25, 0x23, 0x25, 0x23}
 	for cycle, target := range targets {
-		if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil {
+		if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil {
 			t.Fatalf("cycle %d select: %v", cycle, err)
 		}
-		if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x23 {
+		if got, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || got != 0x23 {
 			t.Fatalf("cycle %d old port=%02x err=%v", cycle, got, err)
 		}
-		if err := memory.WriteByte(PSGRegisterData, target, 5); err != nil {
+		if err := memory.WriteByteFC(PSGRegisterData, target, 5); err != nil {
 			t.Fatalf("cycle %d target %02x: %v", cycle, target, err)
 		}
 		if err := memory.WriteWord(STDMAControl, 0x0080, 5); err != nil {
@@ -1265,13 +1265,13 @@ func TestFlopVBLAlternatesDriveChecks(t *testing.T) {
 			m68k.BusAccess{Clock: clock, FunctionCode: 5}); err != nil || got != 0xe4 {
 			t.Fatalf("cycle %d status=%04x err=%v", cycle, got, err)
 		}
-		if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil {
+		if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil {
 			t.Fatalf("cycle %d restore select: %v", cycle, err)
 		}
-		if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != target {
+		if got, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || got != target {
 			t.Fatalf("cycle %d selected port=%02x err=%v want %02x", cycle, got, err, target)
 		}
-		if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err != nil ||
+		if err := memory.WriteByteFC(PSGRegisterData, 0x23, 5); err != nil ||
 			memory.flopVBLMediaChecks != uint32(cycle+1) ||
 			memory.flopVBLMediaDrive != int8(cycle&1) || memory.flopVBLStatusReadClock != clock ||
 			memory.flopVBLMediaStage != 8 || memory.psgRegisters[14] != 0x23 {
@@ -1316,17 +1316,17 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			wait, memory.floppyReadStage, memory.floppyMediaLegacy[0].Track,
 			memory.floppyMediaLegacy[0].TrackWriteClock, err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err == nil {
+	if err := memory.WriteByteFC(PSGRegisterData, 0x25, 5); err == nil {
 		t.Fatal("drive data before select/read unexpectedly accepted")
 	}
-	if err := memory.WriteByte(PSGRegisterSelect, 14, 5); err != nil || memory.floppyReadStage != 3 {
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 5); err != nil || memory.floppyReadStage != 3 {
 		t.Fatalf("drive select stage=%d err=%v", memory.floppyReadStage, err)
 	}
-	if got, err := memory.ReadByte(PSGRegisterSelect, 5); err != nil || got != 0x23 ||
+	if got, err := memory.ReadByteFC(PSGRegisterSelect, 5); err != nil || got != 0x23 ||
 		memory.floppyReadStage != 4 {
 		t.Fatalf("drive old port/stage=%02x/%d err=%v", got, memory.floppyReadStage, err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x25, 5); err != nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x25, 5); err != nil ||
 		memory.floppyReadStage != 5 || memory.floppyMediaLegacy[0].Drive != 0 ||
 		memory.psgRegisters[14] != 0x25 || memory.flopVBLMediaChecks != 73 {
 		t.Fatalf("drive completion stage/drive/port/checks=%d/%d/%02x/%d err=%v",
@@ -1344,7 +1344,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		t.Fatalf("sector data stage/sector=%d/%02x err=%v",
 			memory.floppyReadStage, memory.floppyMediaLegacy[0].Sector, err)
 	}
-	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err != nil || memory.floppyReadStage != 7 {
+	if err := memory.WriteByteFC(STDMAAddressMiddle, 0x10, 5); err != nil || memory.floppyReadStage != 7 {
 		t.Fatalf("out-of-order DMA middle stage=%d err=%v", memory.floppyReadStage, err)
 	}
 	for index, write := range []struct {
@@ -1352,7 +1352,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		value   byte
 		stage   uint8
 	}{{STDMAAddressLow, 0x04, 8}, {STDMAAddressMiddle, 0x10, 9}, {STDMAAddressHigh, 0, 10}} {
-		if err := memory.WriteByte(write.address, write.value, 5); err != nil ||
+		if err := memory.WriteByteFC(write.address, write.value, 5); err != nil ||
 			memory.floppyReadStage != write.stage || memory.floppyMediaLegacy[0].DMAAddressStage != uint8(index+1) {
 			t.Fatalf("DMA address %d stage/address-stage=%d/%d err=%v", index,
 				memory.floppyReadStage, memory.floppyMediaLegacy[0].DMAAddressStage, err)
@@ -1459,7 +1459,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	for index := 0; index < 9; index++ {
-		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+		if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 == 0 {
 			t.Fatalf("retry inactive poll %d=%02x err=%v", index, got, err)
 		}
 	}
@@ -1485,7 +1485,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.floppyReadStage,
 			memory.fdcSeekPending, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
 		!memory.floppyMediaLegacy[0].IRQObserved {
 		t.Fatalf("retry IRQ poll=%02x observed=%v err=%v", got,
 			memory.floppyMediaLegacy[0].IRQObserved, err)
@@ -1528,7 +1528,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		t.Fatalf("retry drive read value/wait/stage/port=%02x/%d/%d/%02x err=%v",
 			value, wait, memory.floppyReadStage, memory.psgRegisters[14], err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x23, 5); err == nil ||
 		memory.floppyReadStage != 26 || memory.psgRegisters[14] != 0x25 {
 		t.Fatalf("wrong retry drive value mutated stage/port=%d/%02x err=%v",
 			memory.floppyReadStage, memory.psgRegisters[14], err)
@@ -1555,7 +1555,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			wait, memory.floppyReadStage, memory.dmaMode, err)
 	}
 	retryAddressBefore := memory.dmaAddress
-	if err := memory.WriteByte(STDMAAddressLow, 0x04, 5); err == nil ||
+	if err := memory.WriteByteFC(STDMAAddressLow, 0x04, 5); err == nil ||
 		memory.floppyReadStage != 28 || memory.dmaAddress != retryAddressBefore {
 		t.Fatalf("retry DMA before sector mutated stage/address=%d/%06x err=%v",
 			memory.floppyReadStage, memory.dmaAddress, err)
@@ -1566,7 +1566,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		t.Fatalf("retry sector wait/stage/sector=%d/%d/%02x err=%v",
 			wait, memory.floppyReadStage, memory.floppyMediaLegacy[1].Sector, err)
 	}
-	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err == nil ||
+	if err := memory.WriteByteFC(STDMAAddressMiddle, 0x10, 5); err == nil ||
 		memory.floppyReadStage != 29 || memory.floppyMediaLegacy[1].DMAAddressStage != 0 {
 		t.Fatalf("retry DMA out of order mutated stage/address-stage=%d/%d err=%v",
 			memory.floppyReadStage, memory.floppyMediaLegacy[1].DMAAddressStage, err)
@@ -1708,7 +1708,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.fdcIRQ, memory.mfpGPIPIn, err)
 	}
 	for index := 0; index < 9; index++ {
-		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+		if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 == 0 {
 			t.Fatalf("second dummy inactive poll %d=%02x err=%v", index, got, err)
 		}
 	}
@@ -1733,7 +1733,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			machine.fdcSeekClockStarted, machine.nextFDCSeekClock, memory.floppyReadStage,
 			memory.fdcSeekPending, memory.fdcStatus, memory.fdcIRQ, memory.mfpGPIPIn)
 	}
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
 		!memory.floppyMediaLegacy[1].IRQObserved {
 		t.Fatalf("second dummy IRQ poll=%02x observed=%v err=%v", got,
 			memory.floppyMediaLegacy[1].IRQObserved, err)
@@ -1773,7 +1773,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 		t.Fatalf("third retry drive read value/wait/stage=%02x/%d/%d err=%v",
 			value, wait, memory.floppyReadStage, err)
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x23, 5); err == nil ||
 		memory.floppyReadStage != 48 || memory.psgRegisters[14] != 0x25 {
 		t.Fatalf("wrong third retry drive value mutated stage/port=%d/%02x err=%v",
 			memory.floppyReadStage, memory.psgRegisters[14], err)
@@ -1903,7 +1903,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.fdcStatusTypeI, memory.fdcIRQ)
 	}
 	for index := 0; index < 9; index++ {
-		if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 == 0 {
+		if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 == 0 {
 			t.Fatalf("third dummy inactive poll[%d]=%02x err=%v", index, got, err)
 		}
 	}
@@ -1915,7 +1915,7 @@ func TestFloppyMediaReadLocksDriveZeroAtTrackZero(t *testing.T) {
 			memory.floppyReadStage, memory.fdcSeekPending, memory.fdcStatus,
 			memory.fdcIRQ, memory.mfpGPIPIn)
 	}
-	if got, err := memory.ReadByte(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
+	if got, err := memory.ReadByteFC(MFPGPIP, 5); err != nil || got&0x20 != 0 ||
 		!memory.floppyMediaLegacy[2].IRQObserved {
 		t.Fatalf("third dummy IRQ poll=%02x observed=%v err=%v", got,
 			memory.floppyMediaLegacy[2].IRQObserved, err)
@@ -2001,7 +2001,7 @@ func TestSTFDCForceInterruptInit(t *testing.T) {
 	if err := memory.WriteWord(STDMAControl, 0x0080, 1); err == nil {
 		t.Fatal("user DMA mode write unexpectedly accepted")
 	}
-	if err := memory.WriteByte(STDMAControl, 0x80, 5); err == nil {
+	if err := memory.WriteByteFC(STDMAControl, 0x80, 5); err == nil {
 		t.Fatal("byte DMA mode write unexpectedly accepted")
 	}
 	if _, err := memory.ReadWord(STDMAControl, 5); err == nil {
@@ -2033,11 +2033,11 @@ func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
 	memory.fdcInitStage = 14
 	memory.acsiStage = 5
 
-	if _, err := memory.ReadByte(PSGRegisterSelect, 5); err == nil ||
+	if _, err := memory.ReadByteFC(PSGRegisterSelect, 5); err == nil ||
 		memory.psgDriveStage != 6 || memory.psgRegisters[14] != 3 {
 		t.Fatal("strobe read before select unexpectedly accepted or mutated state")
 	}
-	if err := memory.WriteByte(PSGRegisterSelect, 13, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterSelect, 13, 5); err == nil ||
 		memory.psgDriveStage != 6 || memory.psgRegisterSelect != 14 {
 		t.Fatal("wrong strobe register unexpectedly accepted or mutated state")
 	}
@@ -2047,7 +2047,7 @@ func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
 		t.Fatalf("strobe select wait/err/stage/R14=%d/%v/%d/%02x", wait, err,
 			memory.psgDriveStage, memory.psgRegisters[14])
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x23, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x23, 5); err == nil ||
 		memory.psgDriveStage != 7 || memory.psgRegisters[14] != 3 {
 		t.Fatal("strobe write before read unexpectedly accepted or mutated state")
 	}
@@ -2057,7 +2057,7 @@ func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
 		t.Fatalf("strobe read value/wait/err/stage/R14=%02x/%d/%v/%d/%02x", got, wait,
 			err, memory.psgDriveStage, memory.psgRegisters[14])
 	}
-	if err := memory.WriteByte(PSGRegisterData, 0x22, 5); err == nil ||
+	if err := memory.WriteByteFC(PSGRegisterData, 0x22, 5); err == nil ||
 		memory.psgDriveStage != 8 || memory.psgRegisters[14] != 3 {
 		t.Fatal("wrong strobe data unexpectedly accepted or mutated state")
 	}
@@ -2068,7 +2068,7 @@ func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
 		t.Fatalf("strobe write wait/err/stage/R14=%d/%v/%d/%02x", wait, err,
 			memory.psgDriveStage, memory.psgRegisters[14])
 	}
-	if err := memory.WriteByte(PSGRegisterSelect, 14, 1); err == nil {
+	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 1); err == nil {
 		t.Fatal("user strobe register write unexpectedly accepted")
 	}
 	if err := memory.WriteWord(PSGRegisterSelect, 14, 5); err == nil {
@@ -2128,30 +2128,30 @@ func TestSTFloppyDMAAddressRegisters(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{STDMAAddressHigh, STDMAAddressMiddle, STDMAAddressLow} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("reset DMA byte %06x=%02x err=%v", address, got, err)
 		}
 	}
-	if err := memory.WriteByte(STDMAAddressLow, 0xff, 5); err != nil || memory.dmaAddress != 0xfe {
+	if err := memory.WriteByteFC(STDMAAddressLow, 0xff, 5); err != nil || memory.dmaAddress != 0xfe {
 		t.Fatalf("low alignment err/address=%v/%06x", err, memory.dmaAddress)
 	}
-	if err := memory.WriteByte(STDMAAddressMiddle, 0x34, 5); err != nil || memory.dmaAddress != 0x34fe {
+	if err := memory.WriteByteFC(STDMAAddressMiddle, 0x34, 5); err != nil || memory.dmaAddress != 0x34fe {
 		t.Fatalf("middle write err/address=%v/%06x", err, memory.dmaAddress)
 	}
-	if err := memory.WriteByte(STDMAAddressHigh, 0xff, 5); err != nil || memory.dmaAddress != 0x3f34fe {
+	if err := memory.WriteByteFC(STDMAAddressHigh, 0xff, 5); err != nil || memory.dmaAddress != 0x3f34fe {
 		t.Fatalf("high mask err/address=%v/%06x", err, memory.dmaAddress)
 	}
 	for address, want := range map[uint32]byte{
 		STDMAAddressHigh: 0x3f, STDMAAddressMiddle: 0x34, STDMAAddressLow: 0xfe,
 	} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != want {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != want {
 			t.Fatalf("DMA byte %06x=%02x err=%v want %02x", address, got, err, want)
 		}
 	}
-	if err := memory.WriteByte(STDMAAddressLow, 0, 1); err == nil || memory.dmaAddress != 0x3f34fe {
+	if err := memory.WriteByteFC(STDMAAddressLow, 0, 1); err == nil || memory.dmaAddress != 0x3f34fe {
 		t.Fatalf("user write err/address=%v/%06x", err, memory.dmaAddress)
 	}
-	if _, err := memory.ReadByte(STDMAAddressLow, 1); err == nil {
+	if _, err := memory.ReadByteFC(STDMAAddressLow, 1); err == nil {
 		t.Fatal("user DMA address read unexpectedly accepted")
 	}
 	if err := memory.WriteWord(0x00ff8608, 0, 5); err == nil || memory.dmaAddress != 0x3f34fe {
@@ -2162,10 +2162,10 @@ func TestSTFloppyDMAAddressRegisters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := lowRipple.WriteByte(STDMAAddressLow, 0x80, 5); err != nil {
+	if err := lowRipple.WriteByteFC(STDMAAddressLow, 0x80, 5); err != nil {
 		t.Fatal(err)
 	}
-	if err := lowRipple.WriteByte(STDMAAddressLow, 0, 5); err != nil || lowRipple.dmaAddress != 0x100 {
+	if err := lowRipple.WriteByteFC(STDMAAddressLow, 0, 5); err != nil || lowRipple.dmaAddress != 0x100 {
 		t.Fatalf("low ripple err/address=%v/%06x", err, lowRipple.dmaAddress)
 	}
 
@@ -2173,10 +2173,10 @@ func TestSTFloppyDMAAddressRegisters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := middleRipple.WriteByte(STDMAAddressMiddle, 0x80, 5); err != nil {
+	if err := middleRipple.WriteByteFC(STDMAAddressMiddle, 0x80, 5); err != nil {
 		t.Fatal(err)
 	}
-	if err := middleRipple.WriteByte(STDMAAddressMiddle, 0, 5); err != nil || middleRipple.dmaAddress != 0x10000 {
+	if err := middleRipple.WriteByteFC(STDMAAddressMiddle, 0, 5); err != nil || middleRipple.dmaAddress != 0x10000 {
 		t.Fatalf("middle ripple err/address=%v/%06x", err, middleRipple.dmaAddress)
 	}
 
@@ -2185,13 +2185,13 @@ func TestSTFloppyDMAAddressRegisters(t *testing.T) {
 	memory.fdcCommand = 0x13
 	memory.fdcStatus = 0xe4
 	memory.dmaMode = 0x0080
-	if err := memory.WriteByte(STDMAAddressLow, 4, 5); err != nil || memory.dmaAddressWriteStage != 1 {
+	if err := memory.WriteByteFC(STDMAAddressLow, 4, 5); err != nil || memory.dmaAddressWriteStage != 1 {
 		t.Fatalf("boot low err/stage=%v/%d", err, memory.dmaAddressWriteStage)
 	}
-	if err := memory.WriteByte(STDMAAddressMiddle, 0x10, 5); err != nil || memory.dmaAddressWriteStage != 2 {
+	if err := memory.WriteByteFC(STDMAAddressMiddle, 0x10, 5); err != nil || memory.dmaAddressWriteStage != 2 {
 		t.Fatalf("boot middle err/stage=%v/%d", err, memory.dmaAddressWriteStage)
 	}
-	if err := memory.WriteByte(STDMAAddressHigh, 0, 5); err != nil ||
+	if err := memory.WriteByteFC(STDMAAddressHigh, 0, 5); err != nil ||
 		memory.dmaAddressWriteStage != 3 || memory.dmaAddress != 0x1004 ||
 		memory.fdcCommand != 0x13 || memory.fdcStatus != 0xe4 || memory.dmaMode != 0x0080 {
 		t.Fatalf("boot high err/stage/address/FDC=%v/%d/%06x/%02x/%02x/%04x", err,
@@ -2258,7 +2258,7 @@ func TestSTDMAResetToggleAndZeroSectorCount(t *testing.T) {
 	if err := memory.WriteWord(STDMAControl, 0x0190, 1); err == nil {
 		t.Fatal("user DMA reset unexpectedly accepted")
 	}
-	if err := memory.WriteByte(STDMAControl, 0x90, 5); err == nil {
+	if err := memory.WriteByteFC(STDMAControl, 0x90, 5); err == nil {
 		t.Fatal("byte DMA reset unexpectedly accepted")
 	}
 	if err := memory.M68KReset(); err != nil {
@@ -2427,10 +2427,10 @@ func TestIKBDACIAControlInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := memory.ReadByte(IKBDACIAControl, 5); err == nil {
+	if _, err := memory.ReadByteFC(IKBDACIAControl, 5); err == nil {
 		t.Fatal("unconfigured ACIA status read unexpectedly accepted")
 	}
-	if err := memory.WriteByte(IKBDACIAControl, 0x96, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAControl, 0x96, 5); err == nil {
 		t.Fatal("ACIA config before reset unexpectedly accepted")
 	}
 	for _, value := range []byte{3, 0x96} {
@@ -2439,23 +2439,23 @@ func TestIKBDACIAControlInit(t *testing.T) {
 			t.Fatalf("ACIA control %02x wait=%d err=%v", value, wait, err)
 		}
 	}
-	if got, err := memory.ReadByte(0xfffffc00, 5); err != nil || got != 2 ||
+	if got, err := memory.ReadByteFC(0xfffffc00, 5); err != nil || got != 2 ||
 		memory.ikbdACIAControl != 0x96 || !memory.ikbdACIAConfigured {
 		t.Fatalf("ACIA control/status/configured=%02x/%02x/%v err=%v",
 			memory.ikbdACIAControl, got, memory.ikbdACIAConfigured, err)
 	}
 	for _, value := range []byte{0, 3, 0x96, 0xff} {
-		if err := memory.WriteByte(IKBDACIAControl, value, 5); err == nil {
+		if err := memory.WriteByteFC(IKBDACIAControl, value, 5); err == nil {
 			t.Fatalf("configured ACIA control %02x unexpectedly accepted", value)
 		}
 	}
-	if _, err := memory.ReadByte(IKBDACIAData, 5); err == nil {
+	if _, err := memory.ReadByteFC(IKBDACIAData, 5); err == nil {
 		t.Fatal("ACIA data read unexpectedly accepted")
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0, 5); err == nil {
 		t.Fatal("ACIA data write unexpectedly accepted")
 	}
-	if _, err := memory.ReadByte(IKBDACIAControl, 1); err == nil {
+	if _, err := memory.ReadByteFC(IKBDACIAControl, 1); err == nil {
 		t.Fatal("user ACIA status read unexpectedly accepted")
 	}
 	if err := memory.WriteWord(IKBDACIAControl, 0, 5); err == nil {
@@ -2475,7 +2475,7 @@ func TestMIDIACIAControlInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(MIDIACIAControl, 0x95, 5); err == nil {
+	if err := memory.WriteByteFC(MIDIACIAControl, 0x95, 5); err == nil {
 		t.Fatal("MIDI ACIA config before reset unexpectedly accepted")
 	}
 	for _, value := range []byte{3, 0x95} {
@@ -2489,17 +2489,17 @@ func TestMIDIACIAControlInit(t *testing.T) {
 			memory.midiACIAStatus, memory.midiACIAConfigured)
 	}
 	for _, value := range []byte{0, 3, 0x95, 0xff} {
-		if err := memory.WriteByte(MIDIACIAControl, value, 5); err == nil {
+		if err := memory.WriteByteFC(MIDIACIAControl, value, 5); err == nil {
 			t.Fatalf("configured MIDI ACIA control %02x unexpectedly accepted", value)
 		}
 	}
-	if got, err := memory.ReadByte(MIDIACIAControl, 5); err != nil || got != 2 {
+	if got, err := memory.ReadByteFC(MIDIACIAControl, 5); err != nil || got != 2 {
 		t.Fatalf("configured MIDI ACIA status=%02x err=%v", got, err)
 	}
-	if err := memory.WriteByte(MIDIACIAData, 0, 5); err == nil {
+	if err := memory.WriteByteFC(MIDIACIAData, 0, 5); err == nil {
 		t.Fatal("MIDI ACIA data write unexpectedly accepted")
 	}
-	if err := memory.WriteByte(MIDIACIAControl, 0, 1); err == nil {
+	if err := memory.WriteByteFC(MIDIACIAControl, 0, 1); err == nil {
 		t.Fatal("user MIDI ACIA write unexpectedly accepted")
 	}
 	if err := memory.WriteWord(MIDIACIAControl, 0, 5); err == nil {
@@ -2533,7 +2533,7 @@ func TestMFPACIAInterruptChannelEnable(t *testing.T) {
 		{MFPIERB, 0x60, 4},
 		{MFPIMRB, 0x60, 5},
 	} {
-		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+		if err := memory.WriteByteFC(step.address, step.value, 5); err != nil {
 			t.Fatalf("write %06x=%02x: %v", step.address, step.value, err)
 		}
 		if memory.mfpACIAEnableStage != step.stage {
@@ -2553,7 +2553,7 @@ func TestMFPACIAInterruptChannelEnable(t *testing.T) {
 	invalid.midiACIAConfigured = true
 	invalid.mfpIERB = 0x20
 	invalid.mfpIMRB = 0x20
-	if err := invalid.WriteByte(MFPIERB, 0x60, 5); err == nil || invalid.mfpIERB != 0x20 ||
+	if err := invalid.WriteByteFC(MFPIERB, 0x60, 5); err == nil || invalid.mfpIERB != 0x20 ||
 		invalid.mfpACIAEnableStage != 0 {
 		t.Fatalf("skipped clear err/state=%v %02x/%d", err, invalid.mfpIERB, invalid.mfpACIAEnableStage)
 	}
@@ -2585,7 +2585,7 @@ func TestMFPTimerDSystemClockStart(t *testing.T) {
 		{MFPIMRB, 0x70, 7},
 		{MFPTCDCR, 0x52, 8},
 	} {
-		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+		if err := memory.WriteByteFC(step.address, step.value, 5); err != nil {
 			t.Fatalf("write %06x=%02x: %v", step.address, step.value, err)
 		}
 		if memory.mfpTimerDSystemStage != step.stage {
@@ -2610,7 +2610,7 @@ func TestMFPTimerDSystemClockStart(t *testing.T) {
 	invalid.mfpTCDCR = 0x51
 	invalid.mfpTDDR = 2
 	invalid.mfpTDMain = 2
-	if err := invalid.WriteByte(MFPTCDCR, 0x50, 5); err == nil || invalid.mfpTCDCR != 0x51 ||
+	if err := invalid.WriteByteFC(MFPTCDCR, 0x50, 5); err == nil || invalid.mfpTCDCR != 0x51 ||
 		invalid.mfpTimerDSystemStage != 0 {
 		t.Fatalf("skipped clears err/control/stage=%v %02x/%d", err, invalid.mfpTCDCR,
 			invalid.mfpTimerDSystemStage)
@@ -2631,7 +2631,7 @@ func TestMFPBAcknowledgeUsesVectorAndSoftwareEOI(t *testing.T) {
 	if memory.mfpIPRB != 0 || memory.mfpISRB != 0x10 {
 		t.Fatalf("pending/in-service=%02x/%02x want 00/10", memory.mfpIPRB, memory.mfpISRB)
 	}
-	if err := memory.WriteByte(MFPISRB, 0xef, 5); err != nil {
+	if err := memory.WriteByteFC(MFPISRB, 0xef, 5); err != nil {
 		t.Fatal(err)
 	}
 	if memory.mfpISRB != 0 {
@@ -2660,7 +2660,7 @@ func TestMFPTimerDStopAndChannelClear(t *testing.T) {
 		{MFPIPRB, 0xef, 6},
 		{MFPISRB, 0xef, 7},
 	} {
-		if err := memory.WriteByte(step.address, step.value, 5); err != nil {
+		if err := memory.WriteByteFC(step.address, step.value, 5); err != nil {
 			t.Fatalf("write %06x=%02x: %v", step.address, step.value, err)
 		}
 		if memory.mfpTimerDStopStage != step.stage {
@@ -2681,18 +2681,18 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range []byte{3, 0x96} {
-		if err := memory.WriteByte(IKBDACIAControl, value, 5); err != nil {
+		if err := memory.WriteByteFC(IKBDACIAControl, value, 5); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0x80, 5); err != nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x80, 5); err != nil {
 		t.Fatal(err)
 	}
 	if memory.ikbdACIATDR != 0x80 || !memory.ikbdACIATXPending || memory.ikbdACIAStatus != 0 {
 		t.Fatalf("TDR/pending/status=%02x/%v/%02x", memory.ikbdACIATDR,
 			memory.ikbdACIATXPending, memory.ikbdACIAStatus)
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0x80, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x80, 5); err == nil {
 		t.Fatal("pending ACIA data write unexpectedly accepted")
 	}
 	memory.advanceIKBDACIAClock()
@@ -2700,7 +2700,7 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 		t.Fatalf("advanced pending/status/shift=%v/%02x/%d", memory.ikbdACIATXPending,
 			memory.ikbdACIAStatus, memory.ikbdACIATXShiftTicks)
 	}
-	if err := memory.WriteByte(IKBDACIAData, 1, 5); err != nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 1, 5); err != nil {
 		t.Fatal(err)
 	}
 	for tick := 9; tick > 0; tick-- {
@@ -2732,16 +2732,16 @@ func TestIKBDACIAFirstTransmitData(t *testing.T) {
 	if memory.ikbdACIARDR != 0xf1 || memory.ikbdACIAStatus != 0x83 {
 		t.Fatalf("RDR/status=%02x/%02x", memory.ikbdACIARDR, memory.ikbdACIAStatus)
 	}
-	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||
+	if got, err := memory.ReadByteFC(IKBDACIAData, 5); err != nil || got != 0xf1 ||
 		memory.ikbdACIAStatus != 2 || memory.ikbdStaleRDRReads != 1 || memory.mfpGPIPIn&0x10 == 0 {
 		t.Fatalf("RDR read=%02x status=%02x err=%v", got, memory.ikbdACIAStatus, err)
 	}
-	if got, err := memory.ReadByte(IKBDACIAData, 5); err != nil || got != 0xf1 ||
+	if got, err := memory.ReadByteFC(IKBDACIAData, 5); err != nil || got != 0xf1 ||
 		memory.ikbdACIAStatus != 2 || memory.ikbdStaleRDRReads != 0 {
 		t.Fatalf("stale RDR read=%02x status/allowance=%02x/%d err=%v", got,
 			memory.ikbdACIAStatus, memory.ikbdStaleRDRReads, err)
 	}
-	if _, err := memory.ReadByte(IKBDACIAData, 5); err == nil {
+	if _, err := memory.ReadByteFC(IKBDACIAData, 5); err == nil {
 		t.Fatal("exhausted stale RDR read unexpectedly accepted")
 	}
 }
@@ -2761,7 +2761,7 @@ func TestIKBDACIAClockRequestTransmit(t *testing.T) {
 	memory.psgDriveStage = 9
 	memory.acsiStage = 5
 
-	if err := memory.WriteByte(IKBDACIAData, 0x1b, 5); err == nil ||
+	if err := memory.WriteByteFC(IKBDACIAData, 0x1b, 5); err == nil ||
 		memory.ikbdACIATDR != 1 || memory.ikbdACIAStatus != 2 || memory.ikbdACIATXPending {
 		t.Fatal("wrong clock request unexpectedly accepted or mutated ACIA")
 	}
@@ -2799,7 +2799,7 @@ func TestIKBDACIAClockRequestTransmit(t *testing.T) {
 	if !memory.ikbdClockRequestDone || !memory.ikbdClockRequestHandled {
 		t.Fatal("clock request receipt changed after completion")
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x1c, 5); err == nil {
 		t.Fatal("duplicate clock request unexpectedly accepted")
 	}
 	if err := memory.M68KReset(); err != nil {
@@ -2847,7 +2847,7 @@ func TestIKBDACIAClockResponseUsesMFPChannelSix(t *testing.T) {
 				index, got, wait, memory.ikbdACIAStatus, memory.mfpGPIPIn,
 				memory.ikbdStaleRDRReads, err)
 		}
-		if err := memory.WriteByte(MFPISRB, 0xbf, 5); err != nil || memory.mfpISRB&0x40 != 0 {
+		if err := memory.WriteByteFC(MFPISRB, 0xbf, 5); err != nil || memory.mfpISRB&0x40 != 0 {
 			t.Fatalf("byte %d end-of-interrupt ISRB=%02x err=%v", index, memory.mfpISRB, err)
 		}
 	}
@@ -2870,7 +2870,7 @@ func TestIKBDACIASetClockBuffersSevenFrames(t *testing.T) {
 	memory.ikbdClockResponseComplete = true
 	memory.ikbdClockRequestHandled = true
 	clock := uint64(1000)
-	if err := memory.WriteByte(IKBDACIAData, 0x1a, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x1a, 5); err == nil {
 		t.Fatal("wrong set-clock command unexpectedly accepted")
 	}
 	for index, value := range ikbdSetClockPacket {
@@ -2910,7 +2910,7 @@ func TestIKBDACIASetClockBuffersSevenFrames(t *testing.T) {
 			memory.ikbdSetClockWrites, memory.ikbdSetClockCompletions,
 			memory.ikbdSetClockCompletionClocks)
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0, 5); err == nil {
 		t.Fatal("eighth set-clock byte unexpectedly accepted")
 	}
 	memory.ColdReset()
@@ -2964,7 +2964,7 @@ func TestIKBDACIAReadbackRequestBuffersAcrossPackets(t *testing.T) {
 			memory.ikbdClockReadbackRequestDone, memory.ikbdClockReadbackRequestHandled,
 			memory.ikbdACIATXShiftTicks)
 	}
-	if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err == nil {
+	if err := memory.WriteByteFC(IKBDACIAData, 0x1c, 5); err == nil {
 		t.Fatal("duplicate readback request unexpectedly accepted")
 	}
 }
@@ -3027,15 +3027,15 @@ func TestIKBDACIARecurringClockPollsResetPerCycle(t *testing.T) {
 	memory.flopVBLMediaComplete = true
 
 	for cycle := uint32(1); cycle <= 2; cycle++ {
-		if err := memory.WriteByte(IKBDACIAData, 0x1b, 5); err == nil {
+		if err := memory.WriteByteFC(IKBDACIAData, 0x1b, 5); err == nil {
 			t.Fatalf("cycle %d wrong command unexpectedly accepted", cycle)
 		}
-		if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err != nil ||
+		if err := memory.WriteByteFC(IKBDACIAData, 0x1c, 5); err != nil ||
 			!memory.ikbdClockPollRequestWritten || !memory.ikbdACIATXPending {
 			t.Fatalf("cycle %d request written/pending=%v/%v err=%v", cycle,
 				memory.ikbdClockPollRequestWritten, memory.ikbdACIATXPending, err)
 		}
-		if err := memory.WriteByte(IKBDACIAData, 0x1c, 5); err == nil {
+		if err := memory.WriteByteFC(IKBDACIAData, 0x1c, 5); err == nil {
 			t.Fatalf("cycle %d overlapping request unexpectedly accepted", cycle)
 		}
 		memory.advanceIKBDACIAClock(1024)
@@ -3103,7 +3103,7 @@ func TestMFPTimerDataStoppedLoad(t *testing.T) {
 					m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 					t.Fatalf("timed %s write %02x wait=%d err=%v", test.name, value, wait, err)
 				}
-				if got, err := memory.ReadByte(test.address, 5); err != nil || got != value ||
+				if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != value ||
 					test.data(memory) != value || test.main(memory) != value {
 					t.Fatalf("%s load got=%02x/%02x/%02x err=%v want %02x",
 						test.name, got, test.data(memory), test.main(memory), err, value)
@@ -3111,19 +3111,19 @@ func TestMFPTimerDataStoppedLoad(t *testing.T) {
 			}
 			test.activate(memory)
 			beforeData, beforeMain := test.data(memory), test.main(memory)
-			if err := memory.WriteByte(test.address, 0x5a, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 0x5a, 5); err == nil {
 				t.Fatalf("active %s write unexpectedly succeeded", test.name)
 			}
-			if _, err := memory.ReadByte(test.address, 5); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 5); err == nil {
 				t.Fatalf("active %s read unexpectedly succeeded", test.name)
 			}
 			if test.data(memory) != beforeData || test.main(memory) != beforeMain {
 				t.Fatalf("failed active %s access changed data/main", test.name)
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -3132,7 +3132,7 @@ func TestMFPTimerDataStoppedLoad(t *testing.T) {
 			if err := memory.M68KReset(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 ||
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 ||
 				test.data(memory) != 0 || test.main(memory) != 0 {
 				t.Fatalf("%s after reset=%02x/%02x/%02x err=%v",
 					test.name, got, test.data(memory), test.main(memory), err)
@@ -3141,7 +3141,7 @@ func TestMFPTimerDataStoppedLoad(t *testing.T) {
 	}
 	if memory, err := NewMemory(RAM1M, testROM()); err != nil {
 		t.Fatal(err)
-	} else if _, err := memory.ReadByte(MFPSCR, 5); err != nil {
+	} else if _, err := memory.ReadByteFC(MFPSCR, 5); err != nil {
 		t.Fatalf("neighboring SCR reset read: %v", err)
 	}
 }
@@ -3165,10 +3165,10 @@ func TestMFPUSARTResetZeroWrites(t *testing.T) {
 				t.Fatal(err)
 			}
 			if test.address == MFPTSR {
-				if _, err := memory.ReadByte(test.address, 5); err == nil {
+				if _, err := memory.ReadByteFC(test.address, 5); err == nil {
 					t.Fatal("hardware-reset TSR unexpectedly treated as known")
 				}
-			} else if got, err := memory.ReadByte(test.address, 5); err != nil || got != 0 {
+			} else if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != 0 {
 				t.Fatalf("cold %s=%02x/%v want 00", test.name, got, err)
 			}
 			if wait, err := memory.WriteByteAt(test.address|0xff000000, 0,
@@ -3179,24 +3179,24 @@ func TestMFPUSARTResetZeroWrites(t *testing.T) {
 			if test.address == MFPTSR {
 				want = 0x80
 			}
-			if got, err := memory.ReadByte(test.address, 5); err != nil || got != want {
+			if got, err := memory.ReadByteFC(test.address, 5); err != nil || got != want {
 				t.Fatalf("initialized %s=%02x/%v want %02x", test.name, got, err, want)
 			}
 			test.set(memory, 0x5a)
-			if err := memory.WriteByte(test.address, 0, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 5); err == nil {
 				t.Fatalf("non-reset %s state unexpectedly accepted", test.name)
 			}
 			if test.field(memory) != 0x5a {
 				t.Fatalf("failed %s write changed state", test.name)
 			}
 			test.set(memory, 0)
-			if err := memory.WriteByte(test.address, 1, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 1, 5); err == nil {
 				t.Fatalf("nonzero %s write unexpectedly accepted", test.name)
 			}
-			if _, err := memory.ReadByte(test.address, 1); err == nil {
+			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
 				t.Fatalf("user %s read unexpectedly succeeded", test.name)
 			}
-			if err := memory.WriteByte(test.address, 0, 1); err == nil {
+			if err := memory.WriteByteFC(test.address, 0, 1); err == nil {
 				t.Fatalf("user %s write unexpectedly succeeded", test.name)
 			}
 			if _, err := memory.ReadWord(test.address, 5); err == nil {
@@ -3208,7 +3208,7 @@ func TestMFPUSARTResetZeroWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := memory.ReadByte(MFPUDR, 5); err == nil {
+	if _, err := memory.ReadByteFC(MFPUDR, 5); err == nil {
 		t.Fatal("UDR unexpectedly mapped")
 	}
 	memory.mfpSCR, memory.mfpUCR, memory.mfpRSR = 1, 2, 3
@@ -3217,11 +3217,11 @@ func TestMFPUSARTResetZeroWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{MFPSCR, MFPUCR, MFPRSR} {
-		if got, err := memory.ReadByte(address, 5); err != nil || got != 0 {
+		if got, err := memory.ReadByteFC(address, 5); err != nil || got != 0 {
 			t.Fatalf("reset USART register %06x=%02x/%v want 00", address, got, err)
 		}
 	}
-	if _, err := memory.ReadByte(MFPTSR, 5); err == nil {
+	if _, err := memory.ReadByteFC(MFPTSR, 5); err == nil {
 		t.Fatal("hardware-reset TSR unexpectedly remained known")
 	}
 }
@@ -3231,13 +3231,13 @@ func TestMFPAERResetStateZeroWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MFPAER, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MFPAER, 5); err != nil || got != 0 {
 		t.Fatalf("cold AER=%02x/%v", got, err)
 	}
 	if wait, err := memory.WriteByteAt(0xfffffa03, 0, m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 		t.Fatalf("timed AER zero write wait=%d err=%v", wait, err)
 	}
-	if err := memory.WriteByte(MFPAER, 1, 5); err == nil {
+	if err := memory.WriteByteFC(MFPAER, 1, 5); err == nil {
 		t.Fatal("nonzero AER write unexpectedly accepted")
 	} else {
 		var fault *BusFault
@@ -3245,10 +3245,10 @@ func TestMFPAERResetStateZeroWrite(t *testing.T) {
 			t.Fatalf("nonzero AER fault=%#v/%v", fault, err)
 		}
 	}
-	if _, err := memory.ReadByte(MFPAER, 1); err == nil {
+	if _, err := memory.ReadByteFC(MFPAER, 1); err == nil {
 		t.Fatal("user AER read unexpectedly succeeded")
 	}
-	if err := memory.WriteByte(MFPAER, 0, 1); err == nil {
+	if err := memory.WriteByteFC(MFPAER, 0, 1); err == nil {
 		t.Fatal("user AER write unexpectedly succeeded")
 	}
 	if _, err := memory.ReadWord(MFPAER, 5); err == nil {
@@ -3258,7 +3258,7 @@ func TestMFPAERResetStateZeroWrite(t *testing.T) {
 	if err := memory.M68KReset(); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := memory.ReadByte(MFPAER, 5); err != nil || got != 0 {
+	if got, err := memory.ReadByteFC(MFPAER, 5); err != nil || got != 0 {
 		t.Fatalf("AER after M68K reset=%02x/%v", got, err)
 	}
 }
@@ -3280,9 +3280,9 @@ func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
 		{CartridgeEnd, 5},
 		{CartridgeEnd, 6},
 	} {
-		got, readErr := memory.ReadByte(test.address, test.fc)
+		got, readErr := memory.ReadByteFC(test.address, test.fc)
 		if readErr != nil || got != 0xff {
-			t.Fatalf("ReadByte(%06x,fc=%d)=%02x/%v", test.address, test.fc, got, readErr)
+			t.Fatalf("ReadByteFC(%06x,fc=%d)=%02x/%v", test.address, test.fc, got, readErr)
 		}
 	}
 	for _, address := range []uint32{CartridgeBase, CartridgeEnd - 1} {
@@ -3291,7 +3291,7 @@ func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
 			t.Fatalf("ReadWord(%06x)=%04x/%v", address, got, readErr)
 		}
 	}
-	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+	if err := memory.WriteByteFC(MMUConfig, 0x05, 5); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := memory.ReadWord(CartridgeBase, 5); err != nil || got != 0xffff {
@@ -3308,7 +3308,7 @@ func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
 		if write.word {
 			writeErr = memory.WriteWord(write.address, 0x1234, 5)
 		} else {
-			writeErr = memory.WriteByte(write.address, 0x12, 5)
+			writeErr = memory.WriteByteFC(write.address, 0x12, 5)
 		}
 		var fault *BusFault
 		if !errors.As(writeErr, &fault) || fault.Reason != FaultReadOnly ||
@@ -3324,7 +3324,7 @@ func TestEmptyCartridgeWindowReadsFFAndRejectsWrites(t *testing.T) {
 			t.Fatalf("odd cartridge-end fault=%#v/%v", fault, err)
 		}
 	}
-	if _, err := memory.ReadByte(CartridgeBase-1, 5); err == nil {
+	if _, err := memory.ReadByteFC(CartridgeBase-1, 5); err == nil {
 		t.Fatal("pre-cartridge gap unexpectedly mapped")
 	}
 }
@@ -3335,15 +3335,15 @@ func TestSTRicohVoidDMAByteRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{STVoidDMAByte, 0xffff860f} {
-		got, readErr := memory.ReadByte(address, 5)
+		got, readErr := memory.ReadByteFC(address, 5)
 		if readErr != nil || got != 0xff {
-			t.Fatalf("ReadByte(%08x)=%02x/%v want ff", address, got, readErr)
+			t.Fatalf("ReadByteFC(%08x)=%02x/%v want ff", address, got, readErr)
 		}
 		for _, value := range []byte{0, 0x12, 0xff} {
-			if err := memory.WriteByte(address, value, 5); err != nil {
-				t.Fatalf("WriteByte(%08x,%02x): %v", address, value, err)
+			if err := memory.WriteByteFC(address, value, 5); err != nil {
+				t.Fatalf("WriteByteFC(%08x,%02x): %v", address, value, err)
 			}
-			if got, readErr := memory.ReadByte(address, 5); readErr != nil || got != 0xff {
+			if got, readErr := memory.ReadByteFC(address, 5); readErr != nil || got != 0xff {
 				t.Fatalf("void state after write %08x=%02x/%v want ff", address, got, readErr)
 			}
 		}
@@ -3370,9 +3370,9 @@ func TestSTRicohVoidDMAByteRead(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var accessErr error
 			if test.write {
-				accessErr = memory.WriteByte(test.address, 0x12, test.fc)
+				accessErr = memory.WriteByteFC(test.address, 0x12, test.fc)
 			} else {
-				_, accessErr = memory.ReadByte(test.address, test.fc)
+				_, accessErr = memory.ReadByteFC(test.address, test.fc)
 			}
 			var fault *BusFault
 			if !errors.As(accessErr, &fault) || fault.Reason != test.reason ||
@@ -3390,16 +3390,16 @@ func TestSTWithoutMegaRTCUsesVoidByteRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, address := range []uint32{STVoidRTCBase, STVoidRTCBase + 0x0f, STVoidRTCEnd, 0xfffffc21} {
-		got, readErr := memory.ReadByte(address, 5)
+		got, readErr := memory.ReadByteFC(address, 5)
 		if readErr != nil || got != 0xff {
-			t.Fatalf("ReadByte(%08x)=%02x/%v want ff", address, got, readErr)
+			t.Fatalf("ReadByteFC(%08x)=%02x/%v want ff", address, got, readErr)
 		}
-		if writeErr := memory.WriteByte(address, 0x05, 5); writeErr != nil {
-			t.Fatalf("WriteByte(%08x): %v", address, writeErr)
+		if writeErr := memory.WriteByteFC(address, 0x05, 5); writeErr != nil {
+			t.Fatalf("WriteByteFC(%08x): %v", address, writeErr)
 		}
-		got, readErr = memory.ReadByte(address, 5)
+		got, readErr = memory.ReadByteFC(address, 5)
 		if readErr != nil || got != 0xff {
-			t.Fatalf("ReadByte(%08x) after discarded write=%02x/%v want ff", address, got, readErr)
+			t.Fatalf("ReadByteFC(%08x) after discarded write=%02x/%v want ff", address, got, readErr)
 		}
 	}
 	for _, test := range []struct {
@@ -3417,9 +3417,9 @@ func TestSTWithoutMegaRTCUsesVoidByteRange(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var accessErr error
 			if test.write {
-				accessErr = memory.WriteByte(test.address, 0x12, test.fc)
+				accessErr = memory.WriteByteFC(test.address, 0x12, test.fc)
 			} else {
-				_, accessErr = memory.ReadByte(test.address, test.fc)
+				_, accessErr = memory.ReadByteFC(test.address, test.fc)
 			}
 			var fault *BusFault
 			if !errors.As(accessErr, &fault) || fault.Reason != test.reason ||
@@ -3439,10 +3439,10 @@ func TestMMUAbsentSecondPhysicalBankFaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(MMUConfig, 0x05, 5); err != nil {
+	if err := memory.WriteByteFC(MMUConfig, 0x05, 5); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := memory.ReadByte(0x080000, 5); err == nil {
+	if _, err := memory.ReadByteFC(0x080000, 5); err == nil {
 		t.Fatal("absent physical bank1 unexpectedly readable")
 	}
 }
@@ -3452,10 +3452,10 @@ func TestMemoryProtectionReadOnlyAndUnmappedFaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(0x800, 0x5a, 1); err != nil {
+	if err := memory.WriteByteFC(0x800, 0x5a, 1); err != nil {
 		t.Fatalf("user RAM above protected range: %v", err)
 	}
-	if got, err := memory.ReadByte(0x800, 2); err != nil || got != 0x5a {
+	if got, err := memory.ReadByteFC(0x800, 2); err != nil || got != 0x5a {
 		t.Fatalf("user program read above protected range: got=%02x err=%v", got, err)
 	}
 	tests := []struct {
@@ -3478,9 +3478,9 @@ func TestMemoryProtectionReadOnlyAndUnmappedFaults(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var accessErr error
 			if test.write {
-				accessErr = memory.WriteByte(test.address, 1, test.fc)
+				accessErr = memory.WriteByteFC(test.address, 1, test.fc)
 			} else {
-				_, accessErr = memory.ReadByte(test.address, test.fc)
+				_, accessErr = memory.ReadByteFC(test.address, test.fc)
 			}
 			var fault *BusFault
 			if !errors.As(accessErr, &fault) || fault.Reason != test.reason ||
@@ -3497,7 +3497,7 @@ func TestMemoryBigEndianWordAndAtomicFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := memory.WriteByte(MMUConfig, 0x04, 5); err != nil {
+	if err := memory.WriteByteFC(MMUConfig, 0x04, 5); err != nil {
 		t.Fatal(err)
 	}
 	if err := memory.WriteWord(0x800, 0x1234, 5); err != nil {
@@ -3514,7 +3514,7 @@ func TestMemoryBigEndianWordAndAtomicFailure(t *testing.T) {
 			t.Fatalf("word fault at 0x%x: %#v %v", address, fault, err)
 		}
 	}
-	last, err := memory.ReadByte(RAM512K-1, 5)
+	last, err := memory.ReadByteFC(RAM512K-1, 5)
 	if err != nil || last != 0 {
 		t.Fatalf("cross-boundary word partially wrote RAM: %02x %v", last, err)
 	}

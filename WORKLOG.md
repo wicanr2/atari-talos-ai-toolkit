@@ -668,3 +668,7 @@
   即關閉的狀態／mode測試，完整`go test ./...`與CLI建置通過。Go 1.24的`go vet ./...`
   會在既有`ReadByte`／`WriteByte`方法觸發標準介面簽章警告，屬同步後基線問題；正式
   入口與前三輪舊stage尚未切換，因此規格維持READY，不提前宣稱已完成統一。
+- 修正同步後的Go 1.24 `go vet`基線：內部bus API的`ReadByte`／`WriteByte`因方法名
+  與標準`io.ByteReader`／`io.ByteWriter`相同但簽章不同而觸發`stdmethods`；純重命名為
+  `ReadByteFC`／`WriteByteFC`，名稱也明示額外的function code參數。全程未改bus值、
+  clock、fault或交易次序；完整`go test ./...`、`go vet ./...`與CLI建置均通過。
