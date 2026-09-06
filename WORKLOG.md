@@ -701,6 +701,13 @@
   YM2149 R14 select、讀舊port `$23`、寫drive 0 port `$25`；後續輪既有`$25→$25`
   同值重選仍走同一分支。測試由track selector一路延伸至sector selector，完整測試、
   vet與CLI建置通過；正常入口尚未切換，規格維持READY。
+- 規格133正式切換前三輪正常入口至共用phase：第一輪由`$0082`啟動track前綴，第二、
+  第三輪由PSG selector啟動drive前綴；所有轉移同步遞增舊stage作暫時回歸觀測。
+  切換過程以垂直測試定位並排除四個舊分支攔截／重複作用：PSG read、DMA address、
+  seek scheduler及status read；另確認第一輪sector selector的合法前態是`$0082`，後續
+  輪為`$0080`。active phase的DMA錯序現一律失敗即關閉。固定ROM前三輪、attempt 1–5
+  與第五輪精確gate完全不變；完整68000語料、全測試、vet與CLI建置通過。舊分支與stage
+  鏡像尚待刪除，規格維持READY。
 
 - 拆掉媒體確認的遷移層（規格 133 升 CONFORMED）。`floppyReadStage` 那台 0–68 的固定
   stage 機與 `floppyMediaLegacy[3]` 的約 50 個逐輪欄位整組移除，三輪與之後每一輪都走
