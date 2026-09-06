@@ -674,3 +674,7 @@
   clock、fault或交易次序；完整`go test ./...`、`go vet ./...`與CLI建置均通過。
   推送後再以完整68000外部語料回歸，並用SHA-256 `ad64942f…135`的EmuTOS 1.3 UK
   固定ROM重跑`internal/st`正常路徑，兩者均通過；規格133既有錨點未受API重命名影響。
+- 規格133再收斂一層：共用媒體交易一旦由phase啟動，後續PSG read／write、DMA address、
+  FDC command、GPIP poll、seek scheduler、status read-clear與clock receipt全部只依賴
+  `floppyMediaPhase`，不再檢查`floppyReadStage == 68`。正常入口尚未切換，故舊前三輪
+  行為不變；完整測試、vet與CLI建置通過，規格仍維持READY。

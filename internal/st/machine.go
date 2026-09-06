@@ -163,7 +163,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 		// instruction epoch until that CPU path exposes its exact bus phase.
 		m.Memory.floppyMediaLegacy[2].DriveWriteClock = stepEpoch
 	}
-	if m.Memory != nil && floppyReadStage == 68 && floppyMediaPhase == floppyMediaDriveWrite &&
+	if m.Memory != nil && floppyMediaPhase == floppyMediaDriveWrite &&
 		m.Memory.floppyMediaPhase == floppyMediaSectorSelector &&
 		m.Memory.floppyMediaCurrent.DriveWriteClock == 0 {
 		m.Memory.floppyMediaCurrent.DriveWriteClock = stepEpoch

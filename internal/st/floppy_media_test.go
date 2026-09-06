@@ -36,7 +36,6 @@ func TestFloppyMediaFirstTransactionTrackPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memory.floppyReadStage = 68
 	memory.dmaMode = 0x0080
 	memory.beginFloppyMediaAtTrack()
 
