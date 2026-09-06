@@ -349,15 +349,18 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 		m.psgRegisterSelect == 14 && m.psgRegisters[14] == m.flopVBLTargetPort():
 		m.flopVBLMediaStage = 7
 		return m.psgRegisters[14], nil
-	case address == PSGRegisterSelect && m.floppyReadStage == 3 && m.psgDriveStage == 9 &&
+	case address == PSGRegisterSelect && m.floppyReadStage == 3 && m.floppyMediaPhase == floppyMediaIdle &&
+		m.psgDriveStage == 9 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[14] == 0x23:
 		m.floppyReadStage = 4
 		return m.psgRegisters[14], nil
-	case address == PSGRegisterSelect && m.floppyReadStage == 25 && m.psgDriveStage == 9 &&
+	case address == PSGRegisterSelect && m.floppyReadStage == 25 && m.floppyMediaPhase == floppyMediaIdle &&
+		m.psgDriveStage == 9 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25:
 		m.floppyReadStage = 26
 		return m.psgRegisters[14], nil
-	case address == PSGRegisterSelect && m.floppyReadStage == 47 && m.psgDriveStage == 9 &&
+	case address == PSGRegisterSelect && m.floppyReadStage == 47 && m.floppyMediaPhase == floppyMediaIdle &&
+		m.psgDriveStage == 9 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 && m.psgRegisters[14] == 0x25:
 		m.floppyReadStage = 48
 		return m.psgRegisters[14], nil
@@ -365,7 +368,7 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 		m.psgDriveStage == 9 &&
 		m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
 		(m.psgRegisters[14] == 0x23 || m.psgRegisters[14] == 0x25):
-		m.floppyMediaPhase = floppyMediaDriveWrite
+		m.setFloppyMediaPhase(floppyMediaDriveWrite)
 		return m.psgRegisters[14], nil
 	case m.isModeledPSGByte(address):
 		return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
@@ -433,22 +436,28 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 		if m.fdcInitStage == 12 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.fdcSeekIRQObserved = true
 		}
-		if m.floppyReadStage == 21 && m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
+		if m.floppyReadStage == 21 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
 			m.floppyMediaCurrent.InactivePolls++
 		}
-		if m.floppyReadStage == 22 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
+		if m.floppyReadStage == 22 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.floppyMediaCurrent.IRQObserved = true
 		}
-		if m.floppyReadStage == 43 && m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
+		if m.floppyReadStage == 43 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
 			m.floppyMediaCurrent.InactivePolls++
 		}
-		if m.floppyReadStage == 44 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
+		if m.floppyReadStage == 44 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.floppyMediaCurrent.IRQObserved = true
 		}
-		if m.floppyReadStage == 65 && m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
+		if m.floppyReadStage == 65 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.fdcSeekPending && m.mfpGPIP&0x20 != 0 {
 			m.floppyMediaCurrent.InactivePolls++
 		}
-		if m.floppyReadStage == 66 && m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
+		if m.floppyReadStage == 66 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.fdcIRQ && m.mfpGPIP&0x20 == 0 {
 			m.floppyMediaCurrent.IRQObserved = true
 		}
 		if m.floppyMediaPhase == floppyMediaSeekBusy &&
@@ -584,7 +593,8 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			m.flopVBLMediaStage = 5
 			return uint16(m.fdcStatus), nil
 		}
-		if m.floppyReadStage == 23 && m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
+		if m.floppyReadStage == 23 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
 			m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 {
 			m.fdcStatus = 0xe4
 			value := uint16(m.fdcStatus)
@@ -593,7 +603,8 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			m.floppyReadStage = 24
 			return value, nil
 		}
-		if m.floppyReadStage == 45 && m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
+		if m.floppyReadStage == 45 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
 			m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 {
 			m.fdcStatus = 0xe4
 			value := uint16(m.fdcStatus)
@@ -602,7 +613,8 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			m.floppyReadStage = 46
 			return value, nil
 		}
-		if m.floppyReadStage == 67 && m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
+		if m.floppyReadStage == 67 && m.floppyMediaPhase == floppyMediaIdle &&
+			m.dmaMode == 0x0080 && m.fdcStatusTypeI &&
 			m.fdcIRQ && m.mfpGPIPIn&0x20 == 0 {
 			m.fdcStatus = 0xe4
 			value := uint16(m.fdcStatus)
@@ -619,7 +631,7 @@ func (m *Memory) ReadWord(address uint32, functionCode uint8) (uint16, error) {
 			m.mfpGPIPIn |= 0x20
 			m.floppyMediaReceipts.append(m.floppyMediaCurrent)
 			m.floppyMediaCurrent = floppyMediaReceipt{}
-			m.floppyMediaPhase = floppyMediaIdle
+			m.setFloppyMediaPhase(floppyMediaIdle)
 			return value, nil
 		}
 		if (m.fdcInitStage != 6 && m.fdcInitStage != 13) || m.dmaMode != 0x0080 || !m.fdcStatusTypeI ||
@@ -682,15 +694,15 @@ func (m *Memory) ReadWordAt(address uint32, access m68k.BusAccess) (uint16, uint
 		if mediaReadStage == 4 && m.flopVBLMediaStage == 5 {
 			m.flopVBLStatusReadClock = access.Clock
 		}
-		if floppyReadStage == 23 && m.floppyReadStage == 24 {
+		if floppyReadStage == 23 && floppyMediaPhase == floppyMediaIdle && m.floppyReadStage == 24 {
 			m.floppyMediaCurrent.StatusReadClock = access.Clock
 			m.floppyMediaReceipts.append(m.floppyMediaCurrent)
 		}
-		if floppyReadStage == 45 && m.floppyReadStage == 46 {
+		if floppyReadStage == 45 && floppyMediaPhase == floppyMediaIdle && m.floppyReadStage == 46 {
 			m.floppyMediaCurrent.StatusReadClock = access.Clock
 			m.floppyMediaReceipts.append(m.floppyMediaCurrent)
 		}
-		if floppyReadStage == 67 && m.floppyReadStage == 68 {
+		if floppyReadStage == 67 && floppyMediaPhase == floppyMediaIdle && m.floppyReadStage == 68 {
 			m.floppyMediaCurrent.StatusReadClock = access.Clock
 			m.floppyMediaReceipts.append(m.floppyMediaCurrent)
 		}
@@ -737,22 +749,23 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if isDMAAddressByte(address) {
-		validRetryAddressWrite := m.floppyReadStage == 29 && address == STDMAAddressLow && value == 0x04 ||
-			m.floppyReadStage == 30 && address == STDMAAddressMiddle && value == 0x10 ||
-			m.floppyReadStage == 31 && address == STDMAAddressHigh && value == 0
-		validRetry3AddressWrite := m.floppyReadStage == 51 && address == STDMAAddressLow && value == 0x04 ||
-			m.floppyReadStage == 52 && address == STDMAAddressMiddle && value == 0x10 ||
-			m.floppyReadStage == 53 && address == STDMAAddressHigh && value == 0
+		validRetryAddressWrite := m.floppyMediaPhase == floppyMediaIdle &&
+			(m.floppyReadStage == 29 && address == STDMAAddressLow && value == 0x04 ||
+				m.floppyReadStage == 30 && address == STDMAAddressMiddle && value == 0x10 ||
+				m.floppyReadStage == 31 && address == STDMAAddressHigh && value == 0)
+		validRetry3AddressWrite := m.floppyMediaPhase == floppyMediaIdle &&
+			(m.floppyReadStage == 51 && address == STDMAAddressLow && value == 0x04 ||
+				m.floppyReadStage == 52 && address == STDMAAddressMiddle && value == 0x10 ||
+				m.floppyReadStage == 53 && address == STDMAAddressHigh && value == 0)
 		validRecurringAddressWrite :=
 			m.floppyMediaPhase == floppyMediaAddressLow && address == STDMAAddressLow && value == 0x04 ||
 				m.floppyMediaPhase == floppyMediaAddressMiddle && address == STDMAAddressMiddle && value == 0x10 ||
 				m.floppyMediaPhase == floppyMediaAddressHigh && address == STDMAAddressHigh && value == 0
-		if m.floppyReadStage >= 27 && m.floppyReadStage <= 59 &&
+		if m.floppyMediaPhase == floppyMediaIdle && m.floppyReadStage >= 27 && m.floppyReadStage <= 59 &&
 			!validRetryAddressWrite && !validRetry3AddressWrite {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
-		if m.floppyMediaPhase >= floppyMediaAddressLow &&
-			m.floppyMediaPhase <= floppyMediaAddressHigh && !validRecurringAddressWrite {
+		if m.floppyMediaPhase != floppyMediaIdle && !validRecurringAddressWrite {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		candidate := m.dmaAddress
@@ -770,7 +783,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			candidate += 0x10000
 		}
 		m.dmaAddress = candidate & 0x003ffffe
-		if m.floppyReadStage >= 7 && m.floppyReadStage <= 9 {
+		if m.floppyMediaPhase == floppyMediaIdle && m.floppyReadStage >= 7 && m.floppyReadStage <= 9 {
 			switch {
 			case m.floppyReadStage == 7 && address == STDMAAddressLow && value == 0x04:
 				m.floppyReadStage = 8
@@ -795,11 +808,11 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			m.floppyMediaCurrent.DMAAddressStage++
 			switch m.floppyMediaPhase {
 			case floppyMediaAddressLow:
-				m.floppyMediaPhase = floppyMediaAddressMiddle
+				m.setFloppyMediaPhase(floppyMediaAddressMiddle)
 			case floppyMediaAddressMiddle:
-				m.floppyMediaPhase = floppyMediaAddressHigh
+				m.setFloppyMediaPhase(floppyMediaAddressHigh)
 			case floppyMediaAddressHigh:
-				m.floppyMediaPhase = floppyMediaDMAResetRead
+				m.setFloppyMediaPhase(floppyMediaDMAResetRead)
 			}
 		}
 		if m.fdcProbeDrive == 1 && m.fdcInitStage == 14 {
@@ -815,17 +828,23 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == PSGRegisterSelect {
+		if m.floppyMediaPhase == floppyMediaIdle &&
+			(m.floppyReadStage == 24 || m.floppyReadStage == 46) &&
+			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
+			m.psgRegisters[14] == 0x25 && value == 14 {
+			m.beginFloppyMediaAtDrive()
+		}
 		if m.floppyMediaPhase == floppyMediaDriveSelector && m.psgDriveStage == 9 &&
 			m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
 			(m.psgRegisters[14] == 0x23 || m.psgRegisters[14] == 0x25) && value == 14 {
-			m.floppyMediaPhase = floppyMediaDriveRead
+			m.setFloppyMediaPhase(floppyMediaDriveRead)
 			return nil
 		}
 		if m.floppyReadStage == 68 && m.floppyMediaPhase == floppyMediaIdle &&
 			m.psgDriveStage == 9 && m.psgRegisterSelect == 14 && m.psgRegisters[7] == 0xc0 &&
 			m.psgRegisters[14] == 0x25 && value == 14 {
 			m.floppyMediaCurrent = floppyMediaReceipt{Drive: 0, Track: 0}
-			m.floppyMediaPhase = floppyMediaDriveRead
+			m.setFloppyMediaPhase(floppyMediaDriveRead)
 			return nil
 		}
 		if m.floppyReadStage == 2 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
@@ -887,7 +906,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			(m.psgRegisters[14] == 0x23 || m.psgRegisters[14] == 0x25) && value == 0x25 {
 			m.psgRegisters[14] = value
 			m.floppyMediaCurrent.DrivePort = value
-			m.floppyMediaPhase = floppyMediaSectorSelector
+			m.setFloppyMediaPhase(floppyMediaSectorSelector)
 			return nil
 		}
 		if m.floppyReadStage == 4 && m.psgDriveStage == 9 && m.psgRegisterSelect == 14 &&
@@ -1398,63 +1417,69 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
 			return fault
 		}
+		if m.floppyMediaPhase == floppyMediaIdle && m.floppyReadStage == 0 &&
+			address == STDMAControl && m.flopVBLMediaStage == 8 && m.flopVBLMediaChecks != 0 &&
+			m.fdcInitStage == 14 && m.acsiStage == 5 && m.psgDriveStage == 9 &&
+			m.dmaMode == 0x0080 && value == 0x0082 {
+			m.beginFloppyMediaAtTrack()
+		}
 		if m.floppyMediaPhase != floppyMediaIdle {
 			switch {
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaTrackSelector &&
 				m.dmaMode == 0x0080 && value == 0x0082:
 				m.dmaMode = value
-				m.floppyMediaPhase = floppyMediaTrackData
+				m.setFloppyMediaPhase(floppyMediaTrackData)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaTrackData &&
 				m.dmaMode == 0x0082 && value == 0:
 				m.floppyMediaCurrent.Track = 0
-				m.floppyMediaPhase = floppyMediaDriveSelector
+				m.setFloppyMediaPhase(floppyMediaDriveSelector)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSectorSelector &&
-				m.dmaMode == 0x0080 && value == 0x0084:
+				(m.dmaMode == 0x0080 || m.dmaMode == 0x0082) && value == 0x0084:
 				m.dmaMode = value
-				m.floppyMediaPhase = floppyMediaSectorData
+				m.setFloppyMediaPhase(floppyMediaSectorData)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaSectorData &&
 				m.dmaMode == 0x0084 && value == 1:
 				m.floppyMediaCurrent.Sector = 1
-				m.floppyMediaPhase = floppyMediaAddressLow
+				m.setFloppyMediaPhase(floppyMediaAddressLow)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaDMAResetRead &&
 				m.floppyMediaCurrent.DMAAddressStage == 3 && value == 0x0190:
 				m.dmaMode = value
 				m.dmaSectorCount = 0
 				m.floppyMediaCurrent.DMAResetCount = 1
-				m.floppyMediaPhase = floppyMediaDMAResetWrite
+				m.setFloppyMediaPhase(floppyMediaDMAResetWrite)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaDMAResetWrite &&
 				m.dmaMode == 0x0190 && value == 0x0090:
 				m.dmaMode = value
 				m.dmaSectorCount = 0
 				m.floppyMediaCurrent.DMAResetCount = 2
-				m.floppyMediaPhase = floppyMediaCount
+				m.setFloppyMediaPhase(floppyMediaCount)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaCount &&
 				m.dmaMode == 0x0090 && value == 1:
 				m.dmaSectorCount = 1
-				m.floppyMediaPhase = floppyMediaCommandSelector
+				m.setFloppyMediaPhase(floppyMediaCommandSelector)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaCommandSelector &&
 				m.dmaMode == 0x0090 && value == 0x0080:
 				m.dmaMode = value
-				m.floppyMediaPhase = floppyMediaReadBusy
+				m.setFloppyMediaPhase(floppyMediaReadBusy)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaReadBusy &&
 				m.dmaMode == 0x0080 && value == 0x0080:
 				m.floppyMediaCurrent.ReadCommand = 0x80
 				m.fdcCommand, m.fdcStatus, m.fdcStatusTypeI, m.fdcIRQ = 0x80, 0x81, false, false
 				m.mfpGPIPIn |= 0x20
-				m.floppyMediaPhase = floppyMediaTimeoutSelector
+				m.setFloppyMediaPhase(floppyMediaTimeoutSelector)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaTimeoutSelector &&
 				m.dmaMode == 0x0080 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
 				!m.fdcStatusTypeI && !m.fdcIRQ && value == 0x0080:
-				m.floppyMediaPhase = floppyMediaForceInterrupt
+				m.setFloppyMediaPhase(floppyMediaForceInterrupt)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaForceInterrupt &&
 				m.dmaMode == 0x0080 && m.fdcCommand == 0x80 && m.fdcStatus == 0x81 &&
@@ -1462,23 +1487,23 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				m.floppyMediaCurrent.ForceInterrupt = 0xd0
 				m.fdcCommand, m.fdcStatus, m.fdcIRQ = 0xd0, 0x80, false
 				m.mfpGPIPIn |= 0x20
-				m.floppyMediaPhase = floppyMediaSeekDataSelector
+				m.setFloppyMediaPhase(floppyMediaSeekDataSelector)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSeekDataSelector &&
 				m.dmaMode == 0x0080 && value == 0x0086:
 				m.dmaMode = value
-				m.floppyMediaPhase = floppyMediaSeekData
+				m.setFloppyMediaPhase(floppyMediaSeekData)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaSeekData &&
 				m.dmaMode == 0x0086 && value == 0:
 				m.floppyMediaCurrent.SeekData = 0
 				m.fdcData = 0
-				m.floppyMediaPhase = floppyMediaSeekCommandSelector
+				m.setFloppyMediaPhase(floppyMediaSeekCommandSelector)
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSeekCommandSelector &&
 				m.dmaMode == 0x0086 && value == 0x0080:
 				m.dmaMode = value
-				m.floppyMediaPhase = floppyMediaSeekBusy
+				m.setFloppyMediaPhase(floppyMediaSeekBusy)
 				return nil
 			case address == STDiskController && m.floppyMediaPhase == floppyMediaSeekBusy &&
 				m.dmaMode == 0x0080 && value == 0x0013:
@@ -1486,11 +1511,12 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 				m.fdcCommand, m.fdcStatus, m.fdcStatusTypeI, m.fdcIRQ = 0x13, 0xe5, true, false
 				m.mfpGPIPIn |= 0x20
 				m.fdcSeekPending = true
+				m.advanceFloppyReadStageMirror()
 				return nil
 			case address == STDMAControl && m.floppyMediaPhase == floppyMediaSeekIRQ &&
 				m.dmaMode == 0x0080 && m.fdcStatusTypeI && m.fdcIRQ &&
 				m.mfpGPIPIn&0x20 == 0 && value == 0x0080:
-				m.floppyMediaPhase = floppyMediaStatusRead
+				m.setFloppyMediaPhase(floppyMediaStatusRead)
 				return nil
 			}
 		}
@@ -2234,14 +2260,14 @@ func (m *Memory) completeFDCSeek() {
 	m.fdcIRQ = true
 	m.mfpGPIPIn &^= 0x20
 	m.fdcSeekPending = false
-	if m.floppyReadStage == 21 {
+	if m.floppyReadStage == 21 && m.floppyMediaPhase == floppyMediaIdle {
 		m.floppyReadStage = 22
-	} else if m.floppyReadStage == 43 {
+	} else if m.floppyReadStage == 43 && m.floppyMediaPhase == floppyMediaIdle {
 		m.floppyReadStage = 44
-	} else if m.floppyReadStage == 65 {
+	} else if m.floppyReadStage == 65 && m.floppyMediaPhase == floppyMediaIdle {
 		m.floppyReadStage = 66
 	} else if m.floppyMediaPhase == floppyMediaSeekBusy {
-		m.floppyMediaPhase = floppyMediaSeekIRQ
+		m.setFloppyMediaPhase(floppyMediaSeekIRQ)
 	} else {
 		m.fdcInitStage = 12
 	}

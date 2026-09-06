@@ -72,6 +72,19 @@ func (m *Memory) beginFloppyMediaAtDrive() {
 	m.floppyMediaPhase = floppyMediaDriveSelector
 }
 
+func (m *Memory) setFloppyMediaPhase(next floppyMediaPhase) {
+	if m.floppyMediaPhase != floppyMediaIdle {
+		m.advanceFloppyReadStageMirror()
+	}
+	m.floppyMediaPhase = next
+}
+
+func (m *Memory) advanceFloppyReadStageMirror() {
+	if m.floppyReadStage < 68 {
+		m.floppyReadStage++
+	}
+}
+
 func (r *floppyMediaReceipts) append(receipt floppyMediaReceipt) {
 	r.Total++
 	receipt.Attempt = r.Total

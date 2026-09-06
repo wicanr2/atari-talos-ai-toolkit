@@ -516,8 +516,9 @@
   共用phase現已補齊第一輪專有的track selector／track 0前綴，且交易開始後的PSG、
   R14 `$23→$25`與後續輪的`$25→$25`drive序列；DMA、FDC、IRQ與收據時序已不再依賴
   固定stage sentinel。正常ROM的前三輪完成時也已
-  寫入同一ring，形成連續attempt 1–5；下一步將正式第一輪入口改用同一phase，再依序
-  刪除剩餘固定stage控制流程。
+  寫入同一ring，形成連續attempt 1–5。正常ROM的前三輪入口現已正式改走同一phase；
+  `floppyReadStage`只同步保留既有68個精確checkpoint，下一步刪除舊分支本體後再移除
+  這個觀測鏡像。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
