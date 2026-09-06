@@ -170,6 +170,14 @@ type Memory struct {
 	ikbdYAxisUp                     bool
 	ikbdMouseButtonAction           byte
 	ikbdMouseButtonActionSet        bool
+	ikbdMouseAccumX                 int
+	ikbdMouseAccumY                 int
+	ikbdMouseLeft                   bool
+	ikbdMouseRight                  bool
+	ikbdUplink                      [ikbdUplinkCapacity]byte
+	ikbdUplinkHead                  uint8
+	ikbdUplinkCount                 uint8
+	ikbdUplinkActive                bool
 	ikbdClockRequestDone            bool
 	ikbdClockRequestHandled         bool
 	ikbdACIARDR                     byte
@@ -504,6 +512,9 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 					m.ikbdClockResponseActive = false
 					m.ikbdClockResponseComplete = true
 				}
+			} else if m.ikbdUplinkActive {
+				// 上行封包的位元組被讀走了（規格 142）。
+				m.ikbdUplinkActive = false
 			} else {
 				m.ikbdResetResponseRead = true
 				m.ikbdStaleRDRReads = 1
@@ -1790,6 +1801,11 @@ func (m *Memory) ColdReset() {
 	m.ikbdYAxisUp = false
 	m.ikbdMouseButtonAction = 0
 	m.ikbdMouseButtonActionSet = false
+	m.ikbdMouseAccumX, m.ikbdMouseAccumY = 0, 0
+	m.ikbdMouseLeft, m.ikbdMouseRight = false, false
+	m.ikbdUplink = [ikbdUplinkCapacity]byte{}
+	m.ikbdUplinkHead, m.ikbdUplinkCount = 0, 0
+	m.ikbdUplinkActive = false
 	m.floppyMediaLocked = false
 	m.floppyMediaPhase = floppyMediaIdle
 	m.floppyMediaCurrent = floppyMediaReceipt{}

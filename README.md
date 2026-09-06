@@ -31,10 +31,12 @@ ST DMA／WD1772開機路徑已完成force-interrupt與restore首切片；restore
 讀回`$E4`並清除IRQ也已與固定Hatari trace一致。第一顆drive的data-register track 0
 設定與same-track seek亦已走完相同IRQ／status垂直鏈；YM2149 port A也已從drive 0
 切至drive 1，準備執行第二顆drive探測。
-**EmuTOS 1.3 已經開得完**：從 reset 一路走到 GEM 桌面（選單列、兩個磁碟圖示、
-垃圾桶與滑鼠游標），1.2 億條指令之內沒有再撞到未建模的存取，畫面內容以 SHA-256
-釘在測試裡。鍵盤與滑鼠輸入、掛磁碟載入程式都還沒接，因此目前**還不是可啟動遊戲的
-模擬器**；未具備的控制命令持續明確失敗，不會假裝成功。
+**EmuTOS 1.3 已經開得完，滑鼠也動得了**：從 reset 一路走到 GEM 桌面（選單列、
+兩個磁碟圖示、垃圾桶與滑鼠游標），1.2 億條指令之內沒有再撞到未建模的存取，
+畫面內容以 SHA-256 釘在測試裡；注入相對滑鼠封包之後，畫面上的游標會照位移量與
+方向移動，這一條由 EmuTOS 自己的 VDI 當 oracle 驗收。鍵盤、滑鼠按鍵的語意與
+掛磁碟載入程式都還沒接，因此目前**還不是可啟動遊戲的模擬器**；未具備的控制命令
+持續明確失敗，不會假裝成功。
 
 首版範圍固定為 Atari ST／STF：Motorola 68000、RAM／ROM 位址空間，以及遊戲需要的
 GLUE、MMU、Shifter、MFP、PSG、ACIA 與 FDC 路徑。STE、TT、Falcon、DSP 與 Videl
