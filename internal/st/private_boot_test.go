@@ -1,6 +1,7 @@
 package st
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -117,6 +118,19 @@ func TestPrivateDiskBoot(t *testing.T) {
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&actions); err != nil {
 			t.Fatal(err)
+		}
+		if tail := os.Getenv("TALOS_BOOT_ACTIONS_TAIL"); tail != "" {
+			data, err := os.ReadFile(tail)
+			if err != nil {
+				t.Fatal(err)
+			}
+			more := actions[:0:0]
+			tailDecoder := json.NewDecoder(bytes.NewReader(data))
+			tailDecoder.DisallowUnknownFields()
+			if err := tailDecoder.Decode(&more); err != nil {
+				t.Fatal(err)
+			}
+			actions = append(actions, more...)
 		}
 		if len(actions) > 200 {
 			t.Fatal("too many actions")

@@ -3,6 +3,31 @@
 日期：2026-09-08；分支：`feat/dm-raw-disk-verification-20260908`。
 基底 `9e3b8bb` 已整合 main `90d94f7`。
 
+## 招募後衣袍檢查點
+
+在既有 `dm12en-elija-actions.json` 後接 `dm12en-inventory-actions.json`，
+共 59 動作，由冷啟動正常走到 ELIJA 招募後，右鍵開啟物品欄，取下 ROBE、
+按住眼睛、放進背包第一槽、取回穿上。四個新增畫面雜湊冷啟動重跑一致。
+已目視確認眼睛顯示 ROBE／WEIGHS 0.4 KG、背包與胸甲槽圖示移轉、
+穿回後胸甲槽恢復。這些雜湊只證明 Talos 重播，不能當作 remake 像素對拍。
+
+在既有私人開機測試環境，追加設定：
+
+```sh
+TALOS_BOOT_ACTIONS=/src/docs/dm12en-elija-actions.json \
+TALOS_BOOT_ACTIONS_TAIL=/src/docs/dm12en-inventory-actions.json \
+go test ./internal/st -run TestPrivateDiskBoot -v
+```
+
+其餘 ROM、raw disk、50M 啟動及 55M ENTER 後等待沿用下文。
+眼睛按住 5M clocks；ReDMCSB `INVNTORY.C:1068`
+`F352_aszz_INVENTORY_ProcessCommand71_ClickOnEye` 先呼叫 Delay(8) 再畫物品說明。
+原始檔 SHA-256：`a202edfa0e8f35d96868b3f26ac8c525e3edbea973fd32b22f3a7a0aacb373dc`。
+這僅解釋測試等待，沒有改寫原版程式。私人圖像與日誌不加入公開 repo。
+遊戲寫盤、戰鬥及全狀態同步仍未驗收。
+remake 同路徑的槽位取放與負重抽樣一致；持物眼睛卻顯示技能且放開後不恢復，
+此差異保存在 DM 驗證紀錄，未宣稱眼睛跨引擎通過。
+
 ## 後續現況：DM12EN 原片資料
 
 Automation 合輯已透過規格 148 明示 82/2/10 幾何載入，但版本未明且 crack intro

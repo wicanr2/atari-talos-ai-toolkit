@@ -1,0 +1,14 @@
+[
+ {"dx":-115,"dy":-96,"clocks":1000000},
+ {"right":true,"clocks":160000},
+ {"clocks":8000000,"frame_sha256":"736105c058619240d3135b75b2afc8043b0b3723fd969302d086ba6597572f50"},
+ {"dx":25,"dy":74,"clocks":1000000},
+ {"left":true,"clocks":160000}, {"clocks":4000000},
+ {"dx":-20,"dy":-34,"clocks":1000000},
+ {"left":true,"clocks":5000000,"frame_sha256":"5292f8d38ece757408f50610fbcde492016200c9c15149cd8f7b035b4301b295"}, {"clocks":1000000},
+ {"dx":71,"dy":3,"clocks":1000000},
+ {"left":true,"clocks":160000}, {"clocks":4000000,"frame_sha256":"0e80e912c141fae8a52ff56991ca4009e3b26a02659311721353a443aeb1d0b3"},
+ {"left":true,"clocks":160000}, {"clocks":4000000},
+ {"dx":-51,"dy":31,"clocks":1000000},
+ {"left":true,"clocks":160000}, {"clocks":4000000,"frame_sha256":"cfa979357dfee86f9d68a8dc05117746577e50c9e70ce68b87e9b9b15d9b3bd3"}
+]
