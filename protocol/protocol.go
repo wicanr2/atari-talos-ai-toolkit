@@ -18,6 +18,14 @@ type Request struct {
 	ID     string `json:"id"`
 	Op     string `json:"op"`
 	Frames uint64 `json:"frames,omitempty"`
+	// 規格 147：執行與輸入。
+	Count    uint64 `json:"count,omitempty"`
+	DX       int    `json:"dx,omitempty"`
+	DY       int    `json:"dy,omitempty"`
+	Left     bool   `json:"left,omitempty"`
+	Right    bool   `json:"right,omitempty"`
+	ScanCode uint16 `json:"scan_code,omitempty"`
+	Pressed  bool   `json:"pressed,omitempty"`
 }
 
 type Response struct {
@@ -71,6 +79,8 @@ func Handle(request Request) (Response, bool) {
 	case "boot", "reset", "run_instructions", "run_frames", "key", "mouse",
 		"read_memory", "write_memory", "breakpoint", "watchpoint", "snapshot",
 		"restore", "framebuffer", "trace":
+		// 有機器的時候，前六個由 Session 接手（規格 147）；這裡是沒有機器的
+		// 無狀態路徑。
 		return failure(request.ID, "not_implemented",
 			fmt.Sprintf("%s requires the Atari ST machine core", request.Op)), false
 	default:

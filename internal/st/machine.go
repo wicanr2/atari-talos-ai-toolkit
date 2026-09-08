@@ -1,6 +1,10 @@
 package st
 
-import "github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
+import (
+	"fmt"
+
+	"github.com/wicanr2/atari-talos-ai-toolkit/internal/m68k"
+)
 
 const firstColorSTVBLClock uint64 = 263*508 + 64
 const colorST60HzFrameClocks uint64 = 263 * 508
@@ -32,6 +36,7 @@ type Machine struct {
 	ikbdClockPollScheduledCount     uint32
 	ikbdClockResponseRound          uint8
 	nextIKBDClockResponseClock      uint64
+	nextIKBDUplinkClock             uint64
 	ikbdClockResponseDeliveryClocks [7]uint64
 	timerCClockStarted              bool
 	timerCPeriods                   uint64
@@ -90,6 +95,7 @@ func (m *Machine) Reset() error {
 	m.ikbdClockPollScheduledCount = 0
 	m.ikbdClockResponseRound = 0
 	m.nextIKBDClockResponseClock = 0
+	m.nextIKBDUplinkClock = 0
 	m.ikbdClockResponseDeliveryClocks = [7]uint64{}
 	m.timerCClockStarted = false
 	m.timerCPeriods = 0
@@ -109,8 +115,18 @@ func (m *Machine) Reset() error {
 func (m *Machine) Step() (m68k.StepResult, error) {
 	idle := uint64(0)
 	if m.CPU.IsStopped() && !m.vblPending && m.Clocks < m.nextVBLClock {
-		idle = m.nextVBLClock - m.Clocks
-		m.raiseVBL()
+		// IKBD 的上行位元組比下一個 VBL 早到時，STOP 要在那裡醒——不然三個
+		// 位元組會在同一次裝置推進裡全擠出來，主機一個都沒機會讀（規格 142）。
+		if uplink := m.dueIKBDUplinkClock(); uplink != 0 && uplink < m.nextVBLClock {
+			idle = uplink - m.Clocks
+			if err := m.Memory.deliverIKBDUplinkByte(); err != nil {
+				return m68k.StepResult{}, err
+			}
+			m.nextIKBDUplinkClock = uplink + ikbdUplinkByteClocks
+		} else {
+			idle = m.nextVBLClock - m.Clocks
+			m.raiseVBL()
+		}
 	}
 	if channel, pending := m.mfpBInterruptChannel(); pending {
 		result, accepted, err := m.CPU.AcceptVectoredInterruptAt(6, m.Memory.mfpVector(channel), m.Clocks+idle)
@@ -122,8 +138,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 			m.Memory.acknowledgeMFPB(channel)
 			m.Interrupts++
 			m.Clocks += uint64(result.Clocks)
-			m.advanceClockedDevices()
-			return result, nil
+			return result, m.advanceClockedDevices()
 		}
 	}
 	if m.vblPending {
@@ -138,8 +153,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 			m.vblPending = false
 			m.Interrupts++
 			m.Clocks += uint64(result.Clocks)
-			m.advanceClockedDevices()
-			return result, nil
+			return result, m.advanceClockedDevices()
 		}
 	}
 	stepEpoch := m.Clocks
@@ -182,7 +196,9 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	}
 	m.Instructions++
 	m.Clocks += uint64(result.Clocks)
-	m.advanceClockedDevices()
+	if err := m.advanceClockedDevices(); err != nil {
+		return result, err
+	}
 	if m.Memory != nil && m.Memory.videoSync50Transition {
 		if m.nextVBLClock != firstColorSTVBLClock+3*colorST60HzFrameClocks {
 			return result, &BusFault{Address: VideoSyncMode, FunctionCode: 5, Write: true, Size: 1, Reason: FaultUnsupportedDeviceState}
@@ -195,7 +211,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 	return result, nil
 }
 
-func (m *Machine) advanceClockedDevices() {
+func (m *Machine) advanceClockedDevices() error {
 	if !m.fdcReadClockStarted && m.Memory != nil && m.Memory.fdcReadPending &&
 		m.Memory.fdcReadStartClock != 0 {
 		m.fdcReadClockStarted = true
@@ -291,15 +307,28 @@ func (m *Machine) advanceClockedDevices() {
 		}
 		if index+1 == len(ikbdClockResponse) {
 			m.nextIKBDClockResponseClock = 0
+			m.nextIKBDUplinkClock = 0
 		} else {
 			m.nextIKBDClockResponseClock += 10 * 1024
 		}
+	}
+	// 上行封包每 10 個位元時間送一個位元組，一次只送一個——送完要讓主機有機會
+	// 進中斷把它讀走，下一個才會來（規格 142）。
+	if m.dueIKBDUplinkClock() != 0 && m.Clocks >= m.nextIKBDUplinkClock {
+		if err := m.Memory.deliverIKBDUplinkByte(); err != nil {
+			return err
+		}
+		m.nextIKBDUplinkClock += ikbdUplinkByteClocks
+	}
+	if m.Memory != nil && m.Memory.ikbdUplinkCount == 0 {
+		m.nextIKBDUplinkClock = 0
 	}
 	if m.ikbdResetRXDeadline != 0 && m.Clocks >= m.ikbdResetRXDeadline {
 		m.ikbdResetRXClock = m.ikbdResetRXDeadline
 		m.Memory.deliverIKBDResetResponse()
 		m.ikbdResetRXDeadline = 0
 	}
+	return nil
 }
 
 func fdcRestoreDeadline(start uint64) uint64 {
@@ -344,6 +373,14 @@ func (m *Machine) mfpBInterruptChannel() (uint8, bool) {
 		}
 	}
 	return 0, false
+}
+
+// dueIKBDUplinkClock 回報還在排隊的上行位元組要送出的時刻，沒有就回 0。
+func (m *Machine) dueIKBDUplinkClock() uint64 {
+	if m.Memory == nil || m.Memory.ikbdUplinkCount == 0 {
+		return 0
+	}
+	return m.nextIKBDUplinkClock
 }
 
 func timerCDeadline(start, periods uint64) uint64 {
@@ -425,4 +462,22 @@ func prependIdle(result m68k.StepResult, clocks uint32) m68k.StepResult {
 	result.Clocks += clocks
 	result.Timeline = timeline
 	return result
+}
+
+// Framebuffer 回傳目前程式化基址起的 32,000 個位元組、那個基址與 Shifter 的
+// 解析度。低解析度是 320×200 四平面（規格 147 的 `framebuffer` 用它）。
+func (m *Machine) Framebuffer() ([]byte, uint32, byte, error) {
+	if m.Memory == nil {
+		return nil, 0, 0, fmt.Errorf("st: machine has no memory")
+	}
+	base := m.Memory.ProgrammedVideoBase()
+	frame := make([]byte, 32000)
+	for i := range frame {
+		value, err := m.Memory.ReadByteFC(base+uint32(i), 5)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		frame[i] = value
+	}
+	return frame, base, m.Memory.shifterResolution, nil
 }

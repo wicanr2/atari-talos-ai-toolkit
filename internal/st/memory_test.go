@@ -1052,18 +1052,26 @@ func TestPSGFixedBootPortWrites(t *testing.T) {
 		t.Fatalf("PSG selected/R7/R14=%02x/%02x/%02x",
 			memory.psgRegisterSelect, memory.psgRegisters[7], memory.psgRegisters[14])
 	}
-	for _, address := range []uint32{PSGRegisterSelect, PSGRegisterData} {
-		if _, err := memory.ReadByteFC(address, 5); err == nil {
-			t.Fatalf("unmodeled PSG read %06x unexpectedly accepted", address)
+	// R0–R13 是聲音暫存器，選得動也寫得進去（規格 144）；還沒建模的是 R15
+	// （port B）與更大的值。
+	for _, test := range []struct {
+		address uint32
+		value   byte
+	}{
+		{PSGRegisterSelect, 15},
+		{PSGRegisterData, 0},
+	} {
+		if _, err := memory.ReadByteFC(test.address, 5); err == nil {
+			t.Fatalf("unmodeled PSG read %06x unexpectedly accepted", test.address)
 		}
-		if err := memory.WriteByteFC(address, 0, 5); err == nil {
-			t.Fatalf("invalid PSG write %06x unexpectedly accepted", address)
+		if err := memory.WriteByteFC(test.address, test.value, 5); err == nil {
+			t.Fatalf("invalid PSG write %06x unexpectedly accepted", test.address)
 		}
-		if err := memory.WriteByteFC(address, 0, 1); err == nil {
-			t.Fatalf("user PSG write %06x unexpectedly accepted", address)
+		if err := memory.WriteByteFC(test.address, test.value, 1); err == nil {
+			t.Fatalf("user PSG write %06x unexpectedly accepted", test.address)
 		}
-		if err := memory.WriteWord(address, 0, 5); err == nil {
-			t.Fatalf("PSG word write %06x unexpectedly accepted", address)
+		if err := memory.WriteWord(test.address, uint16(test.value), 5); err == nil {
+			t.Fatalf("PSG word write %06x unexpectedly accepted", test.address)
 		}
 	}
 	if err := memory.M68KReset(); err != nil {
@@ -2039,7 +2047,8 @@ func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
 		memory.psgDriveStage != 6 || memory.psgRegisters[14] != 3 {
 		t.Fatal("strobe read before select unexpectedly accepted or mutated state")
 	}
-	if err := memory.WriteByteFC(PSGRegisterSelect, 13, 5); err == nil ||
+	// R13 現在是合法的聲音暫存器（規格 144）；還沒建模的是 R15。
+	if err := memory.WriteByteFC(PSGRegisterSelect, 15, 5); err == nil ||
 		memory.psgDriveStage != 6 || memory.psgRegisterSelect != 14 {
 		t.Fatal("wrong strobe register unexpectedly accepted or mutated state")
 	}

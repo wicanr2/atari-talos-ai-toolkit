@@ -1,5 +1,13 @@
 # Atari Talos 目前狀態
 
+## 2026-09-08 磁片驗證分支
+
+目前工作分支為 `feat/dm-raw-disk-verification-20260908`，保留既有磁片
+成果並整合 main `90d94f7`。完整 Go 測試通過，私人磁片實測則停在
+BPB 宣告 819200 bytes、檔案實際 839680 bytes 的掛載限制。
+尚未取得遊戲啟動或一致性證據。下一個驗證閘門與重跑方式見
+[`磁片驗證紀錄`](docs/dm-raw-disk-verification-20260908.md)。
+
 更新日期：2026-09-06。
 
 ## 已定案
@@ -569,6 +577,33 @@
   dummy seek 與未再次 seek 的 receipt 都跟隨目前 head。固定 bootstrap 跑滿 800 萬 steps
   無 gate，抵達 7,996,009 instructions／177,899,648 clocks、head track 40；ring 內
   track 39／side 1 與 track 40／side 0 的 CHS 均正確。這仍不是原版遊戲 parity 證據。
+- IKBD 的**相對滑鼠上行封包**已接（規格 142 CONFORMED，2026-09-06）：三個位元組
+  ——表頭 `%111110xy`（左鍵 bit 1、右鍵 bit 0，所以 `$FA` 是左鍵、`$F9` 是右鍵）、
+  delta x、delta y，兩個位移都是二補數。門檻只做 EmuTOS 設的 1，其餘 fail-closed。
+  驗收的 oracle 是 **EmuTOS 自己的 VDI**：注入已知位移，量畫面上游標移動的像素數
+  與方向，移回原點之後畫面與基準逐像素相同。
+- 表頭的按鍵位元不只是文件推論（規格 143 CONFORMED，2026-09-06）：EmuTOS 桌面上
+  短按左鍵讓 `DISK A` 反白並留著，長按又沒移動則在放開時取消，**右鍵按下與放開
+  都是 0 個像素變動**。所以 bit 1 就是 GEM 會反應的那一顆。
+- **按鍵會彈聲音，所以 PSG 不只有 port A**（規格 144 CONFORMED，2026-09-06）：
+  EmuTOS 的按鍵聲把 R7 讀改寫成 `$FE`，模型原本 15 處把 R7 釘在 `$C0` 的門檻
+  全部改看 port 方向位元（高兩位）。同一片修掉一個舊瑕疵：6 條「選 R14」的規則
+  從來沒有真的把 `psgRegisterSelect` 設成 14，先前靠「前提已經是 14」剛好等價，
+  一旦按鍵聲選過 R12 就會讀到錯的暫存器。
+- 鍵盤 make／break 已接（規格 145 CONFORMED）：單一位元組，break 是 make 或上
+  `$80`，範圍 `$01`–`$72`。收據是 EmuTOS 的 `Desktop Info` 對話框——Return 關得掉、
+  `1` 鍵不動。
+- 雙擊（規格 146 CONFORMED）：IKBD 沒有雙擊的概念，四個封包而已，時間窗由 GEM 判。
+  單擊留下反白、雙擊不留，而且雙擊沒去碰磁碟機——**沒有磁片可開**。要看到磁碟機
+  視窗打開，得先把規格 141 的映像接進 WD1772 的 sector 讀取路徑。
+- **`talos-jsonl/1` 已經驅動得動機器**（規格 147 CONFORMED）：`boot`／`reset`／
+  `run_instructions`／`key`／`mouse`／`framebuffer` 六個 op，`emulation_ready`
+  改成 `true`。ROM 由 `TALOS_TOS_ROM` 決定，**請求裡不收檔案路徑**。
+  `framebuffer` 只回指紋與幾何，不回像素。
+- `STOP` 的 idle 跳躍現在會停在 IKBD 上行位元組的投遞時刻，不再一路衝到下一個 VBL。
+  原本那樣會把一個封包的三個位元組擠在同一次裝置推進裡送出，主機一個都來不及讀；
+  真硬體上 ACIA 中斷會把 `STOP` 叫醒。只有下行命令時看不出這個缺陷——ROM 那時是
+  主動輪詢的。
 
 1. 依已驗證的 pipeline／bus 模型，逐組擴充 Dungeon Master 實際需要的 68000 opcode；
    每組先寫 READY 規格。
