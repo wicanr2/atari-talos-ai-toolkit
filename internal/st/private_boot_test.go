@@ -77,11 +77,21 @@ func TestPrivateDiskBoot(t *testing.T) {
 			limit := 10000
 			if !pressed {
 				limit = 1_000_000
+				if raw := os.Getenv("TALOS_BOOT_ENTER_STEPS"); raw != "" {
+					n, err := strconv.Atoi(raw)
+					if err != nil || n < 1 || n > 100_000_000 {
+						t.Fatal("TALOS_BOOT_ENTER_STEPS must be 1..100000000")
+					}
+					limit = n
+				}
 			}
 			for i := 0; i < limit; i++ {
 				if _, err := m.Step(); err != nil {
 					privateBootFrame(t, m, "talos-after-enter.png")
-					t.Fatalf("ENTER phase=%d step=%d PC=%08x: %v", phase, i, m.CPU.State.PC, err)
+					t.Fatalf("ENTER phase=%d step=%d PC=%08x state=%+v: %v", phase, i, m.CPU.State.PC, m.CPU.State, err)
+				}
+				if i%5_000_000 == 0 {
+					t.Logf("ENTER phase=%d step=%d PC=%08x clocks=%d track=%d", phase, i, m.CPU.State.PC, m.Clocks, m.Memory.fdcHeadTrack)
 				}
 			}
 		}

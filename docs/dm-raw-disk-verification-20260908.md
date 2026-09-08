@@ -39,6 +39,19 @@ Timer A IACK=4727。不代表已完成地城／招募驗收；新收據另存 `i
 私人新收據在 `workplace/verification/st12-20260908/timera/`。
 Hatari 可自然進地城並到 ELIJA 候選面板，**不代表 Talos 已完成對拍**。
 
+## ENTER 後延長載入驗證
+
+新增 `TALOS_BOOT_ENTER_STEPS`（1..100000000；預設仍為 1000000）控制
+放開 ENTER 後的有界步數，只影響診斷測試，不改硬體或遊戲時序。
+15000000／50000000 步畫面仍是入口走廊；磁頭持續推進，不能誤判為等待輸入。
+設 100000000 後在第 51897669 步觸發真實拒絕：CPU PC `$0000F108`，
+`write 1-byte bus fault at 0xfffa1b fc=5: unsupported_device_state`。
+畫面已出現地城方向按鈕，但沒有完成可操作地城驗收。
+framebuffer SHA-256 `15741e67de4ed7ac97707913649bbbbd8ef08cb8eb857c72834e8c922e1fb7b9`。
+這是 Timer B 裝置缺口，不是 remake 規則差異；下一步須先完成 Timer B READY 規格。
+私人收據另存 Dungeon Master 的 `workplace/verification/st12-20260908/timerb-gate/`。
+失敗保留為失敗，不將「到達預期阻塞」改寫成整體測試通過。
+
 以下為最初盤點收據；BPB 阻塞已由明示幾何 API 解決，不再當成目前待辦。
 
 ## 已確認
