@@ -41,6 +41,8 @@ Hatari 可自然進地城並到 ELIJA 候選面板，**不代表 Talos 已完成
 
 ## ENTER 後延長載入驗證
 
+以下是規格 155 修正前的阻塞收據；Timer B 與正常招募已由下一節的新收據解決。
+
 新增 `TALOS_BOOT_ENTER_STEPS`（1..100000000；預設仍為 1000000）控制
 放開 ENTER 後的有界步數，只影響診斷測試，不改硬體或遊戲時序。
 15000000／50000000 步畫面仍是入口走廊；磁頭持續推進，不能誤判為等待輸入。
@@ -51,6 +53,39 @@ framebuffer SHA-256 `15741e67de4ed7ac97707913649bbbbd8ef08cb8eb857c72834e8c922e1
 這是 Timer B 裝置缺口，不是 remake 規則差異；下一步須先完成 Timer B READY 規格。
 私人收據另存 Dungeon Master 的 `workplace/verification/st12-20260908/timerb-gate/`。
 失敗保留為失敗，不將「到達預期阻塞」改寫成整體測試通過。
+
+## Timer B 修正後：正常移動與 ELIJA 招募
+
+規格 155 完成 50 Hz 正常畫面的 Timer B 事件計數、中斷及 STOP 到期喚醒。
+同片與 EmuTOS 1.3，自 reset 50000000 步點 ENTER，放開後再等 55000000 步，
+執行 `docs/dm12en-elija-actions.json`。不是座標／角色／PC 注入。
+`key` 是 IKBD 掃描碼（72 前進、82 左轉、71 右轉），按住 160000 clocks 後
+正常放開；`dx/dy/left/right` 是實體滑鼠相對事件。`clocks` 控制每動作的等待。
+三次向左上移動讓游標自然碰到邊界，再移到鏡子與招募按鈕，不直接改遊戲座標。
+
+| 檢查點 | 動作索引 | framebuffer SHA-256 |
+|---|---:|---|
+| ELIJA 鏡子 | 32 | `37a7a237a8128849f9559dbd42cebf85966960a144ab7320fb50037d7398474c` |
+| ELIJA 候選面板 | 38 | `85702d833c6e0782cf4bbc68bd5a653773547557a3ffcad7ee9df72a25541bb7` |
+| RESURRECT 後隊伍列 | 41 | `9b55df6be46de173c40b849ed9ef328710e99176652456111bad0b3e22242a51` |
+
+目視確認 `ELIJA RESURRECTED`、鏡子清空及角色加入隊伍。
+候選姓名 ELIJA LION OF YAITOPYA、生命 60/60、體力 58/58、魔力 22/22、
+負重 2.0/44 kg 與既有 Hatari／remake 收據一致。最終 Timer B events=237661、
+IACK=2305，確認實際送入 CPU。各動作 PNG、輸入及日誌保存 Dungeon Master 的
+`workplace/verification/st12-20260908/timerb-elija/`，不公開原片或遊戲畫面。
+
+重跑：沿用前述 ROM／磁片環境，額外設定：
+
+```sh
+TALOS_BOOT_ENTER=1 TALOS_BOOT_ENTER_STEPS=55000000 \
+TALOS_BOOT_ACTIONS=/src/docs/dm12en-elija-actions.json \
+go test ./internal/st -run TestPrivateDiskBoot -v
+```
+
+JSON 的三個 `frame_sha256` 會使畫面不一致時測試失敗。這是本條固定路徑的
+可重現檢查，不能取代新機制的原版證據。逐像素差異、raster palette、
+物品取放、遊戲存讀檔、戰鬥／法術及全遊戲對拍仍未驗收，remake 分數不提高。
 
 以下為最初盤點收據；BPB 阻塞已由明示幾何 API 解決，不再當成目前待辦。
 

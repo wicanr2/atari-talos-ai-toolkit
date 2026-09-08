@@ -1,5 +1,14 @@
 # Atari Talos 研究紀錄
 
+## 2026-09-08 Timer B 與 ELIJA 垂直路徑
+
+依 Motorola 計數器契約與 Hatari 2.4.1 黑箱 CPU 探針建立規格 155，沒有移植
+GPL 程式碼。固定正常 50 Hz 掃描線下降緣後，遊戲每幀會實際重設／重載 Timer B。
+最初 STOP 排到下一個邊緣而非到期，造成第一個前進後 processor stopped；
+以主計數 139 的測試修正，保留早期失敗日誌供追溯，不將它歸咎原片。
+正常移動、ELIJA 候選及 RESURRECT 完成，四組候選屬性與 Hatari／remake
+既有收據一致。細節見磁片驗證紀錄；原片及 PNG 不加入公開 repo。
+
 ## 2026-09-08 IKBD ENTER 修正
 
 已確認：規格 154 引用 Atari IKBD 文件的 power-up／RESET 預設；相對模式、

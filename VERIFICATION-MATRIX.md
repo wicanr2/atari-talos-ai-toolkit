@@ -3,7 +3,8 @@
 | 能力 | 內部測試 | 獨立 oracle | 現況 |
 |---|---|---|---|
 | Timer A 延遲模式 | 七分頻、重載、相位、中斷優先序、STOP 喚醒 | Hatari 2.4.1 自製程式六位元組收據相同 | 規格 153 範圍通過；非逐週期音訊證據 |
-| DM12EN NOCP 開機 | 自 reset、正常 ENTER、延長載入 | 同片 Hatari 另有地城收據 | 地城方向按鈕已畫出；Timer B 初始化拒絕，未完成地城對拍 |
+| DM12EN NOCP 玩家路徑 | 自 reset、ENTER、前進／轉向、ELIJA 候選及招募 | Hatari／remake 候選四組屬性一致 | 本條路徑通過；未外推戰鬥／存讀檔 |
+| Timer B 50 Hz 事件模式 | 200 事件/幀、重載、遮罩、優先序、STOP 到期 | Hatari 2.4.1 兩幀 400 事件逐筆回讀 | 規格 155 範圍通過；不含 overscan 或 raster 擷取 |
 | IKBD 開機滑鼠預設 | cold reset 封包、控制器 reset、參數組裝回歸 | Atari IKBD 協定預設契約 | 規格 154；不繞過輸入檢查 |
 | JSON Lines 解碼與回覆關聯 | protocol／CLI golden test | 不適用 | 已建立 |
 | 未知欄位與未知命令拒絕 | protocol／CLI test | 不適用 | 已建立 |

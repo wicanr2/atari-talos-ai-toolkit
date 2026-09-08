@@ -60,10 +60,21 @@ func (m *Machine) mfpInterruptChannel() (uint8, bool) {
 		m.Memory.mfpISRA&0xe0 == 0 {
 		return 13, true
 	}
+	if m.Memory != nil && m.Memory.mfpIPRA&m.Memory.mfpIERA&m.Memory.mfpIMRA&1 != 0 && m.Memory.mfpISRA == 0 {
+		return 8, true
+	}
 	return m.mfpBInterruptChannel()
 }
 
 func (m *Memory) acknowledgeMFP(channel uint8) {
+	if channel == 8 {
+		m.mfpTimerBAcknowledged++
+		m.mfpIPRA &^= 1
+		if m.mfpVR&8 != 0 {
+			m.mfpISRA |= 1
+		}
+		return
+	}
 	if channel == 13 {
 		m.mfpTimerAAcknowledged++
 		m.mfpIPRA &^= 0x20

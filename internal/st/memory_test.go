@@ -486,7 +486,7 @@ func TestMFPIERResetStateZeroWrites(t *testing.T) {
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
 			}
-			if err := memory.WriteByteFC(test.address, 1, 5); err == nil {
+			if err := memory.WriteByteFC(test.address, 2, 5); err == nil {
 				t.Fatalf("nonzero %s write unexpectedly accepted", test.name)
 			} else {
 				var fault *BusFault
@@ -641,7 +641,7 @@ func TestMFPIMRMaskLatchWithoutPending(t *testing.T) {
 					t.Fatalf("%s=%02x/%v want %02x", test.name, got, err, value)
 				}
 			}
-			test.pending(memory, 1)
+			test.pending(memory, 2) // Timer B bit 0 已由規格 155 支援；保留未知來源拒絕。
 			beforeMask, beforePending := test.readMask(memory), test.readPending(memory)
 			if err := memory.WriteByteFC(test.address, 0xff, 5); err == nil {
 				t.Fatalf("%s write with pending unexpectedly succeeded", test.name)
@@ -1029,7 +1029,7 @@ func TestMFPUSARTInterruptEnableSequence(t *testing.T) {
 	if memory.mfpIERA != 0x14 || memory.mfpIPRA != 0 {
 		t.Fatalf("USART IERA/IPRA=%02x/%02x", memory.mfpIERA, memory.mfpIPRA)
 	}
-	for _, value := range []byte{0x15, 0xff} {
+	for _, value := range []byte{0x16, 0xff} {
 		if err := memory.WriteByteFC(MFPIERA, value, 5); err == nil {
 			t.Fatalf("final IERA value %02x unexpectedly accepted", value)
 		}

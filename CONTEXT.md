@@ -8,9 +8,10 @@
 規格 153 已完成 Timer A 延遲計數、中斷與 STOP 喚醒；全套測試及 Hatari 微型程式收據通過。
 私人 DM12EN NOCP 盤已自然通過 ENTER／RESUME 與開門動畫。
 規格 154 已修正 IKBD 開機／控制器重設的滑鼠預設值；ENTER 按下／放開可正常
-觸發開門動畫，不再被相對模式檢查拒絕。延長載入後已畫出地城方向按鈕，
-但在 Timer B `$FFFA1B` 初始化遭拒；尚未取得可操作地城或招募收據。
-Hatari 已同片走到 ELIJA 候選面板，但這不能冒充 Talos 遊戲驗收。
+觸發開門動畫，不再被相對模式檢查拒絕。規格 155 已修 Timer B 50 Hz 顯示
+事件計數及 STOP 到期喚醒；Talos 同片正常前進／轉向到 ELIJA，候選面板
+與 RESURRECT 招募已實跑通過。候選四組屬性與既有 Hatari／remake 一致。
+已固定正常輸入與三個 framebuffer 檢查點；未宣稱逐像素、戰鬥或存讀檔通過。
 下一個驗證閘門與重跑方式見
 [`磁片驗證紀錄`](docs/dm-raw-disk-verification-20260908.md)。
 

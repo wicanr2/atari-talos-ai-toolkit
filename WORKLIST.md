@@ -5,8 +5,9 @@
 - 明示幾何、IKBD 停用、MOVEP、MFP 停用、PSG word 已實作並測試。
 - Timer A 延遲模式已完成（規格 153）；已自然到達 ENTER／RESUME 入口。
 - ENTER 輸入已修正（規格 154），正常按下／放開觸發開門動畫。
-- 下一步：依硬體規格建立 Timer B 初始化／事件契約，再重跑載入至地城及招募。
-  ENTER 放開後第 51897669 步，PC `$0000F108` 寫 `$FFFA1B` 被拒；同狀態對拍未完成。
+- Timer B 50 Hz 事件計數與 STOP 到期喚醒已完成（規格 155），正常移動與 ELIJA
+  RESURRECT 招募通過；路線及三個 framebuffer 檢查點見 `docs/dm12en-elija-actions.json`。
+- 後續獨立驗證：物品取放、遊戲存讀檔、戰鬥／法術樣本；逐像素與全遊戲對拍未完成。
 - 私人磁片／測試路徑見 `docs/dm-raw-disk-verification-20260908.md`。
 
 | 項目 | 狀態 | 完成條件 |

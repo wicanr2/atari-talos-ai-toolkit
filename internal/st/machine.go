@@ -114,8 +114,10 @@ func (m *Machine) Reset() error {
 
 func (m *Machine) Step() (m68k.StepResult, error) {
 	m.Memory.advanceTimerA(m.Clocks)
+	m.Memory.advanceTimerB(m.Clocks)
 	idle := uint64(0)
 	readyA := m.timerACanWake() && m.Memory.mfpIPRA&0x20 != 0
+	readyA = readyA || (m.timerBCanWake() && m.Memory.mfpIPRA&1 != 0)
 	if m.CPU.IsStopped() && !readyA && !m.vblPending && m.Clocks < m.nextVBLClock {
 		// IKBD 的上行位元組比下一個 VBL 早到時，STOP 要在那裡醒——不然三個
 		// 位元組會在同一次裝置推進裡全擠出來，主機一個都沒機會讀（規格 142）。
@@ -129,7 +131,12 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 			wake = deadline
 		}
 		idle = wake - m.Clocks
+		if deadline := m.Memory.timerBDeadline(); m.timerBCanWake() && deadline != 0 && deadline < wake {
+			wake = deadline
+			idle = wake - m.Clocks
+		}
 		m.Memory.advanceTimerA(wake)
+		m.Memory.advanceTimerB(wake)
 		if wake == uplink {
 			if err := m.Memory.deliverIKBDUplinkByte(); err != nil {
 				return m68k.StepResult{}, err
@@ -224,6 +231,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 
 func (m *Machine) advanceClockedDevices() error {
 	m.Memory.advanceTimerA(m.Clocks)
+	m.Memory.advanceTimerB(m.Clocks)
 	if !m.fdcReadClockStarted && m.Memory != nil && m.Memory.fdcReadPending &&
 		m.Memory.fdcReadStartClock != 0 {
 		m.fdcReadClockStarted = true
@@ -451,6 +459,7 @@ func (m *Machine) raiseDueVBL() {
 func (m *Machine) raiseVBL() {
 	if m.Memory != nil {
 		m.Memory.reloadVideoBaseOnVBL()
+		m.Memory.mfpTimerBFrameOrigin = m.nextVBLClock - 64
 	}
 	m.vblPending = true
 	m.nextVBLClock += m.vblFrameClocks

@@ -251,6 +251,12 @@ type Memory struct {
 	mfpTimerAAcknowledged           uint64
 	mfpTimerAOutput                 bool
 	mfpTBCR                         byte
+	mfpTimerBLastClock              uint64
+	mfpTimerBFrameOrigin            uint64
+	mfpTimerBNextEdge               uint64
+	mfpTimerBEvents                 uint64
+	mfpTimerBAcknowledged           uint64
+	mfpTimerBOutput                 bool
 	mfpTCDCR                        byte
 	mfpTimerCStart                  bool
 	mfpTimerCStartClock             uint64
@@ -634,7 +640,7 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 		}
 		return m.mfpTAMain, nil
 	case address == MFPTBDR:
-		if m.mfpTBCR != 0 {
+		if m.mfpTBCR != 0 && m.mfpTBCR != 8 {
 			return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 		}
 		return m.mfpTBMain, nil
@@ -682,6 +688,7 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
 		m.advanceTimerA(access.Clock)
+		m.advanceTimerB(access.Clock)
 		clockReadCount := m.ikbdClockResponseReadCount
 		readbackCount := m.ikbdClockReadbackReadCount
 		pollCount := m.ikbdClockPollResponseReadCount
@@ -1137,8 +1144,8 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPIERA {
-		// 規格 153：可新增 Timer A；其他新通道仍交給既有初始化契約。
-		if value&^m.mfpIERA == 0x20 {
+		// 規格 153／155：可新增 Timer A／B；其他新通道仍交給既有初始化契約。
+		if added := value &^ m.mfpIERA; added != 0 && added&^byte(0x21) == 0 {
 			m.mfpIERA = value
 			m.mfpIPRA &= value
 			return nil
@@ -1242,7 +1249,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPIMRA {
-		if m.mfpIPRA&^byte(0x20) != 0 {
+		if m.mfpIPRA&^byte(0x21) != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		m.mfpIMRA = value
@@ -1297,8 +1304,20 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPTBCR {
-		if m.mfpTBCR != 0 || value != 0 {
+		// 規格 155：僅接受已建模的標準顯示事件模式，不吞掉未知計時模式。
+		mode := value & 15
+		if (m.mfpTBCR != 0 && m.mfpTBCR != 8) || (mode != 0 && mode != 8) || (mode == 8 && (m.videoSyncMode != 2 || m.shifterResolution > 1 || m.mfpAER != 0)) {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		if mode == 8 && m.mfpTBCR == 0 {
+			m.mfpTimerBNextEdge = m.nextTimerBEdge(m.mfpTimerBLastClock)
+		}
+		if mode == 0 {
+			m.mfpTimerBNextEdge = 0
+		}
+		m.mfpTBCR = mode
+		if value&16 != 0 {
+			m.mfpTimerBOutput = false
 		}
 		return nil
 	}
@@ -1369,10 +1388,13 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPTBDR {
-		if m.mfpTBCR != 0 {
+		if m.mfpTBCR != 0 && m.mfpTBCR != 8 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
-		m.mfpTBDR, m.mfpTBMain = value, value
+		m.mfpTBDR = value
+		if m.mfpTBCR == 0 {
+			m.mfpTBMain = value
+		}
 		return nil
 	}
 	if address == MFPTCDR {
@@ -1488,6 +1510,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
 		m.advanceTimerA(access.Clock)
+		m.advanceTimerB(access.Clock)
 		wasTimerC := m.mfpTimerCStart
 		wasSystemTimerD := m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart
 		floppyMediaPhase := m.floppyMediaPhase
@@ -2132,6 +2155,9 @@ func (m *Memory) ColdReset() {
 	m.mfpTimerAAcknowledged = 0
 	m.mfpTimerAOutput = false
 	m.mfpTBCR = 0
+	m.mfpTimerBLastClock, m.mfpTimerBFrameOrigin, m.mfpTimerBNextEdge = 0, 0, 0
+	m.mfpTimerBEvents, m.mfpTimerBAcknowledged = 0, 0
+	m.mfpTimerBOutput = false
 	m.mfpTCDCR = 0
 	m.mfpTimerCStart = false
 	m.mfpTimerCStartClock = 0

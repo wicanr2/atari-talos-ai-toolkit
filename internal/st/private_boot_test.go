@@ -3,6 +3,7 @@ package st
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -97,11 +98,78 @@ func TestPrivateDiskBoot(t *testing.T) {
 		}
 		privateBootFrame(t, m, "talos-after-enter.png")
 	}
+	if path := os.Getenv("TALOS_BOOT_ACTIONS"); path != "" {
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		var actions []struct {
+			Key         byte   `json:"key"`
+			DX          int    `json:"dx"`
+			DY          int    `json:"dy"`
+			Left        bool   `json:"left"`
+			Right       bool   `json:"right"`
+			Clocks      uint64 `json:"clocks"`
+			FrameSHA256 string `json:"frame_sha256"`
+		}
+		decoder := json.NewDecoder(file)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&actions); err != nil {
+			t.Fatal(err)
+		}
+		if len(actions) > 200 {
+			t.Fatal("too many actions")
+		}
+		for index, a := range actions {
+			if a.Clocks < 1 || a.Clocks > 20_000_000 {
+				t.Fatal("action clocks must be 1..20000000")
+			}
+			if a.Key != 0 {
+				if err := m.QueueKey(a.Key, true); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := m.QueueMouseMotion(a.DX, a.DY, a.Left, a.Right); err != nil {
+				t.Fatal(err)
+			}
+			deadline := m.Clocks + a.Clocks
+			release := m.Clocks + 160000
+			for m.Clocks < deadline {
+				if a.Key != 0 && m.Clocks >= release {
+					if err := m.QueueKey(a.Key, false); err != nil {
+						t.Fatal(err)
+					}
+					a.Key = 0
+				}
+				if _, err := m.Step(); err != nil {
+					privateBootFrame(t, m, fmt.Sprintf("talos-action-%03d.png", index))
+					t.Fatalf("action=%d PC=%08x: %v", index, m.CPU.State.PC, err)
+				}
+			}
+			if a.Key != 0 {
+				if err := m.QueueKey(a.Key, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Logf("action=%d clocks=%d TimerB events=%d iack=%d", index, m.Clocks, m.Memory.mfpTimerBEvents, m.Memory.mfpTimerBAcknowledged)
+			privateBootFrame(t, m, fmt.Sprintf("talos-action-%03d.png", index))
+			if a.FrameSHA256 != "" {
+				frame, _, _, err := m.Framebuffer()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := fmt.Sprintf("%x", sha256.Sum256(frame)); got != a.FrameSHA256 {
+					t.Fatalf("action=%d framebuffer=%s want=%s", index, got, a.FrameSHA256)
+				}
+			}
+		}
+	}
 	t.Log("步數上限已到；需目視與玩家操作驗證，不能僅以未觸發 gate 判定遊戲啟動")
 }
 
 func privateBootFrame(t *testing.T, m *Machine, names ...string) {
 	t.Helper()
+	t.Logf("Timer B: mode=%d data=%d main=%d events=%d iack=%d next=%d", m.Memory.mfpTBCR, m.Memory.mfpTBDR, m.Memory.mfpTBMain, m.Memory.mfpTimerBEvents, m.Memory.mfpTimerBAcknowledged, m.Memory.mfpTimerBNextEdge)
 	t.Logf("Timer A: mode=%d data=%d main=%d timeouts=%d iack=%d enable=%02x mask=%02x pending=%02x service=%02x", m.Memory.mfpTACR, m.Memory.mfpTADR, m.Memory.mfpTAMain, m.Memory.mfpTimerATimeouts, m.Memory.mfpTimerAAcknowledged, m.Memory.mfpIERA, m.Memory.mfpIMRA, m.Memory.mfpIPRA, m.Memory.mfpISRA)
 	frame, base, res, err := m.Framebuffer()
 	if err != nil {

@@ -1,0 +1,17 @@
+[
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":82,"clocks":4000000}, {"key":71,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":82,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":82,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":71,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":71,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":82,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":71,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":82,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":71,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000}, {"key":71,"clocks":8000000,"frame_sha256":"37a7a237a8128849f9559dbd42cebf85966960a144ab7320fb50037d7398474c"},
+ {"dx":-127,"dy":-127,"clocks":1000000}, {"dx":-127,"dy":-127,"clocks":1000000}, {"dx":-127,"dy":-127,"clocks":1000000},
+ {"dx":112,"dy":85,"clocks":1000000},
+ {"left":true,"clocks":160000}, {"clocks":8000000,"frame_sha256":"85702d833c6e0782cf4bbc68bd5a653773547557a3ffcad7ee9df72a25541bb7"},
+ {"dx":18,"dy":25,"clocks":1000000},
+ {"left":true,"clocks":160000}, {"clocks":8000000,"frame_sha256":"9b55df6be46de173c40b849ed9ef328710e99176652456111bad0b3e22242a51"}
+]
