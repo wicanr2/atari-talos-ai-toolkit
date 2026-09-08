@@ -231,6 +231,8 @@ func (c *CPU) StepAt(epoch uint64) (StepResult, error) {
 		return c.enterStandardException(11, c.State.PC-4, nil, 34)
 	case opcode&0xff00 == 0x0800:
 		return c.stepBit(opcode, true)
+	case opcode&0xf138 == 0x0108:
+		return c.stepMOVEP(opcode)
 	case opcode&0xf100 == 0x0100:
 		return c.stepBit(opcode, false)
 	case opcode&0xf0f8 == 0x50c8:

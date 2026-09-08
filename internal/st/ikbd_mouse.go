@@ -15,6 +15,9 @@ const (
 // QueueMouseMotion 把一次滑鼠事件交給 IKBD：兩軸的相對位移與左右鍵狀態。
 // 門檻 1 之下，只要有位移或按鍵狀態改變就會排出一個三位元組的封包（規格 142）。
 func (m *Memory) QueueMouseMotion(deltaX, deltaY int, left, right bool) error {
+	if m.ikbdMouseDisabled {
+		return nil
+	}
 	if !m.ikbdRelativeMouse {
 		return fmt.Errorf("st: ikbd is not in relative mouse mode")
 	}

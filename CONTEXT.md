@@ -3,9 +3,11 @@
 ## 2026-09-08 磁片驗證分支
 
 目前工作分支為 `feat/dm-raw-disk-verification-20260908`，保留既有磁片
-成果並整合 main `90d94f7`。完整 Go 測試通過，私人磁片實測則停在
-BPB 宣告 819200 bytes、檔案實際 839680 bytes 的掛載限制。
-尚未取得遊戲啟動或一致性證據。下一個驗證閘門與重跑方式見
+成果並整合 main `90d94f7`。已新增明示幾何、IKBD 停用、MOVEP、MFP 中斷
+停用與 PSG word 寫入；外部 MOVEP 5,000 筆及完整 Go 測試／vet 通過。
+私人 DM12EN NOCP 盤已可載入引擎，仍停在未支援的 MFP Timer A，未進地城。
+Hatari 已同片走到 ELIJA 候選面板，但這不能冒充 Talos 遊戲驗收。
+下一個驗證閘門與重跑方式見
 [`磁片驗證紀錄`](docs/dm-raw-disk-verification-20260908.md)。
 
 更新日期：2026-09-06。

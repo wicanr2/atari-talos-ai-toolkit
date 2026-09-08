@@ -851,7 +851,8 @@ func TestMFPTimerCInterruptEnable(t *testing.T) {
 	if memory.mfpIERB != 0x20 || memory.mfpIPRB != 0 {
 		t.Fatalf("Timer C IERB/IPRB=%02x/%02x", memory.mfpIERB, memory.mfpIPRB)
 	}
-	for _, value := range []byte{0x20, 0x21, 0x40, 0xff} {
+	// 規格 151 已允許重入與停用；這裡保留未支援的新通道拒絕。
+	for _, value := range []byte{0x21, 0x40, 0xff} {
 		if err := memory.WriteByteFC(MFPIERB, value, 5); err == nil {
 			t.Fatalf("active IERB value %02x unexpectedly accepted", value)
 		}
@@ -1019,7 +1020,7 @@ func TestMFPUSARTInterruptEnableSequence(t *testing.T) {
 	if memory.mfpIERA != 0x14 || memory.mfpIPRA != 0 {
 		t.Fatalf("USART IERA/IPRA=%02x/%02x", memory.mfpIERA, memory.mfpIPRA)
 	}
-	for _, value := range []byte{0, 0x10, 0x14, 0x15, 0xff} {
+	for _, value := range []byte{0x15, 0xff} {
 		if err := memory.WriteByteFC(MFPIERA, value, 5); err == nil {
 			t.Fatalf("final IERA value %02x unexpectedly accepted", value)
 		}
@@ -1070,7 +1071,7 @@ func TestPSGFixedBootPortWrites(t *testing.T) {
 		if err := memory.WriteByteFC(test.address, test.value, 1); err == nil {
 			t.Fatalf("user PSG write %06x unexpectedly accepted", test.address)
 		}
-		if err := memory.WriteWord(test.address, uint16(test.value), 5); err == nil {
+		if err := memory.WriteWord(test.address, uint16(test.value)<<8, 5); err == nil {
 			t.Fatalf("PSG word write %06x unexpectedly accepted", test.address)
 		}
 	}
@@ -2082,8 +2083,9 @@ func TestSTYM2149ParallelPortStrobeInit(t *testing.T) {
 	if err := memory.WriteByteFC(PSGRegisterSelect, 14, 1); err == nil {
 		t.Fatal("user strobe register write unexpectedly accepted")
 	}
-	if err := memory.WriteWord(PSGRegisterSelect, 14, 5); err == nil {
-		t.Fatal("word strobe register write unexpectedly accepted")
+	// 規格 152：低 byte 的 14 被忽略，實際選擇高 byte 的 R0。
+	if err := memory.WriteWord(PSGRegisterSelect, 14, 5); err != nil || memory.psgRegisterSelect != 0 {
+		t.Fatal("word PSG high lane not selected")
 	}
 	if err := memory.M68KReset(); err != nil {
 		t.Fatal(err)
@@ -2881,7 +2883,8 @@ func TestIKBDACIASetClockBuffersSevenFrames(t *testing.T) {
 	memory.ikbdClockResponseComplete = true
 	memory.ikbdClockRequestHandled = true
 	clock := uint64(1000)
-	if err := memory.WriteByteFC(IKBDACIAData, 0x1a, 5); err == nil {
+	// 0x1a 已由規格 149 支援；0x14 仍是不支援的 joystick event mode。
+	if err := memory.WriteByteFC(IKBDACIAData, 0x14, 5); err == nil {
 		t.Fatal("wrong set-clock command unexpectedly accepted")
 	}
 	for index, value := range ikbdSetClockPacket {

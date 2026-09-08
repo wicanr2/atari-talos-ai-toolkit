@@ -54,6 +54,19 @@ func (f *RawFloppy) Geometry() (tracks, sides, sectorsPerTrack uint16) {
 	return f.tracks, f.sides, f.sectorsPerTrack
 }
 
+// NewRawFloppyGeometry uses caller-declared physical geometry (spec 148).
+// It preserves every input byte, independently of the filesystem's BPB.
+func NewRawFloppyGeometry(image []byte, tracks, sides, sectors uint16) (*RawFloppy, error) {
+	if tracks == 0 || sectors == 0 || (sides != 1 && sides != 2) {
+		return nil, fmt.Errorf("st: invalid explicit raw geometry %d/%d/%d", tracks, sides, sectors)
+	}
+	want := uint64(tracks) * uint64(sides) * uint64(sectors) * rawFloppySectorSize
+	if uint64(len(image)) != want {
+		return nil, fmt.Errorf("st: raw floppy length %d, explicit geometry requires %d", len(image), want)
+	}
+	return &RawFloppy{data: append([]byte(nil), image...), tracks: tracks, sides: sides, sectorsPerTrack: sectors}, nil
+}
+
 func (f *RawFloppy) Sector(track, side, sector uint16) ([]byte, error) {
 	if track >= f.tracks || side >= f.sides || sector == 0 || sector > f.sectorsPerTrack {
 		return nil, fmt.Errorf("st: raw floppy CHS out of range: track=%d side=%d sector=%d", track, side, sector)

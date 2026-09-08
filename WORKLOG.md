@@ -2,6 +2,15 @@
 
 ## 2026-09-08
 
+- 後續新增規格 148–152：明示 raw 幾何（不放寬 BPB 預設）、IKBD 停用事件、
+  MOVEP、MFP 子集停用與 PSG 高 byte word 寫入。MOVEP 外部語料 5,000 筆
+  通過，含完整 bus 序列；全套 Go 測試及 vet 通過。
+- 已找到具 START.PAK 雜湊身分證據的 DM12EN，使用原版資料與 ReDMCSB
+  NOCP 引擎建私人盤。Talos 尚卡 Timer A；Hatari 可進地城並走到 ELIJA。
+  同次原片測試抓到 remake 端序誤判，修正放在 remake 專用分支，不更改此 repo 的 main。
+- 不將私人原片、ROM 或遊戲截圖納入 public repo；不把新單元測試當成遊戲 parity。
+- 本輪 `talos-dm-*` 專用容器全部退出移除，未操作其他專案容器或映像。
+
 - 依使用者要求建立 `feat/dm-raw-disk-verification-20260908`，從
   `9e3b8bb` 整合遠端 main `90d94f7`；保留兩邊文件與 FDC 完成處理，
   同時採用 IKBD 裝置推進的錯誤回傳。完整 Go 測試通過。

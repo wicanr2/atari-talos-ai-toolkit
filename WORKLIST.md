@@ -1,5 +1,12 @@
 # Atari Talos 工作清單
 
+## DM12EN 磁片驗證分支目前待辦
+
+- 明示幾何、IKBD 停用、MOVEP、MFP 停用、PSG word 已實作並測試。
+- 未完成：Timer A 初始化；未達遊戲入口、正常招募或 Talos 同狀態對拍。
+- 先依硬體規格與外部 oracle 建立最小 Timer A 契約；不要深入遊戲聲音 driver。
+- 私人磁片／測試路徑見 `docs/dm-raw-disk-verification-20260908.md`。
+
 | 項目 | 狀態 | 完成條件 |
 |---|---|---|
 | M0 專案與控制契約 | **完成** | public repo、Docker 全測試、JSONL golden test |

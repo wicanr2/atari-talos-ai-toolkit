@@ -170,6 +170,8 @@ type Memory struct {
 	ikbdResetCommandDone            bool
 	ikbdResetCommandHandled         bool
 	ikbdCommandOpcode               byte
+	ikbdMouseDisabled               bool
+	ikbdJoystickDisabled            bool
 	ikbdCommandRemaining            uint8
 	ikbdCommandParams               [2]byte
 	ikbdCommandParamCount           uint8
@@ -272,10 +274,12 @@ func (m *Memory) attachFloppyA(floppy *RawFloppy) {
 // drive. The first pass through flop_mediach() still has the flopvbl() port
 // ($23) latched; every pass after it re-selects the same $25 it already wrote.
 // ikbdCommandParamLength is how many parameter bytes each host command takes.
-// Only the four Initmous sends are known here; anything else fails closed
-// rather than being swallowed as a parameterless command (spec 138).
+// 支援 Initmous 的四條命令（規格 138）及停用事件（規格 149）；
+// 其餘未知命令拒絕，不當成無參數命令吞掉。
 func ikbdCommandParamLength(opcode byte) (uint8, bool) {
 	switch opcode {
+	case 0x12, 0x1a: // disable mouse / joystick event reporting (spec 149)
+		return 0, true
 	case 0x08: // set relative mouse position reporting
 		return 0, true
 	case 0x10: // set Y=0 at top
@@ -323,12 +327,16 @@ func (m *Memory) ikbdTakeCommandByte(value byte) {
 	}
 }
 
-// applyIKBDCommand records what the completed command asked for. None of these
-// four produce a response -- the Hatari trace shows tx_state flat at 0 through
-// all seven bytes -- so nothing is scheduled here.
+// applyIKBDCommand 記錄完整命令。規格 138 的設定與規格 149 的停用
+// 都沒有回覆封包，因此不排程上行資料。
 func (m *Memory) applyIKBDCommand() {
 	switch m.ikbdCommandOpcode {
+	case 0x12:
+		m.ikbdMouseDisabled = true
+	case 0x1a:
+		m.ikbdJoystickDisabled = true
 	case 0x08:
+		m.ikbdMouseDisabled = false
 		m.ikbdRelativeMouse = true
 	case 0x10:
 		m.ikbdYAxisUp = true
@@ -394,7 +402,7 @@ func (m *Memory) HasExactByteWriteTiming(address uint32) bool {
 
 func (m *Memory) HasExactWordWriteTiming(address uint32) bool {
 	address &= AddressMask
-	return address == STDMAControl || address == STDiskController
+	return address == STDMAControl || address == STDiskController || m.isModeledPSGByte(address)
 }
 
 func (m *Memory) HasExactWordReadTiming(address uint32) bool {
@@ -1057,7 +1065,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			m.ikbdACIATXShiftTicks == 0 && !m.ikbdClockPollRequestWritten &&
 			!m.ikbdClockPollResponseActive &&
 			m.ikbdClockPollRequestCount == m.ikbdClockPollCompleteCount
-		// Initmous 的四條設定命令（規格 138）。它們排在既有的 reset／set clock／
+		// Initmous 設定與事件停用（規格 138／149）。排在既有的 reset／set clock／
 		// interrogate 之後，所以那些分支仍然優先。
 		if m.ikbdACIAConfigured && m.ikbdACIAStatus&2 != 0 && !m.ikbdACIATXPending &&
 			!(validFirst || validSecond || validClockRequest || validSetClock || validClockReadback || validClockPoll) &&
@@ -1130,6 +1138,11 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			return nil
 		}
 		if m.mfpIERA != 0 || value != 0 {
+			if value&^m.mfpIERA == 0 {
+				m.mfpIERA = value
+				m.mfpIPRA &= value
+				return nil
+			}
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		return nil
@@ -1173,6 +1186,11 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 			return nil
 		}
 		if m.mfpIERB != 0 || value != 0 {
+			if value&^m.mfpIERB == 0 {
+				m.mfpIERB = value
+				m.mfpIPRB &= value
+				return nil
+			}
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		return nil
@@ -1480,6 +1498,10 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 	address &= AddressMask
 	if address&1 != 0 {
 		return m.fault(address, functionCode, true, 2, FaultOddWordAddress)
+	}
+	// 規格 152：PSG 接收 word 的高 byte，低 byte 不形成第二次寫入。
+	if m.isModeledPSGByte(address) {
+		return m.WriteByteFC(address, byte(value>>8), functionCode)
 	}
 	if address == STDMAControl || address == STDiskController {
 		if fault := m.validateAccess(address, functionCode, true, 2); fault != nil {
@@ -1866,6 +1888,9 @@ func (m *Memory) WriteWord(address uint32, value uint16, functionCode uint8) err
 }
 
 func (m *Memory) WriteWordAt(address uint32, value uint16, access m68k.BusAccess) (uint32, error) {
+	if m.isModeledPSGByte(address) {
+		return m.WriteByteAt(address, byte(value>>8), access)
+	}
 	wait, err := busSlotWait(access.Clock)
 	if err != nil {
 		return 0, err
@@ -1960,6 +1985,8 @@ func (m *Memory) ColdReset() {
 	m.flopVBLMediaDrive = -1
 	m.ikbdCommandOpcode = 0
 	m.ikbdCommandRemaining = 0
+	m.ikbdMouseDisabled = false
+	m.ikbdJoystickDisabled = false
 	m.ikbdCommandParamCount = 0
 	m.ikbdCommandParams = [2]byte{}
 	m.ikbdRelativeMouse = false
