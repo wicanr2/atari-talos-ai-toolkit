@@ -1,0 +1,17 @@
+[
+ {"key":82,"clocks":4000000},
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":71,"clocks":4000000},
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":72,"clocks":12000000,"frame_sha256":"395a53ee6e5e18655a208cef6e43adc5335c5af3ce2f9c9b623c8cf0da1aa5b4"},
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":82,"clocks":4000000},
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":72,"clocks":4000000}, {"key":72,"clocks":4000000},
+ {"key":71,"clocks":4000000,"frame_sha256":"414343d74338695c4f95d1ece23bc324242d34c4f249cb32fbcc37077c949197"},
+ {"key":72,"clocks":20000000},
+ {"clocks":20000000,"frame_sha256":"b6ea0d33abb57d4dc5a0f051608eccb1968e814b84fb97bc6e0b716269d6e5fb"},
+ {"key":72,"clocks":8000000},
+ {"key":82,"clocks":8000000,"frame_sha256":"7f33df57e381731c25c308e24f37c144ff75f98d46340e1b350e064a8e7f77b6"}
+]

@@ -3,6 +3,21 @@
 日期：2026-09-08；分支：`feat/dm-raw-disk-verification-20260908`。
 基底 `9e3b8bb` 已整合 main `90d94f7`。
 
+## 第一層至第二層
+
+在 ELIJA 招募基底後設定
+`TALOS_BOOT_ACTIONS_TAIL=/src/docs/dm12en-stairs-actions.json`，共 63 動作。
+自冷啟動正常走到地圖 0 的 `(6,9)` 踏板，開 `(5,9)` 門，經 `(3,15)` 樓梯
+抵達地圖 1；再前進、左轉面向木門。沒有注入 PC、RAM 或座標。
+動作 48／58／60／62 的開門、下樓前後及木門畫面加上原有招募三點雜湊，
+全部冷啟動重播一致。最終 clocks=18149864946、Timer B events=402399、IACK=3952。
+
+remake 同路線場景一致，正常 GUI 寫出的 ST 存檔為 map 1、(3,0) 面西、
+ELIJA health=60。這是同操作與場景對帳，不是同步 RNG／tick 或逐像素證明。
+remake 讀檔後三個額外骷髏欄位及場景變暗仍待查，原版遊戲寫盤仍未驗證。
+私人圖像與兩輪日誌保存 DM `workplace/verification/st12-20260908/stairs-talos/`，
+細節見 DM 的 `docs/verification/atari-st12-stairs-20260908.md`。本輪只加輸入，未改核心。
+
 ## 招募後衣袍檢查點
 
 在既有 `dm12en-elija-actions.json` 後接 `dm12en-inventory-actions.json`，

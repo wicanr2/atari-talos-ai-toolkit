@@ -5,6 +5,7 @@
 | Timer A 延遲模式 | 七分頻、重載、相位、中斷優先序、STOP 喚醒 | Hatari 2.4.1 自製程式六位元組收據相同 | 規格 153 範圍通過；非逐週期音訊證據 |
 | DM12EN NOCP 玩家路徑 | 自 reset、ENTER、前進／轉向、ELIJA 候選及招募 | Hatari／remake 候選四組屬性一致 | 本條路徑通過；未外推戰鬥／存讀檔 |
 | DM12EN ROBE 物品路徑 | 招募後取下、眼睛檢視、背包收納及穿回，四點畫面雜湊 | 原片可見 ROBE／0.4 KG 及槽位移轉 | Talos 冷啟動重播通過；不是跨引擎逐像素證明 |
+| DM12EN 第一層至第二層 | 正常招募、踏板開門、下樓及第二層前進轉向，四點雜湊 | 同片地圖、remake 同場景及 map 1 正常存檔 | 正常下樓路徑通過；不外推完整存讀檔或逐像素 |
 | Timer B 50 Hz 事件模式 | 200 事件/幀、重載、遮罩、優先序、STOP 到期 | Hatari 2.4.1 兩幀 400 事件逐筆回讀 | 規格 155 範圍通過；不含 overscan 或 raster 擷取 |
 | IKBD 開機滑鼠預設 | cold reset 封包、控制器 reset、參數組裝回歸 | Atari IKBD 協定預設契約 | 規格 154；不繞過輸入檢查 |
 | JSON Lines 解碼與回覆關聯 | protocol／CLI golden test | 不適用 | 已建立 |

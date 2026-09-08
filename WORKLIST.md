@@ -8,6 +8,7 @@
 - Timer B 50 Hz 事件計數與 STOP 到期喚醒已完成（規格 155），正常移動與 ELIJA
   RESURRECT 招募通過；路線及三個 framebuffer 檢查點見 `docs/dm12en-elija-actions.json`。
 - ROBE 取下、眼睛說明、背包收納、穿回已完成 Talos 冷啟動重播與四點雜湊。
+- 第一層至第二層：正常踏板開門、下樓、第二層前進轉向完成，四點雜湊重播一致。
 - 後續獨立驗證：其他物品操作、遊戲存讀檔、戰鬥／法術樣本；逐像素與全遊戲對拍未完成。
 - 私人磁片／測試路徑見 `docs/dm-raw-disk-verification-20260908.md`。
 
