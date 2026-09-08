@@ -3,8 +3,8 @@
 ## DM12EN 磁片驗證分支目前待辦
 
 - 明示幾何、IKBD 停用、MOVEP、MFP 停用、PSG word 已實作並測試。
-- 未完成：Timer A 初始化；未達遊戲入口、正常招募或 Talos 同狀態對拍。
-- 先依硬體規格與外部 oracle 建立最小 Timer A 契約；不要深入遊戲聲音 driver。
+- Timer A 延遲模式已完成（規格 153）；已自然到達 ENTER／RESUME 入口。
+- 下一步：追查 ENTER 輸入被 IKBD 相對模式檢查拒絕；正常招募與同狀態對拍尚未完成。
 - 私人磁片／測試路徑見 `docs/dm-raw-disk-verification-20260908.md`。
 
 | 項目 | 狀態 | 完成條件 |

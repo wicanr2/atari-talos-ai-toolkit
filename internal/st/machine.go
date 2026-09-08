@@ -113,29 +113,40 @@ func (m *Machine) Reset() error {
 }
 
 func (m *Machine) Step() (m68k.StepResult, error) {
+	m.Memory.advanceTimerA(m.Clocks)
 	idle := uint64(0)
-	if m.CPU.IsStopped() && !m.vblPending && m.Clocks < m.nextVBLClock {
+	readyA := m.timerACanWake() && m.Memory.mfpIPRA&0x20 != 0
+	if m.CPU.IsStopped() && !readyA && !m.vblPending && m.Clocks < m.nextVBLClock {
 		// IKBD 的上行位元組比下一個 VBL 早到時，STOP 要在那裡醒——不然三個
 		// 位元組會在同一次裝置推進裡全擠出來，主機一個都沒機會讀（規格 142）。
-		if uplink := m.dueIKBDUplinkClock(); uplink != 0 && uplink < m.nextVBLClock {
-			idle = uplink - m.Clocks
+		wake := m.nextVBLClock
+		uplink := m.dueIKBDUplinkClock()
+		if uplink != 0 && uplink < wake {
+			wake = uplink
+		}
+		// 非同步 MFP timeout 可落在奇數 clock；CPU 於下一個偶數 bus 邊界喚醒。
+		if deadline := (m.Memory.timerADeadline() + 1) &^ uint64(1); m.timerACanWake() && deadline != 0 && deadline < wake {
+			wake = deadline
+		}
+		idle = wake - m.Clocks
+		m.Memory.advanceTimerA(wake)
+		if wake == uplink {
 			if err := m.Memory.deliverIKBDUplinkByte(); err != nil {
 				return m68k.StepResult{}, err
 			}
 			m.nextIKBDUplinkClock = uplink + ikbdUplinkByteClocks
-		} else {
-			idle = m.nextVBLClock - m.Clocks
+		} else if wake == m.nextVBLClock {
 			m.raiseVBL()
 		}
 	}
-	if channel, pending := m.mfpBInterruptChannel(); pending {
+	if channel, pending := m.mfpInterruptChannel(); pending {
 		result, accepted, err := m.CPU.AcceptVectoredInterruptAt(6, m.Memory.mfpVector(channel), m.Clocks+idle)
 		if err != nil {
 			return result, err
 		}
 		if accepted {
 			result = prependIdle(result, uint32(idle))
-			m.Memory.acknowledgeMFPB(channel)
+			m.Memory.acknowledgeMFP(channel)
 			m.Interrupts++
 			m.Clocks += uint64(result.Clocks)
 			return result, m.advanceClockedDevices()
@@ -212,6 +223,7 @@ func (m *Machine) Step() (m68k.StepResult, error) {
 }
 
 func (m *Machine) advanceClockedDevices() error {
+	m.Memory.advanceTimerA(m.Clocks)
 	if !m.fdcReadClockStarted && m.Memory != nil && m.Memory.fdcReadPending &&
 		m.Memory.fdcReadStartClock != 0 {
 		m.fdcReadClockStarted = true
@@ -359,7 +371,7 @@ func fdcTrackSeekDeadline(start uint64, from, target byte) uint64 {
 }
 
 func (m *Machine) mfpBInterruptChannel() (uint8, bool) {
-	if m.Memory == nil {
+	if m.Memory == nil || m.Memory.mfpISRA != 0 {
 		return 0, false
 	}
 	requests := m.Memory.mfpIPRB & m.Memory.mfpIERB & m.Memory.mfpIMRB & 0x70

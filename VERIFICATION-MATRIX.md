@@ -2,6 +2,8 @@
 
 | 能力 | 內部測試 | 獨立 oracle | 現況 |
 |---|---|---|---|
+| Timer A 延遲模式 | 七分頻、重載、相位、中斷優先序、STOP 喚醒 | Hatari 2.4.1 自製程式六位元組收據相同 | 規格 153 範圍通過；非逐週期音訊證據 |
+| DM12EN NOCP 開機 | 自 reset 五千萬步、入口截圖 | 同片 Hatari 另有地城收據 | Talos 到入口；ENTER 尚受 IKBD 模式阻塞 |
 | JSON Lines 解碼與回覆關聯 | protocol／CLI golden test | 不適用 | 已建立 |
 | 未知欄位與未知命令拒絕 | protocol／CLI test | 不適用 | 已建立 |
 | 68000 NOP | 本地 pipeline／fail-closed 測試 | SingleStepTests 2,500 筆狀態＋bus trace | 通過 |

@@ -68,11 +68,31 @@ func TestPrivateDiskBoot(t *testing.T) {
 		}
 	}
 	privateBootFrame(t, m)
+	if os.Getenv("TALOS_BOOT_ENTER") == "1" {
+		// DM 入口的正常游標起點即 ENTER；只送 IKBD 按下／放開，不改遊戲狀態。
+		for phase, pressed := range []bool{true, false} {
+			if err := m.QueueMouseMotion(0, 0, pressed, false); err != nil {
+				t.Fatal(err)
+			}
+			limit := 10000
+			if !pressed {
+				limit = 1_000_000
+			}
+			for i := 0; i < limit; i++ {
+				if _, err := m.Step(); err != nil {
+					privateBootFrame(t, m, "talos-after-enter.png")
+					t.Fatalf("ENTER phase=%d step=%d PC=%08x: %v", phase, i, m.CPU.State.PC, err)
+				}
+			}
+		}
+		privateBootFrame(t, m, "talos-after-enter.png")
+	}
 	t.Log("步數上限已到；需目視與玩家操作驗證，不能僅以未觸發 gate 判定遊戲啟動")
 }
 
-func privateBootFrame(t *testing.T, m *Machine) {
+func privateBootFrame(t *testing.T, m *Machine, names ...string) {
 	t.Helper()
+	t.Logf("Timer A: mode=%d data=%d main=%d timeouts=%d iack=%d enable=%02x mask=%02x pending=%02x service=%02x", m.Memory.mfpTACR, m.Memory.mfpTADR, m.Memory.mfpTAMain, m.Memory.mfpTimerATimeouts, m.Memory.mfpTimerAAcknowledged, m.Memory.mfpIERA, m.Memory.mfpIMRA, m.Memory.mfpIPRA, m.Memory.mfpISRA)
 	frame, base, res, err := m.Framebuffer()
 	if err != nil {
 		t.Logf("framebuffer error: %v", err)
@@ -95,7 +115,11 @@ func privateBootFrame(t *testing.T, m *Machine) {
 			img.SetRGBA(x, y, color.RGBA{uint8(((v >> 8) & 7) * 255 / 7), uint8(((v >> 4) & 7) * 255 / 7), uint8((v & 7) * 255 / 7), 255})
 		}
 	}
-	file, err := os.Create(filepath.Join(out, "talos-boot.png"))
+	name := "talos-boot.png"
+	if len(names) > 0 {
+		name = names[0]
+	}
+	file, err := os.Create(filepath.Join(out, name))
 	if err != nil {
 		t.Fatal(err)
 	}

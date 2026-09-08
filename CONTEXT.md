@@ -5,7 +5,9 @@
 目前工作分支為 `feat/dm-raw-disk-verification-20260908`，保留既有磁片
 成果並整合 main `90d94f7`。已新增明示幾何、IKBD 停用、MOVEP、MFP 中斷
 停用與 PSG word 寫入；外部 MOVEP 5,000 筆及完整 Go 測試／vet 通過。
-私人 DM12EN NOCP 盤已可載入引擎，仍停在未支援的 MFP Timer A，未進地城。
+規格 153 已完成 Timer A 延遲計數、中斷與 STOP 喚醒；全套測試及 Hatari 微型程式收據通過。
+私人 DM12EN NOCP 盤已自然到達 ENTER／RESUME 入口，尚未進地城。
+下一阻塞是點 ENTER 時 IKBD 尚未處於相對滑鼠模式；不是 Timer A 初始化問題。
 Hatari 已同片走到 ELIJA 候選面板，但這不能冒充 Talos 遊戲驗收。
 下一個驗證閘門與重跑方式見
 [`磁片驗證紀錄`](docs/dm-raw-disk-verification-20260908.md)。

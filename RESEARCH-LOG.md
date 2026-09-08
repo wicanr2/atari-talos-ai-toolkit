@@ -1,5 +1,14 @@
 # Atari Talos 研究紀錄
 
+## 2026-09-08 Timer A 延遲模式
+
+依 Motorola 手冊建立規格 153，沒有讀取或移植遊戲聲音驅動及 Hatari 原始碼。
+自製 68000 程式 SHA-256 為
+`f5c10eea7c6ba721b7b5d12fc78ce0aaa4da6c36a743c380b3895f95b974d31e`；
+Talos 與 Hatari 2.4.1 均讀回 `[3,3,5,5,32,0]`，驗證執行中寫入延後重載、
+停止凍結、遮罩不丟 pending、停用清 pending。這是裝置狀態證據，不是遊戲路徑。
+異步時鐘相位採規格近似；細節與重生入口見 `docs/spec/153-mfp-timer-a-delay.md`。
+
 ## 基準模擬器
 
 - Hatari 2.6.1 是 Atari ST／STE／TT／Falcon 模擬器，目標包含遊戲與 demo 的硬體相容性。

@@ -754,17 +754,26 @@ func TestMFPTimerControlResetStopWrites(t *testing.T) {
 				m68k.BusAccess{Clock: 2, FunctionCode: 5}); err != nil || wait != 4 {
 				t.Fatalf("timed %s zero write wait=%d err=%v", test.name, wait, err)
 			}
-			if err := memory.WriteByteFC(test.address, 1, 5); err == nil {
+			unsupported := byte(1)
+			if test.address == MFPTACR {
+				unsupported = 8
+			} // 規格 153 支援延遲模式，事件模式仍拒絕。
+			if err := memory.WriteByteFC(test.address, unsupported, 5); err == nil {
 				t.Fatalf("nonzero %s write unexpectedly succeeded", test.name)
 			}
 			if got, _ := memory.ReadByteFC(test.address, 5); got != 0 {
 				t.Fatalf("failed %s write changed value to %02x", test.name, got)
 			}
 			test.set(memory, 1)
-			if err := memory.WriteByteFC(test.address, 0, 5); err == nil {
-				t.Fatalf("active %s stop unexpectedly succeeded", test.name)
+			stopErr := memory.WriteByteFC(test.address, 0, 5)
+			wantControl := byte(1)
+			if test.address == MFPTACR {
+				wantControl = 0
 			}
-			if got, _ := memory.ReadByteFC(test.address, 5); got != 1 {
+			if (stopErr == nil) != (test.address == MFPTACR) {
+				t.Fatalf("active %s stop: %v", test.name, stopErr)
+			}
+			if got, _ := memory.ReadByteFC(test.address, 5); got != wantControl {
 				t.Fatalf("failed active %s stop changed value to %02x", test.name, got)
 			}
 			if _, err := memory.ReadByteFC(test.address, 1); err == nil {
@@ -3098,7 +3107,8 @@ func TestMFPTimerDataStoppedLoad(t *testing.T) {
 		data     func(*Memory) byte
 		main     func(*Memory) byte
 	}{
-		{name: "TADR", address: MFPTADR, activate: func(m *Memory) { m.mfpTACR = 1 },
+		// 規格 153 已支援 Timer A delay 1–7，仍檢查未知事件模式拒絕。
+		{name: "TADR", address: MFPTADR, activate: func(m *Memory) { m.mfpTACR = 8 },
 			data: func(m *Memory) byte { return m.mfpTADR }, main: func(m *Memory) byte { return m.mfpTAMain }},
 		{name: "TBDR", address: MFPTBDR, activate: func(m *Memory) { m.mfpTBCR = 1 },
 			data: func(m *Memory) byte { return m.mfpTBDR }, main: func(m *Memory) byte { return m.mfpTBMain }},

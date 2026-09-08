@@ -27,9 +27,15 @@ PRIVATE `dm12en-nocp-10spt.st` 為 80/2/10、819200 bytes，SHA-256
 `TALOS_BOOT_DISK`、`TALOS_TOS_ROM`、`TALOS_BOOT_STEPS=50000000`，執行
 `go test ./internal/st -run TestPrivateDiskBoot -v`。此測試自 reset，不改 PC／RAM；
 步數到限不等於遊戲通過。截圖只用當下整幅 palette，非 raster palette 精確證據。
-目前 10-sector 盤在 step 20344161、clocks 307257568、ROM PC `$FC6266`
-阻塞於 Timer A `$FFFA19` byte write（FC=5）；Hatari 可自然進地城並到 ELIJA 候選面板，
-**不代表 Talos 已完成對拍**。
+舊收據在 step 20344161、clocks 307257568、ROM PC `$FC6266` 阻塞於
+Timer A `$FFFA19` byte write（FC=5）；此阻塞已由規格 153 解決。
+目前 Talos 自 reset 五千萬步後自然顯示 ENTER／RESUME，framebuffer SHA-256
+`e38e319d828abb6e3302ac45692fc104c2e8c99af14a8af822b9b864961a14c7`。
+Timer A mode=1、data=112、timeouts=11579728、IACK=0；該路徑未啟用 A 中斷。
+設定 `TALOS_BOOT_ENTER=1` 追加正常滑鼠輸入時，回報
+`st: ikbd is not in relative mouse mode`，為下一個獨立阻塞。
+私人新收據在 `workplace/verification/st12-20260908/timera/`。
+Hatari 可自然進地城並到 ELIJA 候選面板，**不代表 Talos 已完成對拍**。
 
 以下為最初盤點收據；BPB 阻塞已由明示幾何 API 解決，不再當成目前待辦。
 

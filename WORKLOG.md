@@ -2,6 +2,16 @@
 
 ## 2026-09-08
 
+- Timer A 後續完成：規格 153、七種分頻、延後重載、停止保留計數、channel 13
+  中斷與 STOP 喚醒。完整 Go 測試（含外部 68000 語料）、vet、建置及六項
+  EmuTOS Timer C／D 回歸通過。Hatari 2.4.1 與 Talos 自製微型程式收據均為
+  `[3,3,5,5,32,0]`，不宣稱逐週期或音訊波形精確。
+- 同片自 reset 執行五千萬步，Talos 自然顯示 ENTER／RESUME；Timer A timeout
+  11579728 次，IACK 為 0（此入口路徑未啟用 A 中斷）。點 ENTER 遭 IKBD
+  非相對模式拒絕，列為下一獨立缺口，不宣稱進入地城或完成遊戲對拍。
+- 私人收據保存於 Dungeon Master 的 `workplace/verification/st12-20260908/timera/`。
+  本輪容器使用自動移除；不改 main、不公開 ROM／磁片／遊戲畫面。
+
 - 後續新增規格 148–152：明示 raw 幾何（不放寬 BPB 預設）、IKBD 停用事件、
   MOVEP、MFP 子集停用與 PSG 高 byte word 寫入。MOVEP 外部語料 5,000 筆
   通過，含完整 bus 序列；全套 Go 測試及 vet 通過。

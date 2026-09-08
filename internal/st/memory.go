@@ -245,6 +245,11 @@ type Memory struct {
 	mfpIMRB                         byte
 	mfpVR                           byte
 	mfpTACR                         byte
+	mfpTimerALastClock              uint64
+	mfpTimerAFraction               uint64
+	mfpTimerATimeouts               uint64
+	mfpTimerAAcknowledged           uint64
+	mfpTimerAOutput                 bool
 	mfpTBCR                         byte
 	mfpTCDCR                        byte
 	mfpTimerCStart                  bool
@@ -624,7 +629,7 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 	case address == MFPTCDCR:
 		return m.mfpTCDCR, nil
 	case address == MFPTADR:
-		if m.mfpTACR != 0 {
+		if m.mfpTACR > 7 {
 			return 0, m.fault(address, functionCode, false, 1, FaultUnsupportedDeviceState)
 		}
 		return m.mfpTAMain, nil
@@ -676,6 +681,7 @@ func (m *Memory) ReadByteFC(address uint32, functionCode uint8) (byte, error) {
 
 func (m *Memory) ReadByteAt(address uint32, access m68k.BusAccess) (byte, uint32, error) {
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
+		m.advanceTimerA(access.Clock)
 		clockReadCount := m.ikbdClockResponseReadCount
 		readbackCount := m.ikbdClockReadbackReadCount
 		pollCount := m.ikbdClockPollResponseReadCount
@@ -1131,6 +1137,12 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPIERA {
+		// 規格 153：可新增 Timer A；其他新通道仍交給既有初始化契約。
+		if value&^m.mfpIERA == 0x20 {
+			m.mfpIERA = value
+			m.mfpIPRA &= value
+			return nil
+		}
 		serialReady := m.mfpUCR == 0x88 && m.mfpRSR == 1 && m.mfpTSR == 1 && m.mfpIPRA == 0
 		if serialReady && (m.mfpIERA == 0 && value == 0x10 ||
 			m.mfpIERA == 0x10 && (value == 0x10 || value == 0x14)) {
@@ -1230,7 +1242,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPIMRA {
-		if m.mfpIPRA != 0 {
+		if m.mfpIPRA&^byte(0x20) != 0 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
 		m.mfpIMRA = value
@@ -1271,8 +1283,16 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPTACR {
-		if m.mfpTACR != 0 || value != 0 {
+		mode := value & 15
+		if mode > 7 || (m.mfpTACR != 0 && mode != 0 && mode != m.mfpTACR) {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
+		}
+		if mode == 0 || m.mfpTACR == 0 {
+			m.mfpTimerAFraction = 0
+		}
+		m.mfpTACR = mode
+		if value&0x10 != 0 {
+			m.mfpTimerAOutput = false
 		}
 		return nil
 	}
@@ -1339,10 +1359,13 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 		return nil
 	}
 	if address == MFPTADR {
-		if m.mfpTACR != 0 {
+		if m.mfpTACR > 7 {
 			return m.fault(address, functionCode, true, 1, FaultUnsupportedDeviceState)
 		}
-		m.mfpTADR, m.mfpTAMain = value, value
+		m.mfpTADR = value
+		if m.mfpTACR == 0 {
+			m.mfpTAMain = value
+		}
 		return nil
 	}
 	if address == MFPTBDR {
@@ -1464,6 +1487,7 @@ func (m *Memory) WriteByteFC(address uint32, value byte, functionCode uint8) err
 
 func (m *Memory) WriteByteAt(address uint32, value byte, access m68k.BusAccess) (uint32, error) {
 	if m.isModeledMFPByte(address) || m.isModeledPSGByte(address) || m.isModeledACIAByte(address) {
+		m.advanceTimerA(access.Clock)
 		wasTimerC := m.mfpTimerCStart
 		wasSystemTimerD := m.mfpTimerDSystemStage == 8 && m.mfpTimerDStart
 		floppyMediaPhase := m.floppyMediaPhase
@@ -2106,6 +2130,11 @@ func (m *Memory) ColdReset() {
 	m.mfpIMRB = 0
 	m.mfpVR = 0
 	m.mfpTACR = 0
+	m.mfpTimerALastClock = 0
+	m.mfpTimerAFraction = 0
+	m.mfpTimerATimeouts = 0
+	m.mfpTimerAAcknowledged = 0
+	m.mfpTimerAOutput = false
 	m.mfpTBCR = 0
 	m.mfpTCDCR = 0
 	m.mfpTimerCStart = false
