@@ -2,6 +2,16 @@ package st
 
 import "fmt"
 
+// 規格 154：控制器開機／重設預設值，不是 ACIA 的 master reset。
+func (m *Memory) resetIKBDMouseDefaults() {
+	m.ikbdMouseDisabled = false
+	m.ikbdRelativeMouse = true
+	m.ikbdMouseThreshold = [2]byte{1, 1}
+	m.ikbdYAxisUp = true
+	m.ikbdMouseButtonAction = 0
+	m.ikbdMouseButtonActionSet = false // 是否收到明示命令，非模式有效性。
+}
+
 // 相對滑鼠位置紀錄的表頭：`%111110xy`，x 是左鍵（bit 1）、y 是右鍵（bit 0）。
 // 見規格 142 引的兩份 IKBD 協定文件。
 const (

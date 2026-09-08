@@ -32,8 +32,10 @@ Timer A `$FFFA19` byte write（FC=5）；此阻塞已由規格 153 解決。
 目前 Talos 自 reset 五千萬步後自然顯示 ENTER／RESUME，framebuffer SHA-256
 `e38e319d828abb6e3302ac45692fc104c2e8c99af14a8af822b9b864961a14c7`。
 Timer A mode=1、data=112、timeouts=11579728、IACK=0；該路徑未啟用 A 中斷。
-設定 `TALOS_BOOT_ENTER=1` 追加正常滑鼠輸入時，回報
-`st: ikbd is not in relative mouse mode`，為下一個獨立阻塞。
+舊版設定 `TALOS_BOOT_ENTER=1` 回報 `st: ikbd is not in relative mouse mode`；
+已由規格 154 修正開機預設值。同命令重跑按下／放開後顯示開門動畫，
+framebuffer SHA-256 `7a092861ba0f516c800bd25cb219549c4b4cb4032c8f45fa5e7af9364e13bb26`，
+Timer A IACK=4727。不代表已完成地城／招募驗收；新收據另存 `ikbd/`。
 私人新收據在 `workplace/verification/st12-20260908/timera/`。
 Hatari 可自然進地城並到 ELIJA 候選面板，**不代表 Talos 已完成對拍**。
 

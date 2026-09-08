@@ -51,7 +51,7 @@ joystick、memory load／read、controller execute 與其餘 IKBD 命令不在�
    都不回應。
 5. 既有的 `$80,$01` reset、`$1B` set clock、`$1C` interrogate 分支不變，
    優先於本切片的命令組裝器。
-6. cold reset 清掉組裝器與四個設定值。
+6. cold reset 清掉組裝器，設定值恢復硬體預設（由規格 154 訂正原先清零契約）。
 
 ## 驗收與停止線
 

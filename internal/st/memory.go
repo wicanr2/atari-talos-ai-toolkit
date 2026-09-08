@@ -2013,11 +2013,7 @@ func (m *Memory) ColdReset() {
 	m.ikbdJoystickDisabled = false
 	m.ikbdCommandParamCount = 0
 	m.ikbdCommandParams = [2]byte{}
-	m.ikbdRelativeMouse = false
-	m.ikbdMouseThreshold = [2]byte{}
-	m.ikbdYAxisUp = false
-	m.ikbdMouseButtonAction = 0
-	m.ikbdMouseButtonActionSet = false
+	m.resetIKBDMouseDefaults()
 	m.ikbdMouseAccumX, m.ikbdMouseAccumY = 0, 0
 	m.ikbdMouseLeft, m.ikbdMouseRight = false, false
 	m.ikbdUplink = [ikbdUplinkCapacity]byte{}
@@ -2224,6 +2220,7 @@ func (m *Memory) advanceIKBDACIAClock(clocks ...uint64) {
 	if hadShift && m.ikbdACIATXShiftTicks == 0 {
 		completed := m.ikbdACIATXShift
 		if completed == 1 && !m.ikbdResetCommandHandled {
+			m.resetIKBDMouseDefaults()
 			m.ikbdResetCommandDone = true
 			m.ikbdResetCommandHandled = true
 		} else if completed == 0x1c && !m.ikbdClockRequestHandled {

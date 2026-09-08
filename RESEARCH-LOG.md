@@ -1,5 +1,14 @@
 # Atari Talos 研究紀錄
 
+## 2026-09-08 IKBD ENTER 修正
+
+已確認：規格 154 引用 Atari IKBD 文件的 power-up／RESET 預設；相對模式、
+門檻 1/1、Y 原點在上不是必須等待 Initmous 才存在的設定。
+原規格 138 的清零契約只在 EmuTOS 明示設定路徑通過，不能外推到原片開機。
+同片正常 ENTER 輸入後開門動畫與 Timer A 中斷接收提供玩家路徑收據；
+沒有注入模式、遊戲座標或修改 PC。私人收據見 `workplace/verification/st12-20260908/ikbd/`
+（位於 Dungeon Master 專案），不公開遊戲畫面。
+
 ## 2026-09-08 Timer A 延遲模式
 
 依 Motorola 手冊建立規格 153，沒有讀取或移植遊戲聲音驅動及 Hatari 原始碼。

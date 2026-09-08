@@ -60,6 +60,8 @@ func TestIKBDInitmousCommandSequence(t *testing.T) {
 // command codes.
 func TestIKBDParametersAreNotReadAsCommands(t *testing.T) {
 	memory := ikbdReadyForCommands(t)
+	// 刻意使用非預設值，確認參數 08/10 不被解讀成命令。
+	memory.ikbdRelativeMouse, memory.ikbdYAxisUp = false, false
 	if err := sendIKBDByte(t, memory, 0x0b); err != nil {
 		t.Fatal(err)
 	}
@@ -119,8 +121,8 @@ func TestIKBDCommandStateClearsOnColdReset(t *testing.T) {
 		}
 	}
 	memory.ColdReset()
-	if memory.ikbdRelativeMouse || memory.ikbdYAxisUp || memory.ikbdMouseButtonActionSet ||
-		memory.ikbdMouseThreshold != [2]byte{} || memory.ikbdMouseButtonAction != 0 ||
+	if !memory.ikbdRelativeMouse || !memory.ikbdYAxisUp || memory.ikbdMouseButtonActionSet ||
+		memory.ikbdMouseThreshold != [2]byte{1, 1} || memory.ikbdMouseButtonAction != 0 ||
 		memory.ikbdCommandRemaining != 0 || memory.ikbdCommandOpcode != 0 ||
 		memory.ikbdCommandParamCount != 0 || memory.ikbdCommandParams != [2]byte{} {
 		t.Fatal("cold reset 之後 IKBD 命令狀態沒清乾淨")
